@@ -1,0 +1,1631 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Image Tagger Pro v8</title>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #0a0a0a; }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #111; }
+    ::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+    #drop-overlay { display: none; position: fixed; inset: 0; background: rgba(96,165,250,0.2); border: 4px dashed #60a5fa; z-index: 9999; align-items: center; justify-content: center; }
+    #drop-overlay.active { display: flex; }
+  </style>
+</head>
+<body>
+  <div id="drop-overlay"><div style="background: rgba(0,0,0,0.9); padding: 32px 64px; border-radius: 16px; color: #60a5fa; font-size: 20px; font-family: system-ui;">📁 Drop images or folder here</div></div>
+  <div id="root"></div>
+
+  <script>
+    const overlay = document.getElementById('drop-overlay');
+    let dragCounter = 0;
+    document.addEventListener('dragenter', (e) => { e.preventDefault(); dragCounter++; overlay.classList.add('active'); });
+    document.addEventListener('dragleave', (e) => { e.preventDefault(); dragCounter--; if (dragCounter === 0) overlay.classList.remove('active'); });
+    document.addEventListener('dragover', (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; });
+    document.addEventListener('drop', async (e) => {
+      e.preventDefault(); dragCounter = 0; overlay.classList.remove('active');
+      const files = await extractFiles(e.dataTransfer);
+      if (files.length > 0 && window.onFilesDropped) window.onFilesDropped(files);
+    });
+
+    async function extractFiles(dataTransfer) {
+      const files = [];
+      async function processEntry(entry) {
+        if (!entry) return;
+        if (entry.isFile) {
+          try {
+            const file = await new Promise((resolve, reject) => entry.file(resolve, reject));
+            if (file.type.startsWith('image/')) files.push(file);
+          } catch (e) {}
+        } else if (entry.isDirectory) {
+          const reader = entry.createReader();
+          let entries = [];
+          while (true) {
+            const batch = await new Promise((resolve) => reader.readEntries(resolve, () => resolve([])));
+            if (batch.length === 0) break;
+            entries = entries.concat(batch);
+          }
+          for (const e of entries) await processEntry(e);
+        }
+      }
+      const items = dataTransfer.items;
+      if (items?.length > 0) {
+        for (let i = 0; i < items.length; i++) {
+          const entry = items[i].webkitGetAsEntry?.();
+          if (entry) await processEntry(entry);
+        }
+      }
+      if (files.length === 0 && dataTransfer.files) {
+        for (let i = 0; i < dataTransfer.files.length; i++) {
+          if (dataTransfer.files[i].type.startsWith('image/')) files.push(dataTransfer.files[i]);
+        }
+      }
+      return files;
+    }
+  </script>
+
+  <script type="text/babel">
+    const { useState, useRef, useEffect, useMemo, useCallback } = React;
+
+    // ============================================
+    // TAXONOMY
+    // ============================================
+    const DEFAULT_TAXONOMY = {
+      "Design": {
+        "Graphic Design": ["Poster", "Book Design", "Magazine", "Editorial", "Packaging", "Logo", "Branding", "UI Design", "Web Design", "Typography", "Album Cover", "Print"],
+        "Industrial Design": {
+          "Furniture": ["Chair", "Sofa", "Table", "Desk", "Shelving", "Lighting", "Lamp", "Bench", "Cabinet"],
+          "Audio Equipment": ["Headphones", "Speakers", "Amplifier", "Turntable", "Earbuds", "DAC", "Receiver"],
+          "Consumer Electronics": ["Phone", "Computer", "Camera", "Wearable", "Tablet", "Laptop", "Monitor"],
+          "Automotive": ["Car", "Motorcycle", "Concept Car", "Interior", "Electric Vehicle"]
+        }
+      },
+      "Architecture": {
+        "Residential": ["House", "Villa", "Apartment", "Loft", "Cabin", "Townhouse"],
+        "Commercial": ["Office", "Retail", "Hotel", "Restaurant", "Store"],
+        "Institutional": ["Museum", "Library", "School", "Hospital", "Gallery"]
+      },
+      "Art": {
+        "Painting": ["Oil", "Acrylic", "Watercolor", "Abstract", "Portrait"],
+        "Sculpture": ["Bronze", "Marble", "Steel", "Wood", "Installation"],
+        "Photography": ["Portrait", "Landscape", "Street", "Fashion", "Product", "Architecture", "Editorial"]
+      },
+      "Style": {
+        "Modernism": ["Bauhaus", "De Stijl", "International Style", "Swiss Style"],
+        "Contemporary": ["Minimalism", "Brutalism", "Parametric", "Scandinavian"],
+        "Historical": ["Art Nouveau", "Art Deco", "Mid-Century Modern", "Victorian", "Retro"]
+      },
+      "Brand": {
+        "Audio": ["Bang & Olufsen", "Bose", "Sony", "Sennheiser", "Focal", "Beyerdynamic", "Audio-Technica", "Grado", "HiFiMAN", "Audeze", "Master & Dynamic", "KEF", "Bowers & Wilkins"],
+        "Automotive": ["BMW", "Mercedes-Benz", "Porsche", "Audi", "Ferrari", "Tesla", "Volvo", "McLaren"],
+        "Electronics": ["Apple", "Samsung", "Google", "Microsoft", "Sony", "Canon", "Nikon", "Leica"],
+        "Furniture": ["Herman Miller", "Knoll", "Vitra", "Fritz Hansen", "HAY", "Muuto", "Cassina"]
+      },
+      "Creator": ["Designer", "Architect", "Artist", "Photographer", "Studio"],
+      "Product": ["Model", "Series", "Collection"],
+      "Era": ["1950s", "1960s", "1970s", "1980s", "1990s", "2000s", "2010s", "2020s"],
+      "Material": ["Wood", "Metal", "Glass", "Leather", "Plastic", "Aluminum", "Carbon Fiber", "Concrete", "Fabric", "Ceramic"],
+      "Color": ["Black", "White", "Silver", "Gold", "Natural", "Matte", "Glossy", "Red", "Blue", "Green"]
+    };
+
+    const KNOWN_BRANDS = [
+      'Bang & Olufsen', 'B&O', 'Beoplay', 'Beosound', 'Beolab', 'Beovision', 'Beolit',
+      'Bose', 'Sony', 'Sennheiser', 'Audio-Technica', 'Beyerdynamic', 'AKG',
+      'Focal', 'Grado', 'HiFiMAN', 'Audeze', 'Master & Dynamic', 'Shure',
+      'Apple', 'Samsung', 'Google', 'Microsoft', 'Dell', 'ASUS', 'Razer', 'LG',
+      'BMW', 'Mercedes-Benz', 'Mercedes', 'Porsche', 'Audi', 'Volkswagen', 'Tesla', 'Volvo',
+      'Ferrari', 'Lamborghini', 'McLaren', 'Aston Martin', 'Bentley', 'Rolls-Royce',
+      'Herman Miller', 'Knoll', 'Vitra', 'Fritz Hansen', 'Cassina', 'HAY', 'Muuto',
+      'Canon', 'Nikon', 'Leica', 'Hasselblad', 'Fujifilm', 'Zeiss',
+      'KEF', 'Bowers & Wilkins', 'B&W', 'JBL', 'Harman Kardon', 'Marshall', 'Sonos',
+      'Braun', 'Dyson', 'Philips', 'Panasonic', 'Toshiba', 'Sharp'
+    ].sort((a, b) => b.length - a.length);
+
+    // Common artist/designer name patterns (first name + last name style)
+    const KNOWN_ARTISTS = [
+      'Isamu Noguchi', 'Tadao Ando', 'Kengo Kuma', 'Shiro Kuramata', 'Naoto Fukasawa',
+      'Dieter Rams', 'Charles Eames', 'Ray Eames', 'Eero Saarinen', 'Arne Jacobsen',
+      'Hans Wegner', 'Verner Panton', 'Philippe Starck', 'Marc Newson', 'Jasper Morrison',
+      'Konstantin Grcic', 'Patricia Urquiola', 'Ronan Bouroullec', 'Erwan Bouroullec',
+      'Zaha Hadid', 'Frank Gehry', 'Norman Foster', 'Renzo Piano', 'Bjarke Ingels',
+      'Jonathan Ive', 'Jony Ive', 'Massimo Vignelli', 'Stefan Sagmeister', 'Paula Scher',
+      'David Carson', 'Neville Brody', 'Yohji Yamamoto', 'Issey Miyake', 'Rei Kawakubo'
+    ].sort((a, b) => b.length - a.length);
+
+    const ROOT_COLORS = {
+      'Design': '#a78bfa', 'Architecture': '#f87171', 'Art': '#f472b6', 'Style': '#4ade80',
+      'Brand': '#fbbf24', 'Creator': '#c084fc', 'Era': '#fb923c', 'Product': '#60a5fa',
+      'Material': '#22d3d1', 'Color': '#94a3b8', 'Custom': '#ec4899'
+    };
+
+    const flattenTaxonomy = (obj, path = [], results = null) => {
+      if (results === null) results = { paths: {}, allTerms: new Set() };
+      for (const [key, value] of Object.entries(obj)) {
+        const currentPath = [...path, key];
+        const keyLower = key.toLowerCase();
+        results.allTerms.add(keyLower);
+        results.paths[keyLower] = currentPath;
+        if (Array.isArray(value)) {
+          value.forEach(item => {
+            const itemLower = item.toLowerCase();
+            results.allTerms.add(itemLower);
+            results.paths[itemLower] = currentPath;
+          });
+        } else if (typeof value === 'object' && value !== null) {
+          flattenTaxonomy(value, currentPath, results);
+        }
+      }
+      return results;
+    };
+
+    const splitBrandModel = (text) => {
+      const results = [];
+      let remaining = text.trim();
+      let foundBrand = null;
+      for (const brand of KNOWN_BRANDS) {
+        const regex = new RegExp(`^${brand.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*`, 'i');
+        if (regex.test(remaining)) {
+          foundBrand = brand;
+          remaining = remaining.replace(regex, '').trim();
+          break;
+        }
+      }
+      if (foundBrand) {
+        results.push({ value: foundBrand, type: 'brand', path: ['Brand'] });
+        if (remaining) {
+          remaining = remaining.replace(/^(model|product|series|type)\s*/i, '').replace(/^[-:]\s*/, '').trim();
+          if (remaining) results.push({ value: remaining, type: 'model', path: ['Product', 'Model'] });
+        }
+      } else if (/^[A-Z]{1,3}[-]?\d+[A-Z]*\d*$/i.test(text.trim())) {
+        results.push({ value: text.trim(), type: 'model', path: ['Product', 'Model'] });
+      } else {
+        results.push({ value: text, type: 'keyword', path: ['Custom'] });
+      }
+      return results;
+    };
+
+    const deduplicateKeywords = (keywords) => {
+      const groups = new Map();
+      keywords.forEach(kw => {
+        let normalized = kw.value.toLowerCase().replace(/^(model|product|type|series|the)\s+/gi, '').replace(/\s+(model|product|type|series)$/gi, '').replace(/\s+/g, ' ').trim();
+        if (!groups.has(normalized)) groups.set(normalized, []);
+        groups.get(normalized).push(kw);
+      });
+      return Array.from(groups.values()).map(group => {
+        group.sort((a, b) => (b.confidence || 0) - (a.confidence || 0));
+        return group[0];
+      });
+    };
+
+    const buildTree = (keywords) => {
+      const tree = {};
+      keywords.forEach(kw => {
+        let currentLevel = tree;
+        for (let i = 0; i < kw.path.length; i++) {
+          const segment = kw.path[i];
+          if (!currentLevel[segment]) currentLevel[segment] = { _children: {}, _keywords: [], _path: kw.path.slice(0, i + 1) };
+          if (i === kw.path.length - 1) currentLevel[segment]._keywords.push(kw);
+          else currentLevel = currentLevel[segment]._children;
+        }
+      });
+      return tree;
+    };
+
+    const countKeywords = (node) => {
+      if (!node) return 0;
+      let count = node._keywords?.length || 0;
+      Object.values(node._children || {}).forEach(child => { count += countKeywords(child); });
+      return count;
+    };
+
+    const hashFile = async (file) => {
+      const buffer = await file.slice(0, 1024).arrayBuffer();
+      const arr = new Uint8Array(buffer);
+      let hash = 0;
+      for (let i = 0; i < arr.length; i++) hash = ((hash << 5) - hash) + arr[i] | 0;
+      return `${file.name}-${file.size}-${hash}`;
+    };
+
+    // Get base name for similarity matching (e.g., "ProductName" from "ProductName_01.jpg")
+    const getBaseName = (filename) => {
+      let base = filename
+        .replace(/\.[^.]+$/, '')  // Remove extension
+        .replace(/[-_]?\s*\d+$/, '') // Remove trailing numbers (with optional space)
+        .replace(/[-_]?\s*\(\d+\)$/, '') // Remove (1), (2) etc
+        .replace(/[-_](large|small|thumb|preview|hires|lowres|copy|final|edit|\d+x\d+)$/i, '') // Remove size suffixes
+        .replace(/\s+/g, ' ')
+        .toLowerCase()
+        .trim();
+      console.log(`[BASE] "${filename}" -> "${base}"`);
+      return base;
+    };
+
+    const STORAGE_KEY = 'tagger_memory';
+    const TAXONOMY_KEY = 'tagger_taxonomy';
+    const loadMemory = () => { try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {}; } catch { return {}; } };
+    const saveMemory = (m) => localStorage.setItem(STORAGE_KEY, JSON.stringify(m));
+
+    // Enhanced filename extraction
+    const extractFromFilename = (filename) => {
+      const keywords = [];
+      // Keep original with hyphens for name detection
+      const nameRaw = filename
+        .replace(/\.[^.]+$/, '')  // Remove extension
+        .replace(/\s*\(\d+\)\s*$/, '')  // Remove (1), (2) etc
+        .trim();
+
+      // Also create space-separated version
+      const name = nameRaw
+        .replace(/[-_]/g, ' ')    // Replace separators with spaces
+        .replace(/([a-z])([A-Z])/g, '$1 $2')  // Split camelCase
+        .replace(/\s+/g, ' ')
+        .trim();
+
+      console.log(`[FILENAME] Parsing: "${filename}" -> "${name}"`);
+
+      // Check for known artists/designers in filename
+      for (const artist of KNOWN_ARTISTS) {
+        if (name.toLowerCase().includes(artist.toLowerCase())) {
+          keywords.push({ value: artist, type: 'designer', source: 'filename', confidence: 0.95, path: ['Creator', 'Designer'] });
+          console.log(`[FILENAME] Found known artist: ${artist}`);
+          break;
+        }
+      }
+
+      // Look for hyphenated name patterns like "yui-tsujimura" or "firstname-lastname"
+      const hyphenNamePattern = /([a-z]+)-([a-z]+)(?:-([a-z]+))?/gi;
+      let hyphenMatch;
+      while ((hyphenMatch = hyphenNamePattern.exec(nameRaw)) !== null) {
+        const parts = [hyphenMatch[1], hyphenMatch[2], hyphenMatch[3]].filter(Boolean);
+        // Check if this looks like a person's name (2-3 parts, each 2-12 chars)
+        if (parts.length >= 2 && parts.every(p => p.length >= 2 && p.length <= 12)) {
+          // Capitalize each part
+          const potentialName = parts.map(p => p.charAt(0).toUpperCase() + p.slice(1).toLowerCase()).join(' ');
+          // Skip common non-name patterns
+          const skipPatterns = ['tea bowl', 'high resolution', 'product design', 'new york', 'los angeles'];
+          if (!skipPatterns.some(s => potentialName.toLowerCase() === s) &&
+              !keywords.some(k => k.value.toLowerCase() === potentialName.toLowerCase())) {
+            console.log(`[FILENAME] Found hyphenated name: ${potentialName}`);
+            keywords.push({ value: potentialName, type: 'designer', source: 'filename', confidence: 0.8, path: ['Creator', 'Designer'] });
+          }
+        }
+      }
+
+      // Try to detect name patterns (FirstName LastName or LastName FirstName)
+      const namePattern = /\b([A-Z][a-z]+)\s+([A-Z][a-z]+)(?:\s+([A-Z][a-z]+))?\b/g;
+      let nameMatch;
+      while ((nameMatch = namePattern.exec(name)) !== null) {
+        const potentialName = nameMatch[0].trim();
+        const skipWords = ['New York', 'Los Angeles', 'San Francisco', 'High Resolution', 'Product Design', 'Tea Bowl', 'White Shino'];
+        if (!skipWords.some(w => potentialName.toLowerCase() === w.toLowerCase()) &&
+            !KNOWN_BRANDS.some(b => potentialName.toLowerCase().includes(b.toLowerCase())) &&
+            !keywords.some(k => k.value.toLowerCase() === potentialName.toLowerCase())) {
+          const japaneseSurnames = ['Tanaka', 'Suzuki', 'Yamamoto', 'Watanabe', 'Takahashi', 'Ito', 'Nakamura', 'Kobayashi', 'Kato', 'Yoshida', 'Yamada', 'Sasaki', 'Yamaguchi', 'Matsumoto', 'Inoue', 'Kimura', 'Hayashi', 'Shimizu', 'Yamazaki', 'Mori', 'Abe', 'Ikeda', 'Hashimoto', 'Ishikawa', 'Ogawa', 'Okada', 'Hasegawa', 'Fujita', 'Goto', 'Okamoto', 'Tsujimura', 'Hamada', 'Kawai', 'Leach'];
+          const isLikelyName = japaneseSurnames.some(s => potentialName.toLowerCase().includes(s.toLowerCase())) ||
+                              /^[A-Z][a-z]+\s+[A-Z][a-z]+$/.test(potentialName);
+          if (isLikelyName && potentialName.length >= 5 && potentialName.length <= 30) {
+            console.log(`[FILENAME] Found name pattern: ${potentialName}`);
+            keywords.push({ value: potentialName, type: 'designer', source: 'filename', confidence: 0.85, path: ['Creator', 'Designer'] });
+          }
+        }
+      }
+
+      // Check for brands in filename
+      for (const brand of KNOWN_BRANDS) {
+        if (name.toLowerCase().includes(brand.toLowerCase())) {
+          keywords.push({ value: brand, type: 'brand', source: 'filename', confidence: 0.95 });
+          const brandRegex = new RegExp(`${brand.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*(.+)`, 'i');
+          const match = name.match(brandRegex);
+          if (match && match[1]) {
+            const modelPart = match[1].trim();
+            if (/^[A-Z0-9][-A-Z0-9\s]*$/i.test(modelPart) && modelPart.length < 30) {
+              keywords.push({ value: modelPart, type: 'model', source: 'filename', confidence: 0.9 });
+            }
+          }
+          break;
+        }
+      }
+
+      // Check for standalone model numbers
+      const modelPatterns = [
+        /\b([A-Z]{1,2}\d{1,4}[A-Z]?)\b/gi,
+        /\b(Beo\s*(?:Sound|Play|Vision|Lab|Lit)\s*\d+)\b/gi,
+      ];
+      for (const pattern of modelPatterns) {
+        const matches = name.match(pattern);
+        if (matches) {
+          matches.forEach(m => {
+            const clean = m.trim();
+            if (clean.length >= 2 && clean.length <= 20 && !keywords.some(k => k.value.toLowerCase() === clean.toLowerCase())) {
+              keywords.push({ value: clean, type: 'model', source: 'filename', confidence: 0.85 });
+            }
+          });
+        }
+      }
+
+      // Extract years
+      const yearMatch = name.match(/\b(19[5-9]\d|20[0-2]\d)\b/);
+      if (yearMatch) {
+        const decade = Math.floor(parseInt(yearMatch[1]) / 10) * 10 + 's';
+        keywords.push({ value: decade, type: 'era', source: 'filename', confidence: 0.8, path: ['Era'] });
+      }
+
+      // Extract colors
+      const colors = ['black', 'white', 'silver', 'gold', 'red', 'blue', 'green', 'grey', 'gray', 'bronze', 'copper'];
+      colors.forEach(color => {
+        if (name.toLowerCase().includes(color)) {
+          keywords.push({ value: color.charAt(0).toUpperCase() + color.slice(1), type: 'color', source: 'filename', confidence: 0.8, path: ['Color'] });
+        }
+      });
+
+      console.log(`[FILENAME] Extracted ${keywords.length} keywords:`, keywords.map(k => k.value));
+      return keywords;
+    };
+
+    // Extract artist/creator names from URLs
+    const extractFromUrls = (urls) => {
+      const keywords = [];
+      const seen = new Set();
+
+      urls.forEach(urlObj => {
+        try {
+          const url = new URL(urlObj.url);
+          const path = url.pathname.toLowerCase();
+
+          // Look for name patterns in URL path like /yui-tsujimura/ or /artist/john-smith
+          const segments = path.split('/').filter(s => s.length > 0);
+          segments.forEach(segment => {
+            // Check for hyphenated names
+            const hyphenParts = segment.split('-');
+            if (hyphenParts.length >= 2 && hyphenParts.length <= 4) {
+              // Each part should be 2-15 chars, alphabetic
+              if (hyphenParts.every(p => /^[a-z]{2,15}$/.test(p))) {
+                const potentialName = hyphenParts.map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' ');
+                const skipWords = ['tea-bowl', 'white-shino', 'high-resolution', 'product-design', 'full-size', 'large-image'];
+                if (!skipWords.some(s => segment === s) &&
+                    potentialName.length >= 5 && potentialName.length <= 30 &&
+                    !seen.has(potentialName.toLowerCase())) {
+                  // Check if it could be a name (has 2-3 parts, reasonable lengths)
+                  const japaneseSurnames = ['tsujimura', 'hamada', 'kawai', 'leach', 'tanaka', 'suzuki', 'yamamoto'];
+                  if (japaneseSurnames.some(s => segment.includes(s)) ||
+                      (hyphenParts.length === 2 && hyphenParts[0].length >= 3 && hyphenParts[1].length >= 3)) {
+                    seen.add(potentialName.toLowerCase());
+                    console.log(`[URL] Found name in URL: ${potentialName} from ${segment}`);
+                    keywords.push({ value: potentialName, type: 'designer', source: 'url', confidence: 0.75, path: ['Creator', 'Designer'] });
+                  }
+                }
+              }
+            }
+          });
+        } catch (e) {}
+      });
+
+      return keywords;
+    };
+
+    // Extract existing XMP/EXIF metadata
+    const extractExistingMetadata = async (file) => {
+      const keywords = [];
+      try {
+        const buffer = await file.slice(0, 65536).arrayBuffer();
+        const text = new TextDecoder('utf-8', { fatal: false }).decode(buffer);
+
+        const subjectMatch = text.match(/<dc:subject>[\s\S]*?<rdf:Bag>([\s\S]*?)<\/rdf:Bag>/);
+        if (subjectMatch) {
+          const items = subjectMatch[1].match(/<rdf:li>([^<]+)<\/rdf:li>/g);
+          if (items) {
+            items.forEach(item => {
+              const value = item.replace(/<\/?rdf:li>/g, '').trim();
+              if (value) keywords.push({ value, type: 'existing', source: 'xmp', confidence: 1.0 });
+            });
+          }
+        }
+      } catch (e) {}
+      return keywords;
+    };
+
+    // XMP Generation
+    const generateXMP = (keywords, creator) => {
+      const subjects = keywords.map(k => k.value);
+      const hierarchical = keywords.map(k => [...k.path, k.value].join('|'));
+      return `<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>
+<x:xmpmeta xmlns:x="adobe:ns:meta/">
+  <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+    <rdf:Description rdf:about="" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:lr="http://ns.adobe.com/lightroom/1.0/" xmlns:photoshop="http://ns.adobe.com/photoshop/1.0/">
+      ${creator ? `<dc:creator><rdf:Seq><rdf:li>${creator}</rdf:li></rdf:Seq></dc:creator><photoshop:Credit>${creator}</photoshop:Credit>` : ''}
+      <dc:subject><rdf:Bag>${subjects.map(s => `<rdf:li>${s}</rdf:li>`).join('')}</rdf:Bag></dc:subject>
+      <lr:hierarchicalSubject><rdf:Bag>${hierarchical.map(h => `<rdf:li>${h}</rdf:li>`).join('')}</rdf:Bag></lr:hierarchicalSubject>
+    </rdf:Description>
+  </rdf:RDF>
+</x:xmpmeta>
+<?xpacket end="w"?>`;
+    };
+
+    const embedXMP = async (file, keywords, creator) => {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          try {
+            const u8 = new Uint8Array(e.target.result);
+            if (u8[0] !== 0xFF || u8[1] !== 0xD8) { reject(new Error('Not JPEG')); return; }
+            const xmp = new TextEncoder().encode(generateXMP(keywords, creator));
+            const ns = new TextEncoder().encode('http://ns.adobe.com/xap/1.0/\0');
+            const len = 2 + ns.length + xmp.length;
+            const parts = [new Uint8Array([0xFF, 0xD8, 0xFF, 0xE1, (len >> 8) & 0xFF, len & 0xFF]), ns, xmp];
+            let pos = 2;
+            while (pos < u8.length - 1 && u8[pos] === 0xFF) {
+              const m = u8[pos + 1];
+              if ((m >= 0xE0 && m <= 0xEF) || m === 0xFE) pos += 2 + ((u8[pos + 2] << 8) | u8[pos + 3]);
+              else break;
+            }
+            parts.push(u8.slice(pos));
+            const result = new Uint8Array(parts.reduce((s, p) => s + p.length, 0));
+            let off = 0; parts.forEach(p => { result.set(p, off); off += p.length; });
+            resolve(new Blob([result], { type: 'image/jpeg' }));
+          } catch (err) { reject(err); }
+        };
+        reader.onerror = reject;
+        reader.readAsArrayBuffer(file);
+      });
+    };
+
+    // ============================================
+    // APIs
+    // ============================================
+    const analyzeWithGemini = async (apiKey, imageBase64, mimeType, existingContext = '') => {
+      const prompt = `Analyze this image for a design reference library. ${existingContext}
+IMPORTANT: Separate brand from model - "Bang & Olufsen H95" = TWO keywords: "Bang & Olufsen" AND "H95".
+Return JSON array: [{"value": "keyword", "confidence": 0.9, "type": "brand|model|category|style|material|color", "path": ["RootCategory", "SubCategory"]}]
+Categories: Design, Architecture, Art, Style, Brand, Creator, Product, Era, Material, Color.
+Return 10-20 specific, useful keywords. Only return the JSON array.`;
+
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }, { inline_data: { mime_type: mimeType, data: imageBase64 } }] }],
+          generationConfig: { temperature: 0.1, maxOutputTokens: 2048 }
+        })
+      });
+      if (!response.ok) throw new Error('Gemini error');
+      const text = (await response.json()).candidates?.[0]?.content?.parts?.[0]?.text || '[]';
+      const match = text.match(/\[[\s\S]*\]/);
+      return match ? JSON.parse(match[0]) : [];
+    };
+
+    const findDesigner = async (apiKey, productInfo) => {
+      try {
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: `Who designed: ${productInfo}? Return JSON: {"designer": "Full Name" or null, "year": 2020 or null}` }] }],
+            generationConfig: { temperature: 0.1, maxOutputTokens: 256 },
+            tools: [{ googleSearch: {} }]
+          })
+        });
+        if (!response.ok) return null;
+        const text = (await response.json()).candidates?.[0]?.content?.parts?.[0]?.text || '';
+        const match = text.match(/\{[\s\S]*\}/);
+        return match ? JSON.parse(match[0]) : null;
+      } catch { return null; }
+    };
+
+    const analyzeWithVision = async (apiKey, imageBase64) => {
+      try {
+        const response = await fetch(`https://vision.googleapis.com/v1/images:annotate?key=${apiKey}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            requests: [{
+              image: { content: imageBase64 },
+              features: [
+                { type: 'WEB_DETECTION', maxResults: 15 },
+                { type: 'LABEL_DETECTION', maxResults: 20 },
+                { type: 'LOGO_DETECTION', maxResults: 5 }
+              ]
+            }]
+          })
+        });
+        if (!response.ok) return null;
+        const data = await response.json();
+        const result = data.responses?.[0];
+        if (!result) return null;
+
+        const keywords = [];
+        const seen = new Set();
+
+        result.webDetection?.webEntities?.forEach(entity => {
+          if (entity.description && entity.score > 0.4 && !seen.has(entity.description.toLowerCase())) {
+            seen.add(entity.description.toLowerCase());
+            keywords.push({ value: entity.description, confidence: entity.score, type: 'web', source: 'vision' });
+          }
+        });
+
+        result.webDetection?.bestGuessLabels?.forEach(label => {
+          if (label.label && !seen.has(label.label.toLowerCase())) {
+            seen.add(label.label.toLowerCase());
+            keywords.push({ value: label.label, confidence: 0.9, type: 'guess', source: 'vision' });
+          }
+        });
+
+        result.labelAnnotations?.forEach(label => {
+          if (label.description && label.score > 0.6 && !seen.has(label.description.toLowerCase())) {
+            seen.add(label.description.toLowerCase());
+            keywords.push({ value: label.description, confidence: label.score, type: 'label', source: 'vision' });
+          }
+        });
+
+        result.logoAnnotations?.forEach(logo => {
+          if (logo.description && !seen.has(logo.description.toLowerCase())) {
+            seen.add(logo.description.toLowerCase());
+            keywords.push({ value: logo.description, confidence: logo.score || 0.9, type: 'brand', source: 'vision' });
+          }
+        });
+
+        const matchingImages = [];
+        result.webDetection?.fullMatchingImages?.forEach(img => matchingImages.push({ url: img.url, type: 'full' }));
+        result.webDetection?.partialMatchingImages?.forEach(img => matchingImages.push({ url: img.url, type: 'partial' }));
+        result.webDetection?.visuallySimilarImages?.slice(0, 10).forEach(img => matchingImages.push({ url: img.url, type: 'similar' }));
+
+        // Also add pagesWithMatchingImages for URL extraction
+        result.webDetection?.pagesWithMatchingImages?.forEach(page => {
+          if (page.url) matchingImages.push({ url: page.url, type: 'page' });
+        });
+
+        // Extract names from URLs
+        const urlKeywords = extractFromUrls(matchingImages);
+        urlKeywords.forEach(uk => {
+          if (!seen.has(uk.value.toLowerCase())) {
+            seen.add(uk.value.toLowerCase());
+            keywords.push(uk);
+          }
+        });
+
+        return { keywords, matchingImages };
+      } catch (err) {
+        console.error('[VISION] Error:', err);
+        return null;
+      }
+    };
+
+    const downloadLargerVersion = async (url, originalName) => {
+      try {
+        const response = await fetch(url, { mode: 'cors' });
+        if (!response.ok) return null;
+        const blob = await response.blob();
+        if (blob.size > 50000) {
+          const ext = blob.type.includes('png') ? 'png' : blob.type.includes('webp') ? 'webp' : 'jpg';
+          const filename = originalName.replace(/\.[^.]+$/, '') + '_large.' + ext;
+          return { blob, filename, size: blob.size };
+        }
+      } catch {}
+      return null;
+    };
+
+    // ============================================
+    // TREE NODE
+    // ============================================
+    const TreeNode = ({ name, node, depth = 0, expanded, onToggle, onDeleteKeyword }) => {
+      const children = node._children || {};
+      const hasChildren = Object.keys(children).length > 0;
+      const keywords = node._keywords || [];
+      const count = countKeywords(node);
+      const pathKey = node._path?.join('>');
+      const isExpanded = expanded[pathKey] !== false;
+      const color = ROOT_COLORS[node._path?.[0]] || '#94a3b8';
+
+      return (
+        <div style={{ marginLeft: depth > 0 ? 12 : 0 }}>
+          <div onClick={() => (hasChildren || keywords.length > 0) && onToggle(pathKey)}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 6px', borderRadius: 4, cursor: 'pointer', background: depth === 0 ? 'rgba(255,255,255,0.03)' : 'transparent' }}>
+            <span style={{ fontSize: 9, color: '#555', width: 10 }}>{(hasChildren || keywords.length > 0) ? (isExpanded ? '▼' : '▶') : ''}</span>
+            {depth === 0 && <span style={{ width: 8, height: 8, borderRadius: 3, background: color }} />}
+            <span style={{ flex: 1, color: depth === 0 ? '#e5e5e5' : '#aaa', fontSize: 11 }}>{name}</span>
+            <span style={{ color: '#666', fontSize: 10 }}>{count}</span>
+          </div>
+          {isExpanded && keywords.length > 0 && (
+            <div style={{ marginLeft: 20, marginTop: 4, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+              {keywords.map(kw => (
+                <span key={kw.id} style={{ padding: '2px 6px', background: `${color}20`, color, borderRadius: 3, fontSize: 10, display: 'flex', alignItems: 'center', gap: 4 }}>
+                  {kw.value}
+                  <span onClick={(e) => { e.stopPropagation(); onDeleteKeyword(kw.id); }} style={{ cursor: 'pointer', opacity: 0.5, fontSize: 8 }}>✕</span>
+                </span>
+              ))}
+            </div>
+          )}
+          {isExpanded && hasChildren && Object.entries(children).map(([n, c]) => (
+            <TreeNode key={n} name={n} node={c} depth={depth + 1} expanded={expanded} onToggle={onToggle} onDeleteKeyword={onDeleteKeyword} />
+          ))}
+        </div>
+      );
+    };
+
+    // ============================================
+    // MAIN APP
+    // ============================================
+    function App() {
+      const [geminiKey, setGeminiKey] = useState(localStorage.getItem('gemini_api_key') || '');
+      const [visionKey, setVisionKey] = useState(localStorage.getItem('vision_api_key') || '');
+      const [useVision, setUseVision] = useState(localStorage.getItem('use_vision') === 'true');
+      const [autoDownloadLarger, setAutoDownloadLarger] = useState(localStorage.getItem('auto_download_larger') === 'true');
+      const [showSettings, setShowSettings] = useState(false);
+      const [saveMode, setSaveMode] = useState(localStorage.getItem('save_mode') || 'embed');
+      const [outputDir, setOutputDir] = useState(null);
+      const [thumbSize, setThumbSize] = useState(parseInt(localStorage.getItem('thumb_size')) || 1);
+
+      const [taxonomy, setTaxonomy] = useState(() => {
+        try { return JSON.parse(localStorage.getItem(TAXONOMY_KEY)) || DEFAULT_TAXONOMY; }
+        catch { return DEFAULT_TAXONOMY; }
+      });
+      const taxInfo = useMemo(() => flattenTaxonomy(taxonomy), [taxonomy]);
+
+      const [queue, setQueue] = useState([]);
+      const [memory, setMemory] = useState(loadMemory);
+      const [selectedId, setSelectedId] = useState(null);
+
+      const [showDone, setShowDone] = useState(true);
+      const [showHidden, setShowHidden] = useState(false);
+      const [showPending, setShowPending] = useState(true);
+      const [showMasterTaxonomy, setShowMasterTaxonomy] = useState(false);
+
+      const [pending, setPending] = useState([]);
+      const [keywords, setKeywords] = useState([]);
+      const [ignored, setIgnored] = useState([]);
+      const [designer, setDesigner] = useState(null);
+      const [modified, setModified] = useState(false);
+      const [visionData, setVisionData] = useState(null);
+      const [downloadedLarger, setDownloadedLarger] = useState(null);
+      const [isEditing, setIsEditing] = useState(false);
+
+      const [accepted, setAccepted] = useState([]);
+      const [blocked, setBlocked] = useState([]);
+      const [expanded, setExpanded] = useState({});
+      const [customInput, setCustomInput] = useState('');
+
+      const fileRef = useRef(null);
+      const folderRef = useRef(null);
+      const acceptedRef = useRef(new Set());
+      const blockedRef = useRef(new Set());
+      const containerRef = useRef(null);
+
+      useEffect(() => { acceptedRef.current = new Set(accepted.map(k => k.value.toLowerCase())); }, [accepted]);
+      useEffect(() => { blockedRef.current = new Set(blocked.map(k => k.value.toLowerCase())); }, [blocked]);
+
+      const selectedImg = queue.find(q => q.id === selectedId);
+
+      const filteredQueue = useMemo(() => {
+        return queue.filter(q => {
+          if (q.hidden && !showHidden) return false;
+          if (q.status === 'done' && !showDone) return false;
+          if (q.status === 'pending' && !showPending) return false;
+          return true;
+        });
+      }, [queue, showDone, showHidden, showPending]);
+
+      const findPath = useCallback((kw) => {
+        const key = kw.toLowerCase().trim();
+        if (taxInfo.paths[key]) return taxInfo.paths[key];
+        return ['Custom'];
+      }, [taxInfo]);
+
+      // Keyboard navigation
+      useEffect(() => {
+        const handleKeyDown = (e) => {
+          if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+          if (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+            e.preventDefault();
+            const currentIndex = filteredQueue.findIndex(q => q.id === selectedId);
+            let newIndex = currentIndex;
+
+            if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+              newIndex = currentIndex < filteredQueue.length - 1 ? currentIndex + 1 : 0;
+            } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+              newIndex = currentIndex > 0 ? currentIndex - 1 : filteredQueue.length - 1;
+            }
+
+            if (filteredQueue[newIndex]) {
+              selectImage(filteredQueue[newIndex].id);
+            }
+          }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+      }, [filteredQueue, selectedId]);
+
+      // Save settings
+      useEffect(() => {
+        if (geminiKey) localStorage.setItem('gemini_api_key', geminiKey);
+        if (visionKey) localStorage.setItem('vision_api_key', visionKey);
+        localStorage.setItem('use_vision', useVision.toString());
+        localStorage.setItem('auto_download_larger', autoDownloadLarger.toString());
+        localStorage.setItem('save_mode', saveMode);
+        localStorage.setItem('thumb_size', thumbSize.toString());
+      }, [geminiKey, visionKey, useVision, autoDownloadLarger, saveMode, thumbSize]);
+
+      useEffect(() => { saveMemory(memory); }, [memory]);
+      useEffect(() => { localStorage.setItem(TAXONOMY_KEY, JSON.stringify(taxonomy)); }, [taxonomy]);
+
+      const queueRef = useRef(queue);
+      const memoryRef = useRef(memory);
+      useEffect(() => { queueRef.current = queue; }, [queue]);
+      useEffect(() => { memoryRef.current = memory; }, [memory]);
+
+      useEffect(() => {
+        window.onFilesDropped = async (files) => { await processFilesRef.current(files); };
+        return () => { window.onFilesDropped = null; };
+      }, []);
+
+      const processFilesRef = useRef(null);
+      processFilesRef.current = async (files) => {
+        const imgs = files.filter(f => f.type.startsWith('image/'));
+        if (!imgs.length) return;
+
+        const currentMemory = memoryRef.current;
+        const newItems = await Promise.all(imgs.map(async (file) => {
+          const hash = await hashFile(file);
+          const mem = currentMemory[hash];
+          const filenameKws = extractFromFilename(file.name);
+          const existingKws = await extractExistingMetadata(file);
+
+          return {
+            id: hash, name: file.name, file, url: URL.createObjectURL(file),
+            baseName: getBaseName(file.name),
+            status: mem?.exported ? 'done' : 'pending',
+            hidden: mem?.hidden || false,
+            keywords: mem?.keywords || [], pending: [],
+            filenameKeywords: filenameKws,
+            existingKeywords: existingKws,
+            creator: mem?.creator || null, hash
+          };
+        }));
+
+        const existingIds = new Set(queueRef.current.map(q => q.id));
+        const uniqueItems = newItems.filter(item => !existingIds.has(item.id));
+        if (uniqueItems.length > 0) setQueue(prev => [...prev, ...uniqueItems]);
+      };
+
+      const handleFileInput = (e) => {
+        if (e.target.files?.length) processFilesRef.current(Array.from(e.target.files));
+        e.target.value = '';
+      };
+
+      // Find similar images by base name
+      const getSimilarImages = useCallback((img) => {
+        if (!img) return [];
+        const similar = queue.filter(q =>
+          q.id !== img.id &&
+          q.baseName === img.baseName
+        );
+        if (similar.length > 0) {
+          console.log(`[SIMILAR] Found ${similar.length} similar to "${img.name}" (baseName: "${img.baseName}"):`, similar.map(s => s.name));
+        }
+        return similar;
+      }, [queue]);
+
+      // Sync keywords to similar images and auto-save
+      const syncToSimilarAndSave = useCallback(async (sourceImg, sourceKeywords, sourceDesigner) => {
+        const similar = getSimilarImages(sourceImg);
+        if (similar.length === 0) return;
+
+        console.log(`[SYNC] Syncing ${sourceKeywords.length} keywords to ${similar.length} similar images`);
+
+        for (const img of similar) {
+          const existingVals = new Set((img.keywords || []).map(k => k.value.toLowerCase()));
+          const newKws = sourceKeywords
+            .filter(k => !existingVals.has(k.value.toLowerCase()))
+            .map(k => ({ ...k, id: `sync-${Math.random().toString(36).slice(2)}` }));
+
+          if (newKws.length > 0) {
+            const updatedKeywords = [...(img.keywords || []), ...newKws];
+
+            // Update queue
+            setQueue(q => q.map(i => i.id === img.id ? {
+              ...i,
+              keywords: updatedKeywords,
+              pending: [],
+              designer: sourceDesigner,
+              status: 'done'
+            } : i));
+
+            // Save to memory
+            setMemory(prev => ({
+              ...prev,
+              [img.hash]: { exported: true, keywords: updatedKeywords, creator: sourceDesigner?.designer, hidden: img.hidden }
+            }));
+
+            // Save XMP file if output dir set
+            if (outputDir) {
+              try {
+                let blob, filename = img.name;
+                const creator = sourceDesigner?.designer || null;
+
+                if (saveMode === 'embed' && img.file.type.includes('jpeg')) {
+                  blob = await embedXMP(img.file, updatedKeywords, creator);
+                } else {
+                  blob = new Blob([generateXMP(updatedKeywords, creator)], { type: 'application/rdf+xml' });
+                  filename = filename.replace(/\.[^.]+$/, '') + '.xmp';
+                }
+
+                const fh = await outputDir.getFileHandle(filename, { create: true });
+                const w = await fh.createWritable();
+                await w.write(blob);
+                await w.close();
+                console.log(`[SYNC] Auto-saved: ${filename}`);
+              } catch (e) {
+                console.error('[SYNC] Save failed:', e);
+              }
+            }
+          }
+        }
+      }, [queue, outputDir, saveMode, getSimilarImages]);
+
+      // Analysis
+      const analyzeImage = useCallback(async (img) => {
+        if (!geminiKey || img.status === 'analyzing' || img.status === 'ready' || img.status === 'done') return;
+
+        setQueue(q => q.map(i => i.id === img.id ? { ...i, status: 'analyzing' } : i));
+        setDownloadedLarger(null);
+
+        try {
+          const base64 = await new Promise((res, rej) => {
+            const r = new FileReader();
+            r.onload = () => res(r.result.split(',')[1]);
+            r.onerror = rej;
+            r.readAsDataURL(img.file);
+          });
+
+          const contextParts = [];
+          if (img.filenameKeywords?.length) {
+            contextParts.push(`Filename suggests: ${img.filenameKeywords.map(k => k.value).join(', ')}`);
+          }
+          if (img.existingKeywords?.length) {
+            contextParts.push(`Existing tags: ${img.existingKeywords.map(k => k.value).join(', ')}`);
+          }
+
+          let rawKws = await analyzeWithGemini(geminiKey, base64, img.file.type, contextParts.join('. '));
+
+          if (img.filenameKeywords) rawKws = [...img.filenameKeywords, ...rawKws];
+          if (img.existingKeywords) rawKws = [...img.existingKeywords, ...rawKws];
+
+          let visionResult = null;
+          if (useVision && visionKey) {
+            visionResult = await analyzeWithVision(visionKey, base64);
+            if (visionResult?.keywords) {
+              visionResult.keywords.forEach(vk => {
+                if (!rawKws.some(k => k.value.toLowerCase() === vk.value.toLowerCase())) {
+                  rawKws.push(vk);
+                }
+              });
+            }
+
+            if (autoDownloadLarger && visionResult?.matchingImages?.length > 0 && outputDir) {
+              const fullMatch = visionResult.matchingImages.find(m => m.type === 'full');
+              if (fullMatch) {
+                const larger = await downloadLargerVersion(fullMatch.url, img.name);
+                if (larger && larger.size > img.file.size) {
+                  try {
+                    const fh = await outputDir.getFileHandle(larger.filename, { create: true });
+                    const w = await fh.createWritable();
+                    await w.write(larger.blob);
+                    await w.close();
+                    setDownloadedLarger({ filename: larger.filename, size: larger.size });
+                    console.log('[DOWNLOAD] Saved:', larger.filename);
+                  } catch (e) {}
+                }
+              }
+            }
+          }
+
+          let processedKws = [];
+          const brandFound = [], modelFound = [];
+
+          rawKws.forEach(k => {
+            splitBrandModel(k.value).forEach(part => {
+              let path = part.path;
+              if (part.type === 'keyword') path = findPath(part.value);
+              const kw = {
+                id: `${img.id}-${Math.random().toString(36).slice(2)}`,
+                value: part.value, confidence: k.confidence || 0.8,
+                type: part.type, path: path, rootCategory: path[0],
+                source: k.source || 'gemini'
+              };
+              if (part.type === 'brand') brandFound.push(kw);
+              else if (part.type === 'model') modelFound.push(kw);
+              processedKws.push(kw);
+            });
+          });
+
+          processedKws = deduplicateKeywords(processedKws);
+
+          let designerInfo = null;
+          if (brandFound.length > 0 && modelFound.length > 0) {
+            designerInfo = await findDesigner(geminiKey, `${brandFound[0].value} ${modelFound[0].value}`);
+            if (designerInfo?.designer) {
+              processedKws.push({
+                id: `designer-${Math.random().toString(36).slice(2)}`,
+                value: designerInfo.designer, confidence: 0.8,
+                type: 'designer', path: ['Creator', 'Designer'], rootCategory: 'Creator'
+              });
+            }
+          }
+
+          const currentBlocked = blockedRef.current;
+          const currentAccepted = acceptedRef.current;
+          const auto = [], review = [];
+
+          console.log(`[ANALYZE] Master taxonomy has ${taxInfo.allTerms.size} terms, session has ${currentAccepted.size} accepted`);
+
+          processedKws.forEach(kw => {
+            const key = kw.value.toLowerCase();
+            if (currentBlocked.has(key)) {
+              console.log(`[ANALYZE] Blocked: "${kw.value}"`);
+              return;
+            }
+            const inMaster = taxInfo.allTerms.has(key);
+            const inSession = currentAccepted.has(key);
+            if (inMaster || inSession) {
+              console.log(`[ANALYZE] Auto-accept: "${kw.value}" (master: ${inMaster}, session: ${inSession})`);
+              auto.push(kw);
+            } else {
+              review.push(kw);
+            }
+          });
+
+          console.log(`[ANALYZE] Result: ${auto.length} auto-accepted, ${review.length} for review`);
+
+          setQueue(q => q.map(i => i.id === img.id ? {
+            ...i, status: 'ready', keywords: auto, pending: review,
+            designer: designerInfo, visionData: visionResult
+          } : i));
+
+          if (auto.length) {
+            setAccepted(prev => {
+              const updated = [...prev];
+              auto.forEach(kw => {
+                if (!updated.some(a => a.value.toLowerCase() === kw.value.toLowerCase())) updated.push(kw);
+              });
+              return updated;
+            });
+          }
+        } catch (err) {
+          console.error('[ANALYZE] Failed:', err);
+          setQueue(q => q.map(i => i.id === img.id ? { ...i, status: 'error' } : i));
+        }
+      }, [geminiKey, visionKey, useVision, autoDownloadLarger, outputDir, taxInfo, findPath]);
+
+      const selectImage = useCallback(async (id) => {
+        // Auto-save current image if it was edited
+        if (isEditing && selectedImg && keywords.length > 0) {
+          console.log('[NAV] Auto-saving before navigation:', selectedImg.name);
+          await saveImage(selectedImg);
+        }
+
+        const img = queue.find(q => q.id === id);
+        if (!img) return;
+
+        setSelectedId(id);
+        setDownloadedLarger(null);
+        setIsEditing(false);
+
+        if (img.status === 'ready' || img.status === 'done' || img.status === 'editing') {
+          setKeywords(img.keywords || []);
+          setPending(img.pending || []);
+          setDesigner(img.designer || null);
+          setVisionData(img.visionData || null);
+          setIgnored([]);
+          setModified(false);
+        } else if (img.status === 'pending') {
+          setKeywords([]); setPending([]); setDesigner(null); setVisionData(null); setIgnored([]); setModified(false);
+          analyzeImage(img);
+        } else {
+          setKeywords([]); setPending([]); setDesigner(null); setVisionData(null); setIgnored([]); setModified(false);
+        }
+      }, [queue, isEditing, selectedImg, keywords, designer, analyzeImage, saveImage]);
+
+      const analyzeAllPending = () => {
+        filteredQueue.filter(q => q.status === 'pending').forEach(img => analyzeImage(img));
+      };
+
+      const saveImage = async (img = selectedImg) => {
+        if (!img || keywords.length === 0) {
+          console.log('[SAVE] Skipped - no image or keywords');
+          return;
+        }
+        console.log('[SAVE] Saving:', img.name, 'with', keywords.length, 'keywords');
+        try {
+          let blob, filename = img.name;
+          const creator = designer?.designer || null;
+
+          if (saveMode === 'embed' && img.file.type.includes('jpeg')) {
+            blob = await embedXMP(img.file, keywords, creator);
+          } else {
+            blob = new Blob([generateXMP(keywords, creator)], { type: 'application/rdf+xml' });
+            filename = filename.replace(/\.[^.]+$/, '') + '.xmp';
+          }
+
+          if (outputDir) {
+            const fh = await outputDir.getFileHandle(filename, { create: true });
+            const w = await fh.createWritable();
+            await w.write(blob);
+            await w.close();
+            console.log('[SAVE] Saved to output folder:', filename);
+          } else {
+            const url = URL.createObjectURL(blob);
+            Object.assign(document.createElement('a'), { href: url, download: filename }).click();
+            URL.revokeObjectURL(url);
+            console.log('[SAVE] Downloaded:', filename);
+          }
+
+          setQueue(q => q.map(i => i.id === img.id ? { ...i, status: 'done', keywords, pending: [] } : i));
+          setMemory(prev => ({ ...prev, [img.hash]: { exported: true, keywords, creator, hidden: img.hidden } }));
+          setModified(false);
+          setIsEditing(false);
+
+          // Auto-sync to similar images
+          await syncToSimilarAndSave(img, keywords, designer);
+        } catch (e) { console.error('[SAVE] Failed:', e); }
+      };
+
+      const hideImage = (id, e) => {
+        e?.stopPropagation();
+        setQueue(q => q.map(i => {
+          if (i.id === id) {
+            setMemory(prev => ({ ...prev, [i.hash]: { ...prev[i.hash], hidden: true } }));
+            return { ...i, hidden: true };
+          }
+          return i;
+        }));
+        if (selectedId === id) setSelectedId(null);
+      };
+
+      const unhideImage = (id, e) => {
+        e?.stopPropagation();
+        setQueue(q => q.map(i => {
+          if (i.id === id) {
+            setMemory(prev => ({ ...prev, [i.hash]: { ...prev[i.hash], hidden: false } }));
+            return { ...i, hidden: false };
+          }
+          return i;
+        }));
+      };
+
+      // Keyword actions - sync to similar images when accepting
+      const accept = (id) => {
+        const kw = pending.find(k => k.id === id);
+        if (kw) {
+          console.log(`[ACCEPT] Accepting keyword: "${kw.value}"`);
+          setPending(p => p.filter(k => k.id !== id));
+          const newKeywords = [...keywords, kw];
+          setKeywords(newKeywords);
+          setAccepted(a => a.some(x => x.value.toLowerCase() === kw.value.toLowerCase()) ? a : [...a, kw]);
+          setModified(true);
+          setIsEditing(true);
+
+          // Sync this keyword to similar images immediately
+          if (selectedImg) {
+            const similar = getSimilarImages(selectedImg);
+            console.log(`[ACCEPT] Similar images for sync:`, similar.length);
+            if (similar.length > 0) {
+              setQueue(q => q.map(img => {
+                if (similar.some(s => s.id === img.id)) {
+                  const existingVals = new Set((img.keywords || []).map(k => k.value.toLowerCase()));
+                  if (!existingVals.has(kw.value.toLowerCase())) {
+                    console.log(`[ACCEPT] Syncing "${kw.value}" to "${img.name}"`);
+                    const syncedKw = { ...kw, id: `sync-${Math.random().toString(36).slice(2)}` };
+                    return { ...img, keywords: [...(img.keywords || []), syncedKw], status: img.status === 'pending' ? 'ready' : img.status };
+                  }
+                }
+                return img;
+              }));
+            }
+          }
+        }
+      };
+
+      const block = (id) => {
+        const kw = pending.find(k => k.id === id) || ignored.find(k => k.id === id);
+        if (kw) {
+          setPending(p => p.filter(k => k.id !== id));
+          setIgnored(i => i.filter(k => k.id !== id));
+          setBlocked(b => [...b, kw]);
+          setModified(true);
+          setIsEditing(true);
+        }
+      };
+
+      const ignore = (id) => {
+        const kw = pending.find(k => k.id === id);
+        if (kw) {
+          setPending(p => p.filter(k => k.id !== id));
+          setIgnored(i => [...i, kw]);
+          setModified(true);
+          setIsEditing(true);
+        }
+      };
+
+      const acceptIgnored = (id) => {
+        const kw = ignored.find(k => k.id === id);
+        if (kw) {
+          setIgnored(i => i.filter(k => k.id !== id));
+          const newKeywords = [...keywords, kw];
+          setKeywords(newKeywords);
+          setAccepted(a => a.some(x => x.value.toLowerCase() === kw.value.toLowerCase()) ? a : [...a, kw]);
+          setModified(true);
+          setIsEditing(true);
+
+          // Sync to similar images
+          if (selectedImg) {
+            const similar = getSimilarImages(selectedImg);
+            if (similar.length > 0) {
+              setQueue(q => q.map(img => {
+                if (similar.some(s => s.id === img.id)) {
+                  const existingVals = new Set((img.keywords || []).map(k => k.value.toLowerCase()));
+                  if (!existingVals.has(kw.value.toLowerCase())) {
+                    const syncedKw = { ...kw, id: `sync-${Math.random().toString(36).slice(2)}` };
+                    return { ...img, keywords: [...(img.keywords || []), syncedKw], status: img.status === 'pending' ? 'ready' : img.status };
+                  }
+                }
+                return img;
+              }));
+            }
+          }
+        }
+      };
+
+      const acceptAll = () => {
+        const newKeywords = [...keywords, ...pending];
+        pending.forEach(kw => {
+          setAccepted(a => a.some(x => x.value.toLowerCase() === kw.value.toLowerCase()) ? a : [...a, kw]);
+        });
+        setKeywords(newKeywords);
+        setPending([]);
+        setModified(true);
+        setIsEditing(true);
+
+        // Sync all to similar images
+        if (selectedImg) {
+          const similar = getSimilarImages(selectedImg);
+          if (similar.length > 0) {
+            setQueue(q => q.map(img => {
+              if (similar.some(s => s.id === img.id)) {
+                const existingVals = new Set((img.keywords || []).map(k => k.value.toLowerCase()));
+                const newKws = pending
+                  .filter(kw => !existingVals.has(kw.value.toLowerCase()))
+                  .map(kw => ({ ...kw, id: `sync-${Math.random().toString(36).slice(2)}` }));
+                if (newKws.length > 0) {
+                  return { ...img, keywords: [...(img.keywords || []), ...newKws], status: img.status === 'pending' ? 'ready' : img.status };
+                }
+              }
+              return img;
+            }));
+          }
+        }
+      };
+
+      const removeKw = (id) => {
+        setKeywords(c => c.filter(k => k.id !== id));
+        setModified(true);
+        setIsEditing(true);
+      };
+
+      const deleteFromTaxonomy = (id) => {
+        setAccepted(a => a.filter(k => k.id !== id));
+      };
+
+      const addCustom = () => {
+        const val = customInput.trim();
+        if (!val) return;
+        const newKws = [];
+        splitBrandModel(val).forEach(part => {
+          const path = part.path[0] === 'Custom' ? findPath(part.value) : part.path;
+          const kw = { id: `custom-${Date.now()}-${Math.random().toString(36).slice(2)}`, value: part.value, confidence: 1, path, rootCategory: path[0] };
+          newKws.push(kw);
+          setKeywords(c => [...c, kw]);
+          setAccepted(a => a.some(x => x.value.toLowerCase() === kw.value.toLowerCase()) ? a : [...a, kw]);
+        });
+        setCustomInput('');
+        setModified(true);
+        setIsEditing(true);
+
+        // Sync to similar images
+        if (selectedImg && newKws.length > 0) {
+          const similar = getSimilarImages(selectedImg);
+          if (similar.length > 0) {
+            setQueue(q => q.map(img => {
+              if (similar.some(s => s.id === img.id)) {
+                const existingVals = new Set((img.keywords || []).map(k => k.value.toLowerCase()));
+                const syncKws = newKws
+                  .filter(kw => !existingVals.has(kw.value.toLowerCase()))
+                  .map(kw => ({ ...kw, id: `sync-${Math.random().toString(36).slice(2)}` }));
+                if (syncKws.length > 0) {
+                  return { ...img, keywords: [...(img.keywords || []), ...syncKws], status: img.status === 'pending' ? 'ready' : img.status };
+                }
+              }
+              return img;
+            }));
+          }
+        }
+      };
+
+      // Only sync from queue when NOT actively editing
+      useEffect(() => {
+        if (selectedImg && (selectedImg.status === 'ready' || selectedImg.status === 'done') && !modified && !isEditing) {
+          setKeywords(selectedImg.keywords || []);
+          setPending(selectedImg.pending || []);
+          setDesigner(selectedImg.designer || null);
+          setVisionData(selectedImg.visionData || null);
+        }
+      }, [selectedImg?.id, selectedImg?.status]);
+
+      const tree = buildTree(accepted);
+      const getColor = (r) => ROOT_COLORS[r] || '#94a3b8';
+
+      const totalCount = queue.length;
+      const hiddenCount = queue.filter(q => q.hidden).length;
+      const doneCount = queue.filter(q => q.status === 'done').length;
+      const readyCount = queue.filter(q => (q.status === 'ready' || q.status === 'editing') && !q.hidden).length;
+      const analyzingCount = queue.filter(q => q.status === 'analyzing').length;
+      const pendingCount = queue.filter(q => q.status === 'pending' && !q.hidden).length;
+      const editingCount = queue.filter(q => q.status === 'editing' && !q.hidden).length;
+      const similarCount = selectedImg ? getSimilarImages(selectedImg).length : 0;
+
+      const thumbSizes = [60, 90, 130, 180];
+      const currentThumbSize = thumbSizes[thumbSize];
+
+      const s = { bg: '#0a0a0a', panel: '#111', border: '#1a1a1a', text: '#888', bright: '#e5e5e5' };
+
+      return (
+        <div ref={containerRef} tabIndex={0} style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', font: '11px/1.4 -apple-system, sans-serif', background: s.bg, color: s.text, outline: 'none' }}>
+          <input ref={fileRef} type="file" accept="image/*" multiple onChange={handleFileInput} style={{ display: 'none' }} />
+          <input ref={folderRef} type="file" accept="image/*" multiple webkitdirectory="" onChange={handleFileInput} style={{ display: 'none' }} />
+
+          {/* TOOLBAR */}
+          <div style={{ height: 40, background: s.panel, display: 'flex', alignItems: 'center', padding: '0 12px', gap: 10, borderBottom: `1px solid ${s.border}`, flexShrink: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <div style={{ width: 16, height: 16, background: 'linear-gradient(135deg, #8b5cf6, #3b82f6)', borderRadius: 3 }} />
+              <span style={{ color: s.bright, fontWeight: 600, fontSize: 12 }}>Tagger v8</span>
+            </div>
+            <span style={{ color: '#333' }}>|</span>
+            <span style={{ color: '#666', fontSize: 10 }}>
+              {filteredQueue.length}/{totalCount}
+              {analyzingCount > 0 && <span style={{ color: '#fbbf24' }}> • {analyzingCount} ⏳</span>}
+              {readyCount > 0 && <span style={{ color: '#60a5fa' }}> • {readyCount} ready</span>}
+            </span>
+
+            <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+              {pendingCount > 0 && (
+                <button onClick={analyzeAllPending} style={{ padding: '4px 10px', background: '#2563eb', color: 'white', border: 'none', borderRadius: 3, cursor: 'pointer', fontSize: 10 }}>
+                  Analyze All ({pendingCount})
+                </button>
+              )}
+              <button onClick={() => fileRef.current?.click()} style={{ padding: '4px 10px', background: '#222', color: s.text, border: 'none', borderRadius: 3, cursor: 'pointer', fontSize: 10 }}>+ Files</button>
+              <button onClick={() => folderRef.current?.click()} style={{ padding: '4px 10px', background: '#222', color: s.text, border: 'none', borderRadius: 3, cursor: 'pointer', fontSize: 10 }}>+ Folder</button>
+              {outputDir && <span style={{ color: '#4ade80', fontSize: 10 }}>● Auto</span>}
+              <button onClick={() => setShowSettings(true)} style={{ padding: '4px 8px', background: 'transparent', color: '#666', border: 'none', cursor: 'pointer', fontSize: 12 }}>⚙</button>
+            </div>
+          </div>
+
+          {/* MAIN */}
+          <div style={{ flex: 1, display: 'flex', overflow: 'hidden', width: '100%' }}>
+
+            {/* LEFT - GRID */}
+            <div style={{ flex: 1, minWidth: 300, background: s.panel, borderRight: `1px solid ${s.border}`, display: 'flex', flexDirection: 'column' }}>
+              <div style={{ padding: 8, borderBottom: `1px solid ${s.border}`, display: 'flex', gap: 4, alignItems: 'center', flexWrap: 'wrap' }}>
+                <button onClick={() => setShowPending(!showPending)}
+                  style={{ padding: '3px 8px', background: showPending ? 'rgba(251,191,36,0.15)' : '#222', color: showPending ? '#fbbf24' : '#666', border: 'none', borderRadius: 3, cursor: 'pointer', fontSize: 10 }}>
+                  ○ Pending ({pendingCount})
+                </button>
+                <button onClick={() => setShowDone(!showDone)}
+                  style={{ padding: '3px 8px', background: showDone ? 'rgba(74,222,128,0.15)' : '#222', color: showDone ? '#4ade80' : '#666', border: 'none', borderRadius: 3, cursor: 'pointer', fontSize: 10 }}>
+                  ✓ Done ({doneCount})
+                </button>
+                <button onClick={() => setShowHidden(!showHidden)}
+                  style={{ padding: '3px 8px', background: showHidden ? 'rgba(248,113,113,0.15)' : '#222', color: showHidden ? '#f87171' : '#666', border: 'none', borderRadius: 3, cursor: 'pointer', fontSize: 10 }}>
+                  👁 Hidden ({hiddenCount})
+                </button>
+                <div style={{ marginLeft: 'auto', display: 'flex', gap: 2 }}>
+                  {['S', 'M', 'L', 'XL'].map((label, i) => (
+                    <button key={label} onClick={() => setThumbSize(i)}
+                      style={{ padding: '3px 6px', background: thumbSize === i ? '#333' : '#1a1a1a', color: thumbSize === i ? '#fff' : '#666', border: 'none', borderRadius: 2, cursor: 'pointer', fontSize: 9 }}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div style={{ flex: 1, overflow: 'auto', padding: 8 }}>
+                {filteredQueue.length === 0 ? (
+                  <div style={{ padding: 40, textAlign: 'center', color: '#555' }}>
+                    <div style={{ fontSize: 48, marginBottom: 12 }}>📁</div>
+                    <div style={{ fontSize: 12 }}>Drop images here</div>
+                    <div style={{ fontSize: 10, marginTop: 8, color: '#444' }}>Use ← → arrows to navigate</div>
+                  </div>
+                ) : (
+                  <div style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(${currentThumbSize}px, 1fr))`, gap: 6 }}>
+                    {filteredQueue.map(item => {
+                      const isSelected = item.id === selectedId;
+                      const statusColor = item.status === 'done' ? '#4ade80' : item.status === 'editing' ? '#4ade80' : item.status === 'ready' ? '#60a5fa' : item.status === 'analyzing' ? '#fbbf24' : item.status === 'error' ? '#f87171' : '#666';
+                      return (
+                        <div key={item.id} onClick={() => selectImage(item.id)}
+                          style={{ position: 'relative', borderRadius: 6, overflow: 'hidden', cursor: 'pointer',
+                            border: `2px solid ${isSelected ? '#60a5fa' : statusColor}`,
+                            opacity: item.hidden ? 0.4 : item.status === 'done' ? 0.6 : 1 }}>
+                          <div style={{ aspectRatio: '1', background: `url(${item.url}) center/cover` }}>
+                            <div style={{ position: 'absolute', top: 4, left: 4, width: 12, height: 12, borderRadius: 6, background: statusColor, border: '2px solid rgba(0,0,0,0.5)' }} />
+                            {item.status === 'analyzing' && (
+                              <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <span style={{ fontSize: 24 }}>⏳</span>
+                              </div>
+                            )}
+                            {item.status === 'done' && <div style={{ position: 'absolute', top: 4, right: 4, background: '#4ade80', color: '#000', padding: '2px 5px', borderRadius: 3, fontSize: 10, fontWeight: 600 }}>✓</div>}
+                            {item.status === 'editing' && <div style={{ position: 'absolute', top: 4, right: 4, background: '#4ade80', color: '#000', padding: '2px 5px', borderRadius: 3, fontSize: 10, fontWeight: 600 }}>●</div>}
+                            {item.hidden && <div style={{ position: 'absolute', top: 4, right: 4, background: '#f87171', color: '#fff', padding: '2px 5px', borderRadius: 3, fontSize: 10 }}>H</div>}
+                          </div>
+                          <button onClick={(e) => item.hidden ? unhideImage(item.id, e) : hideImage(item.id, e)} tabIndex={-1}
+                            style={{ position: 'absolute', bottom: 4, right: 4, background: 'rgba(0,0,0,0.8)', border: 'none', color: '#888', cursor: 'pointer', padding: '3px 6px', borderRadius: 3, fontSize: 10 }}>
+                            {item.hidden ? '👁' : '✕'}
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* CENTER - PREVIEW */}
+            <div style={{ width: 340, minWidth: 280, maxWidth: 400, flexShrink: 0, display: 'flex', flexDirection: 'column' }}>
+              {selectedImg ? (
+                <>
+                  <div style={{ height: '35%', minHeight: 120, background: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+                    <img src={selectedImg.url} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+                    <div style={{ position: 'absolute', bottom: 4, left: 4, background: 'rgba(0,0,0,0.8)', padding: '2px 6px', borderRadius: 3, color: '#888', fontSize: 9, maxWidth: '80%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {selectedImg.name}
+                    </div>
+                    {modified && <div style={{ position: 'absolute', top: 4, right: 4, background: '#fbbf24', color: '#000', padding: '2px 6px', borderRadius: 3, fontSize: 9 }}>●</div>}
+                    {downloadedLarger && (
+                      <div style={{ position: 'absolute', top: 4, left: 4, background: '#4ade80', color: '#000', padding: '2px 6px', borderRadius: 3, fontSize: 9 }}>
+                        ⬇ {(downloadedLarger.size / 1024 / 1024).toFixed(1)}MB
+                      </div>
+                    )}
+                  </div>
+
+                  <div style={{ flex: 1, overflow: 'auto', padding: 10 }}>
+                    {selectedImg.status === 'analyzing' && (
+                      <div style={{ textAlign: 'center', padding: 20, color: '#666' }}>
+                        <div style={{ fontSize: 24, marginBottom: 6 }}>⏳</div>
+                        Analyzing...
+                      </div>
+                    )}
+
+                    {selectedImg.status === 'error' && (
+                      <div style={{ textAlign: 'center', padding: 20, color: '#f87171' }}>
+                        <div style={{ fontSize: 20, marginBottom: 6 }}>⚠️</div>
+                        Failed
+                        <button onClick={() => { setQueue(q => q.map(i => i.id === selectedImg.id ? {...i, status: 'pending'} : i)); analyzeImage({...selectedImg, status: 'pending'}); }}
+                          style={{ display: 'block', margin: '10px auto', padding: '5px 10px', background: '#2563eb', color: 'white', border: 'none', borderRadius: 3, cursor: 'pointer', fontSize: 10 }}>
+                          Retry
+                        </button>
+                      </div>
+                    )}
+
+                    {(selectedImg.status === 'ready' || selectedImg.status === 'done' || selectedImg.status === 'editing' || isEditing) && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        {designer?.designer && (
+                          <div style={{ background: 'rgba(167,139,250,0.1)', padding: 8, borderRadius: 5, border: '1px solid rgba(167,139,250,0.3)' }}>
+                            <span style={{ color: '#a78bfa', fontSize: 10 }}>🎨 {designer.designer}</span>
+                          </div>
+                        )}
+
+                        {similarCount > 0 && (
+                          <div style={{ background: 'rgba(251,191,36,0.1)', padding: 8, borderRadius: 5, border: '1px solid rgba(251,191,36,0.3)' }}>
+                            <span style={{ color: '#fbbf24', fontSize: 10 }}>📎 {similarCount} similar image{similarCount > 1 ? 's' : ''} will sync</span>
+                          </div>
+                        )}
+
+                        {visionData?.matchingImages?.length > 0 && (
+                          <div style={{ background: 'rgba(96,165,250,0.1)', padding: 8, borderRadius: 5, border: '1px solid rgba(96,165,250,0.3)' }}>
+                            <div style={{ color: '#60a5fa', fontSize: 9, marginBottom: 4 }}>🔍 {visionData.matchingImages.length} web matches</div>
+                            <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
+                              {visionData.matchingImages.slice(0, 4).map((img, i) => (
+                                <a key={i} href={img.url} target="_blank" rel="noreferrer" style={{ color: '#60a5fa', fontSize: 8, textDecoration: 'none', padding: '1px 4px', background: 'rgba(96,165,250,0.1)', borderRadius: 2 }}>
+                                  {img.type}
+                                </a>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {keywords.length > 0 && (
+                          <div style={{ background: s.panel, borderRadius: 5, padding: 8, border: `1px solid ${s.border}` }}>
+                            <div style={{ color: '#4ade80', marginBottom: 5, fontSize: 10, fontWeight: 600 }}>
+                              Tagged ({keywords.length})
+                            </div>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
+                              {keywords.map(k => (
+                                <span key={k.id} style={{ padding: '2px 5px', background: `${getColor(k.rootCategory)}20`, color: getColor(k.rootCategory), borderRadius: 3, fontSize: 9, display: 'flex', alignItems: 'center', gap: 3 }}>
+                                  {k.source === 'vision' && <span style={{ fontSize: 7 }}>🔍</span>}
+                                  {k.source === 'filename' && <span style={{ fontSize: 7 }}>📄</span>}
+                                  {k.value}
+                                  <span onClick={() => removeKw(k.id)} style={{ cursor: 'pointer', opacity: 0.5, fontSize: 7 }}>✕</span>
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {pending.length > 0 && (
+                          <div style={{ background: s.panel, borderRadius: 5, padding: 8, border: `1px solid ${s.border}` }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
+                              <span style={{ color: s.bright, fontSize: 10, fontWeight: 600 }}>{pending.length} review</span>
+                              <button onClick={acceptAll} style={{ padding: '1px 5px', background: 'rgba(96,165,250,0.15)', color: '#60a5fa', border: 'none', borderRadius: 2, cursor: 'pointer', fontSize: 8 }}>All ✓</button>
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                              {pending.map(k => (
+                                <div key={k.id} style={{ display: 'flex', alignItems: 'center', gap: 3, padding: '3px 4px', background: 'rgba(255,255,255,0.02)', borderRadius: 3 }}>
+                                  <button onClick={() => accept(k.id)} tabIndex={-1} style={{ padding: '1px 4px', background: 'rgba(74,222,128,0.15)', color: '#4ade80', border: 'none', borderRadius: 2, cursor: 'pointer', fontSize: 8 }}>✓</button>
+                                  <button onClick={() => ignore(k.id)} tabIndex={-1} style={{ padding: '1px 4px', background: 'rgba(251,191,36,0.15)', color: '#fbbf24', border: 'none', borderRadius: 2, cursor: 'pointer', fontSize: 8 }}>–</button>
+                                  <button onClick={() => block(k.id)} tabIndex={-1} style={{ padding: '1px 4px', background: 'rgba(248,113,113,0.15)', color: '#f87171', border: 'none', borderRadius: 2, cursor: 'pointer', fontSize: 8 }}>✕</button>
+                                  <span style={{ width: 4, height: 4, borderRadius: 2, background: getColor(k.rootCategory), flexShrink: 0 }} />
+                                  <span style={{ color: s.bright, fontSize: 9, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{k.value}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {ignored.length > 0 && (
+                          <div style={{ background: s.panel, borderRadius: 5, padding: 8, border: `1px solid ${s.border}` }}>
+                            <div style={{ color: '#fbbf24', marginBottom: 4, fontSize: 9 }}>Skipped ({ignored.length})</div>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
+                              {ignored.map(k => (
+                                <span key={k.id} style={{ padding: '2px 5px', background: 'rgba(251,191,36,0.1)', color: '#b45309', borderRadius: 3, fontSize: 9, display: 'flex', alignItems: 'center', gap: 3 }}>
+                                  {k.value}
+                                  <span onClick={() => acceptIgnored(k.id)} style={{ cursor: 'pointer', color: '#4ade80', fontSize: 7 }}>✓</span>
+                                  <span onClick={() => block(k.id)} style={{ cursor: 'pointer', color: '#f87171', fontSize: 7 }}>✕</span>
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        <div style={{ display: 'flex', gap: 4 }}>
+                          <input type="text" value={customInput} onChange={e => setCustomInput(e.target.value)}
+                            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addCustom(); } }}
+                            placeholder="Add..."
+                            style={{ flex: 1, padding: '5px 8px', background: s.panel, border: `1px solid ${s.border}`, borderRadius: 3, color: s.bright, font: 'inherit', outline: 'none', fontSize: 10 }} />
+                          <button onClick={addCustom} disabled={!customInput.trim()} tabIndex={-1}
+                            style={{ padding: '5px 10px', background: customInput.trim() ? '#f472b6' : '#222', color: customInput.trim() ? 'white' : '#444', border: 'none', borderRadius: 3, cursor: customInput.trim() ? 'pointer' : 'default', fontSize: 10 }}>+</button>
+                        </div>
+
+                        {keywords.length > 0 && (
+                          <button onClick={() => saveImage()} tabIndex={-1} style={{ padding: '6px 12px', background: '#2563eb', color: 'white', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: 10, fontWeight: 500 }}>
+                            💾 Save{similarCount > 0 ? ` + ${similarCount} similar` : ''}
+                          </button>
+                        )}
+                      </div>
+                    )}
+
+                    {selectedImg.status === 'pending' && (
+                      <div style={{ textAlign: 'center', padding: 20, color: '#666' }}>
+                        <button onClick={() => analyzeImage(selectedImg)} tabIndex={-1}
+                          style={{ padding: '6px 14px', background: '#2563eb', color: 'white', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: 10 }}>
+                          Analyze
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#555' }}>
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: 36, marginBottom: 10, opacity: 0.3 }}>🖼</div>
+                    <div style={{ fontSize: 10 }}>Select image</div>
+                    <div style={{ fontSize: 9, marginTop: 6, color: '#444' }}>← → to navigate</div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* RIGHT - TAXONOMY */}
+            <div style={{ width: 280, minWidth: 220, flexShrink: 0, background: s.panel, borderLeft: `1px solid ${s.border}`, display: 'flex', flexDirection: 'column' }}>
+              <div style={{ padding: 12, borderBottom: `1px solid ${s.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <div style={{ color: s.bright, fontSize: 12, fontWeight: 600 }}>Taxonomy</div>
+                  <div style={{ color: '#666', fontSize: 10 }}>{accepted.length} accepted • {taxInfo.allTerms.size} dictionary</div>
+                </div>
+                <button onClick={() => setShowMasterTaxonomy(!showMasterTaxonomy)} tabIndex={-1}
+                  style={{ padding: '3px 6px', background: showMasterTaxonomy ? 'rgba(96,165,250,0.15)' : '#222', color: showMasterTaxonomy ? '#60a5fa' : '#666', border: 'none', borderRadius: 3, cursor: 'pointer', fontSize: 9 }}>
+                  {showMasterTaxonomy ? 'Session' : 'Master'}
+                </button>
+              </div>
+              <div style={{ flex: 1, padding: 8, overflowY: 'auto' }}>
+                {showMasterTaxonomy ? (
+                  <div style={{ fontSize: 10 }}>
+                    <div style={{ color: '#666', marginBottom: 8 }}>Master dictionary ({taxInfo.allTerms.size} terms):</div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
+                      {Array.from(taxInfo.allTerms).sort().map(term => (
+                        <span key={term} style={{ padding: '2px 5px', background: 'rgba(255,255,255,0.05)', color: '#888', borderRadius: 2, fontSize: 9 }}>
+                          {term}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ) : Object.keys(tree).length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: 16, color: '#555', fontSize: 10 }}>
+                    <div style={{ marginBottom: 6 }}>Empty</div>
+                    <div style={{ fontSize: 9, color: '#444' }}>Analyze images to build</div>
+                  </div>
+                ) : (
+                  Object.entries(tree).map(([name, node]) => (
+                    <TreeNode key={name} name={name} node={node} depth={0} expanded={expanded}
+                      onToggle={p => setExpanded(e => ({ ...e, [p]: e[p] === false ? true : false }))}
+                      onDeleteKeyword={deleteFromTaxonomy} />
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* SETTINGS */}
+          {showSettings && (
+            <div onClick={() => setShowSettings(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200 }}>
+              <div onClick={e => e.stopPropagation()} style={{ background: s.panel, borderRadius: 10, width: 420, maxHeight: '80vh', overflow: 'auto', border: `1px solid ${s.border}` }}>
+                <div style={{ padding: 14, borderBottom: `1px solid ${s.border}`, color: s.bright, fontSize: 13, fontWeight: 600 }}>Settings</div>
+                <div style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <div>
+                    <div style={{ marginBottom: 4, color: '#666', fontSize: 10 }}>Gemini API Key</div>
+                    <input type="password" value={geminiKey} onChange={e => setGeminiKey(e.target.value)}
+                      style={{ width: '100%', padding: '6px 10px', background: '#0a0a0a', border: `1px solid ${s.border}`, borderRadius: 4, color: s.bright, font: 'inherit', outline: 'none', fontSize: 10 }} />
+                    <a href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer" style={{ color: '#60a5fa', fontSize: 9 }}>Get key →</a>
+                  </div>
+                  <div>
+                    <div style={{ marginBottom: 4, color: '#666', fontSize: 10 }}>Vision API Key (optional)</div>
+                    <input type="password" value={visionKey} onChange={e => setVisionKey(e.target.value)}
+                      style={{ width: '100%', padding: '6px 10px', background: '#0a0a0a', border: `1px solid ${s.border}`, borderRadius: 4, color: s.bright, font: 'inherit', outline: 'none', fontSize: 10 }} />
+                    <a href="https://console.cloud.google.com/apis/library/vision.googleapis.com" target="_blank" rel="noreferrer" style={{ color: '#60a5fa', fontSize: 9 }}>Enable Vision API →</a>
+                  </div>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                    <input type="checkbox" checked={useVision} onChange={e => setUseVision(e.target.checked)} />
+                    <span style={{ fontSize: 10, color: s.text }}>Use Vision API for reverse image search</span>
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                    <input type="checkbox" checked={autoDownloadLarger} onChange={e => setAutoDownloadLarger(e.target.checked)} />
+                    <span style={{ fontSize: 10, color: s.text }}>Auto-download larger versions (needs output folder)</span>
+                  </label>
+                  <div style={{ display: 'flex', gap: 10 }}>
+                    <label style={{ flex: 1, padding: 8, border: `1px solid ${saveMode === 'embed' ? '#60a5fa' : s.border}`, borderRadius: 4, cursor: 'pointer', fontSize: 10 }}>
+                      <input type="radio" checked={saveMode === 'embed'} onChange={() => setSaveMode('embed')} style={{ marginRight: 6 }} />
+                      Embed XMP
+                    </label>
+                    <label style={{ flex: 1, padding: 8, border: `1px solid ${saveMode === 'sidecar' ? '#60a5fa' : s.border}`, borderRadius: 4, cursor: 'pointer', fontSize: 10 }}>
+                      <input type="radio" checked={saveMode === 'sidecar'} onChange={() => setSaveMode('sidecar')} style={{ marginRight: 6 }} />
+                      Sidecar .xmp
+                    </label>
+                  </div>
+                  <button onClick={async () => { try { setOutputDir(await window.showDirectoryPicker({ mode: 'readwrite' })); } catch {} }}
+                    style={{ padding: '8px', background: outputDir ? 'rgba(74,222,128,0.15)' : '#222', color: outputDir ? '#4ade80' : '#888', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: 10 }}>
+                    {outputDir ? '✓ Output folder set' : 'Choose output folder'}
+                  </button>
+                </div>
+                <div style={{ padding: 14, borderTop: `1px solid ${s.border}`, display: 'flex', justifyContent: 'flex-end' }}>
+                  <button onClick={() => setShowSettings(false)} style={{ padding: '6px 16px', background: '#2563eb', color: 'white', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: 10 }}>Done</button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
