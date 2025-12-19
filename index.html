@@ -119,10 +119,11 @@
       smartCategorize, addToTaxonomy, removeFromTaxonomy, flattenTaxonomy,
       getBrandPath, looksLikeBrand, parseEra, splitBrandModel, deduplicateKeywords,
       buildTree, countKeywords, hashFile, getBaseName, loadMemory, saveMemory,
+      getCachedAnalysis, setCachedAnalysis,
       extractFromFilename, extractFromUrls, extractExistingMetadata, generateXMP,
       embedXMP, embedXMPinPNG, convertToJPEG, isRawFormat, supportsEmbedding
     } = window.TaggerUtils;
-    const { analyzeWithGemini, findDesigner, categorizeKeywords, analyzeWithVision, downloadLargerVersion } = window.TaggerAPI;
+    const { analyzeWithGemini, findDesigner, categorizeKeywords, consolidateKeywords, analyzeWithVision, downloadLargerVersion } = window.TaggerAPI;
 
     // ============================================
     // REACT COMPONENTS (must be in Babel block for JSX)
@@ -252,12 +253,15 @@
       const [expanded, setExpanded] = useState({});
       const [customInput, setCustomInput] = useState('');
       const [isCategorizing, setIsCategorizing] = useState(false);
+      const [gridWidth, setGridWidth] = useState(() => parseInt(localStorage.getItem('grid_width')) || 50); // percentage
+      const [isDraggingDivider, setIsDraggingDivider] = useState(false);
 
       const fileRef = useRef(null);
       const folderRef = useRef(null);
       const acceptedRef = useRef(new Set());
       const blockedRef = useRef(new Set());
       const containerRef = useRef(null);
+      const mainPanelRef = useRef(null);
 
       useEffect(() => { acceptedRef.current = new Set(accepted.map(k => k.value.toLowerCase())); }, [accepted]);
       useEffect(() => { blockedRef.current = new Set(blocked.map(k => k.value.toLowerCase())); }, [blocked]);
@@ -317,6 +321,39 @@
 
       useEffect(() => { saveMemory(memory); }, [memory]);
       useEffect(() => { localStorage.setItem(TAXONOMY_KEY, JSON.stringify(taxonomy)); }, [taxonomy]);
+      useEffect(() => { localStorage.setItem('grid_width', gridWidth.toString()); }, [gridWidth]);
+
+      // Divider drag handlers
+      const handleDividerMouseDown = useCallback((e) => {
+        e.preventDefault();
+        setIsDraggingDivider(true);
+      }, []);
+
+      useEffect(() => {
+        if (!isDraggingDivider) return;
+
+        const handleMouseMove = (e) => {
+          const container = mainPanelRef.current;
+          if (!container) return;
+          const rect = container.getBoundingClientRect();
+          const taxonomyWidth = 375; // fixed taxonomy panel width
+          const availableWidth = rect.width - taxonomyWidth;
+          const mouseX = e.clientX - rect.left;
+          const newGridWidth = Math.max(20, Math.min(80, (mouseX / availableWidth) * 100));
+          setGridWidth(newGridWidth);
+        };
+
+        const handleMouseUp = () => {
+          setIsDraggingDivider(false);
+        };
+
+        document.addEventListener('mousemove', handleMouseMove);
+        document.addEventListener('mouseup', handleMouseUp);
+        return () => {
+          document.removeEventListener('mousemove', handleMouseMove);
+          document.removeEventListener('mouseup', handleMouseUp);
+        };
+      }, [isDraggingDivider]);
 
       const queueRef = useRef(queue);
       const memoryRef = useRef(memory);
@@ -536,6 +573,66 @@
         setDownloadedLarger(null);
 
         try {
+          // Check cache first
+          const cached = getCachedAnalysis(img.hash);
+          if (cached) {
+            console.log('[ANALYZE] Using cached analysis for:', img.name);
+            // Re-process cached keywords through the categorization logic
+            const rawKws = cached.rawKeywords || [];
+            const visionResult = cached.visionData || null;
+            const designerInfo = cached.designer || null;
+
+            // Process keywords (same logic as fresh analysis)
+            const processedKws = rawKws.map(kw => {
+              const path = smartCategorize(kw);
+              return { ...kw, id: kw.id || Math.random().toString(36), path, rootCategory: path[0] };
+            });
+            const allKws = deduplicateKeywords(processedKws);
+            const currentAccepted = acceptedRef.current;
+            const currentBlocked = blockedRef.current;
+
+            const auto = [], review = [];
+            allKws.forEach(kw => {
+              const key = kw.value.toLowerCase();
+              if (currentBlocked.has(key)) return;
+              const inMaster = taxInfo.allTerms.has(key);
+              const inSession = currentAccepted.has(key);
+              const isDesigner = kw.type === 'designer' || kw.rootCategory === 'Creator';
+              const isBrand = kw.type === 'brand' || kw.rootCategory === 'Brand';
+              const isEra = kw.type === 'era' || kw.rootCategory === 'Era' || /^\d{4}s$/.test(kw.value);
+              const knownCountries = ['Germany', 'Italy', 'Japan', 'Denmark', 'Sweden', 'United States', 'United Kingdom', 'France', 'Switzerland', 'Finland', 'Netherlands', 'Norway', 'Austria', 'Belgium', 'Spain', 'Portugal', 'Brazil', 'Mexico', 'Canada', 'Australia', 'China', 'South Korea', 'India', 'Russia', 'Poland', 'Czech Republic', 'Hungary', 'Greece', 'Turkey', 'Israel', 'South Africa', 'Argentina', 'Chile', 'Colombia', 'Iceland', 'Ireland', 'Scotland', 'Wales', 'USA', 'UK'];
+              const isCountry = kw.type === 'country' || (kw.path && kw.path.includes('Origin')) || knownCountries.some(c => c.toLowerCase() === kw.value.toLowerCase());
+              const isModel = kw.type === 'model' || kw.rootCategory === 'Product';
+              const isAllUppercase = kw.value.length > 1 && kw.value === kw.value.toUpperCase() && /[A-Z]/.test(kw.value);
+              if (inMaster || inSession || isDesigner || isBrand || isEra || isCountry || isModel || isAllUppercase) {
+                if (isCountry && (!kw.path || !kw.path.includes('Origin'))) {
+                  kw.path = ['Style', 'Origin'];
+                  kw.rootCategory = 'Style';
+                  kw.type = 'country';
+                }
+                auto.push(kw);
+              } else {
+                review.push(kw);
+              }
+            });
+
+            setQueue(q => q.map(i => i.id === img.id ? {
+              ...i, status: 'ready', keywords: auto, pending: review,
+              designer: designerInfo, visionData: visionResult
+            } : i));
+
+            if (auto.length) {
+              setAccepted(prev => {
+                const updated = [...prev];
+                auto.forEach(kw => {
+                  if (!updated.some(a => a.value.toLowerCase() === kw.value.toLowerCase())) updated.push(kw);
+                });
+                return updated;
+              });
+            }
+            return;
+          }
+
           const base64 = await new Promise((res, rej) => {
             const r = new FileReader();
             r.onload = () => res(r.result.split(',')[1]);
@@ -666,6 +763,13 @@
           });
 
           console.log(`[ANALYZE] Result: ${auto.length} auto-accepted, ${review.length} for review`);
+
+          // Cache the raw analysis results
+          setCachedAnalysis(img.hash, {
+            rawKeywords: processedKws,
+            visionData: visionResult,
+            designer: designerInfo
+          });
 
           setQueue(q => q.map(i => i.id === img.id ? {
             ...i, status: 'ready', keywords: auto, pending: review,
@@ -1047,6 +1151,81 @@
 
       const customCount = getCustomKeywords().length;
 
+      // Auto-run categorization when custom keywords accumulate
+      const autoCategorizeTimeoutRef = useRef(null);
+      useEffect(() => {
+        if (customCount > 0 && geminiKey && !isCategorizing) {
+          // Clear any pending timeout
+          if (autoCategorizeTimeoutRef.current) {
+            clearTimeout(autoCategorizeTimeoutRef.current);
+          }
+          // Schedule auto-categorization after 3 seconds of inactivity
+          autoCategorizeTimeoutRef.current = setTimeout(() => {
+            console.log('[AUTO-CATEGORIZE] Triggering auto-categorization for', customCount, 'custom keywords');
+            runCategorization();
+          }, 3000);
+        }
+        return () => {
+          if (autoCategorizeTimeoutRef.current) {
+            clearTimeout(autoCategorizeTimeoutRef.current);
+          }
+        };
+      }, [customCount, geminiKey, isCategorizing]);
+
+      // Auto-consolidate pending keywords to master taxonomy synonyms
+      const [isConsolidating, setIsConsolidating] = useState(false);
+      const consolidateTimeoutRef = useRef(null);
+
+      useEffect(() => {
+        if (pending.length > 0 && geminiKey && !isConsolidating && taxInfo.allTerms.size > 0) {
+          if (consolidateTimeoutRef.current) {
+            clearTimeout(consolidateTimeoutRef.current);
+          }
+          consolidateTimeoutRef.current = setTimeout(async () => {
+            setIsConsolidating(true);
+            try {
+              const reviewKws = pending.map(k => k.value);
+              const masterTerms = Array.from(taxInfo.allTerms);
+              console.log('[CONSOLIDATE] Checking', reviewKws.length, 'keywords against', masterTerms.length, 'master terms');
+
+              const matches = await consolidateKeywords(geminiKey, reviewKws, masterTerms);
+              console.log('[CONSOLIDATE] Found', matches.length, 'matches');
+
+              if (matches.length > 0) {
+                // For each match, find the pending keyword and auto-accept it with the master term
+                matches.forEach(match => {
+                  const pendingKw = pending.find(k => k.value.toLowerCase() === match.review.toLowerCase());
+                  if (pendingKw && match.confidence >= 0.8) {
+                    console.log(`[CONSOLIDATE] Replacing "${pendingKw.value}" with master term "${match.master}"`);
+                    // Update the keyword value to match master taxonomy
+                    const consolidatedKw = { ...pendingKw, value: match.master, consolidated: true };
+                    const path = smartCategorize(consolidatedKw);
+                    consolidatedKw.path = path;
+                    consolidatedKw.rootCategory = path[0];
+
+                    // Auto-accept it
+                    setPending(p => p.filter(k => k.id !== pendingKw.id));
+                    setKeywords(kws => [...kws, consolidatedKw]);
+                    setAccepted(a => a.some(x => x.value.toLowerCase() === consolidatedKw.value.toLowerCase()) ? a : [...a, consolidatedKw]);
+                    setModified(true);
+                    setIsEditing(true);
+                  }
+                });
+              }
+            } catch (e) {
+              console.error('[CONSOLIDATE] Error:', e);
+            } finally {
+              setIsConsolidating(false);
+            }
+          }, 2000);
+        }
+        return () => {
+          if (consolidateTimeoutRef.current) {
+            clearTimeout(consolidateTimeoutRef.current);
+          }
+        };
+      }, [pending, geminiKey, taxInfo.allTerms]);
+
       const tree = buildTree(accepted);
       const getColor = (r) => ROOT_COLORS[r] || '#94a3b8';
 
@@ -1132,10 +1311,10 @@
           </div>
 
           {/* MAIN */}
-          <div style={{ flex: 1, display: 'flex', overflow: 'hidden', width: '100%' }}>
+          <div ref={mainPanelRef} style={{ flex: 1, display: 'flex', overflow: 'hidden', width: '100%', cursor: isDraggingDivider ? 'col-resize' : 'default' }}>
 
             {/* LEFT - GRID */}
-            <div style={{ flex: 1, minWidth: 300, background: s.panel, borderRight: `1px solid ${s.border}`, display: 'flex', flexDirection: 'column' }}>
+            <div style={{ width: `${gridWidth}%`, minWidth: 250, background: s.panel, display: 'flex', flexDirection: 'column' }}>
               <div style={{ padding: '10px 12px', borderBottom: `1px solid ${s.border}`, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                 <button onClick={() => setShowPending(!showPending)}
                   style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: showPending ? 'rgba(251,191,36,0.15)' : '#1f2937', color: showPending ? '#fbbf24' : s.muted, border: 'none', borderRadius: s.radiusSm, cursor: 'pointer', fontSize: s.fontSize }}>
@@ -1216,8 +1395,33 @@
               </div>
             </div>
 
+            {/* RESIZABLE DIVIDER */}
+            <div
+              onMouseDown={handleDividerMouseDown}
+              style={{
+                width: 12,
+                background: isDraggingDivider ? s.border : 'transparent',
+                cursor: 'col-resize',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+                transition: 'background 0.15s'
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.background = s.border}
+              onMouseLeave={(e) => !isDraggingDivider && (e.currentTarget.style.background = 'transparent')}
+            >
+              <div style={{
+                width: 4,
+                height: 40,
+                background: '#4b5563',
+                borderRadius: 2,
+                opacity: 0.6
+              }} />
+            </div>
+
             {/* CENTER - PREVIEW */}
-            <div style={{ width: 380, minWidth: 300, maxWidth: 450, flexShrink: 0, display: 'flex', flexDirection: 'column', background: s.bg }}>
+            <div style={{ flex: 1, minWidth: 280, display: 'flex', flexDirection: 'column', background: s.bg }}>
               {selectedImg ? (
                 <>
                   <div style={{ height: '35%', minHeight: 140, background: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
@@ -1403,7 +1607,7 @@
             </div>
 
             {/* RIGHT - TAXONOMY */}
-            <div style={{ width: 300, minWidth: 240, flexShrink: 0, background: s.panel, borderLeft: `1px solid ${s.border}`, display: 'flex', flexDirection: 'column' }}>
+            <div style={{ width: 375, minWidth: 280, flexShrink: 0, background: s.panel, borderLeft: `1px solid ${s.border}`, display: 'flex', flexDirection: 'column' }}>
               <div style={{ padding: '14px 16px', borderBottom: `1px solid ${s.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: s.bright, fontSize: s.fontSize, fontWeight: 600 }}>

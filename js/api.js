@@ -108,6 +108,44 @@ Only return the JSON array.` }] }],
   }
 };
 
+// Consolidate review keywords by finding matching master taxonomy terms
+const consolidateKeywords = async (apiKey, reviewKeywords, masterTerms) => {
+  if (!apiKey || reviewKeywords.length === 0 || masterTerms.length === 0) return [];
+
+  try {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: `Match these review keywords to equivalent terms from the master taxonomy if they mean the same thing.
+
+Review keywords: ${reviewKeywords.join(', ')}
+
+Master taxonomy terms: ${masterTerms.slice(0, 200).join(', ')}
+
+For each review keyword that has an equivalent in the master taxonomy, return a match.
+Examples:
+- "headphone" matches "Headphones" (singular vs plural)
+- "aluminium" matches "aluminum" (spelling variation)
+- "Hi-Fi" matches "Audio Equipment" (category equivalent)
+- "B&O" matches "Bang & Olufsen" (abbreviation)
+
+Return JSON array: [{"review": "original keyword", "master": "matching master term", "confidence": 0.9}]
+Only include matches you're confident about (>0.8 confidence).
+Return empty array [] if no good matches.` }] }],
+        generationConfig: { temperature: 0.1, maxOutputTokens: 2048 }
+      })
+    });
+    if (!response.ok) return [];
+    const text = (await response.json()).candidates?.[0]?.content?.parts?.[0]?.text || '';
+    const match = text.match(/\[[\s\S]*\]/);
+    return match ? JSON.parse(match[0]) : [];
+  } catch (e) {
+    console.error('[CONSOLIDATE] Error:', e);
+    return [];
+  }
+};
+
 const analyzeWithVision = async (apiKey, imageBase64) => {
   const { extractFromUrls } = window.TaggerUtils;
 
@@ -207,6 +245,7 @@ window.TaggerAPI = {
   analyzeWithGemini,
   findDesigner,
   categorizeKeywords,
+  consolidateKeywords,
   analyzeWithVision,
   downloadLargerVersion
 };

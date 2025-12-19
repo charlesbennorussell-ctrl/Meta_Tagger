@@ -433,6 +433,34 @@ const saveMemory = (m) => {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(m));
 };
 
+// Analysis cache functions
+const loadAnalysisCache = () => {
+  const { ANALYSIS_CACHE_KEY } = window.TaggerData;
+  try { return JSON.parse(localStorage.getItem(ANALYSIS_CACHE_KEY)) || {}; } catch { return {}; }
+};
+
+const saveAnalysisCache = (cache) => {
+  const { ANALYSIS_CACHE_KEY } = window.TaggerData;
+  // Limit cache size to prevent localStorage overflow (keep last 500 entries)
+  const entries = Object.entries(cache);
+  if (entries.length > 500) {
+    const sorted = entries.sort((a, b) => (b[1].timestamp || 0) - (a[1].timestamp || 0));
+    cache = Object.fromEntries(sorted.slice(0, 500));
+  }
+  localStorage.setItem(ANALYSIS_CACHE_KEY, JSON.stringify(cache));
+};
+
+const getCachedAnalysis = (hash) => {
+  const cache = loadAnalysisCache();
+  return cache[hash] || null;
+};
+
+const setCachedAnalysis = (hash, data) => {
+  const cache = loadAnalysisCache();
+  cache[hash] = { ...data, timestamp: Date.now() };
+  saveAnalysisCache(cache);
+};
+
 // Enhanced filename extraction
 const extractFromFilename = (filename) => {
   const { KNOWN_ARTISTS, KNOWN_BRANDS } = window.TaggerData;
@@ -790,6 +818,8 @@ window.TaggerUtils = {
   getBaseName,
   loadMemory,
   saveMemory,
+  getCachedAnalysis,
+  setCachedAnalysis,
   extractFromFilename,
   extractFromUrls,
   extractExistingMetadata,

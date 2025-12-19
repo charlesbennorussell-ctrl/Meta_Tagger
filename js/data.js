@@ -240,6 +240,7 @@ const ROOT_COLORS = {
 
 const STORAGE_KEY = 'tagger_memory';
 const TAXONOMY_KEY = 'tagger_taxonomy';
+const ANALYSIS_CACHE_KEY = 'tagger_analysis_cache';
 
 // Export for use in other modules
 window.TaggerData = {
@@ -254,7 +255,8 @@ window.TaggerData = {
   NATIONALITY_TO_COUNTRY,
   ROOT_COLORS,
   STORAGE_KEY,
-  TAXONOMY_KEY
+  TAXONOMY_KEY,
+  ANALYSIS_CACHE_KEY
 };
 
 })();
