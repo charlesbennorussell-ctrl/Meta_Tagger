@@ -337,19 +337,27 @@
           if (!container) return;
           const rect = container.getBoundingClientRect();
           const taxonomyWidth = 375; // fixed taxonomy panel width
-          const availableWidth = rect.width - taxonomyWidth;
+          const dividerWidth = 12;
+          const availableWidth = rect.width - taxonomyWidth - dividerWidth;
           const mouseX = e.clientX - rect.left;
+          // Calculate as percentage of available width (excluding taxonomy)
           const newGridWidth = Math.max(20, Math.min(80, (mouseX / availableWidth) * 100));
-          setGridWidth(newGridWidth);
+          setGridWidth(Math.round(newGridWidth));
         };
 
         const handleMouseUp = () => {
           setIsDraggingDivider(false);
         };
 
+        // Add cursor style to body during drag for consistent cursor
+        document.body.style.cursor = 'col-resize';
+        document.body.style.userSelect = 'none';
+
         document.addEventListener('mousemove', handleMouseMove);
         document.addEventListener('mouseup', handleMouseUp);
         return () => {
+          document.body.style.cursor = '';
+          document.body.style.userSelect = '';
           document.removeEventListener('mousemove', handleMouseMove);
           document.removeEventListener('mouseup', handleMouseUp);
         };
@@ -596,20 +604,9 @@
               const key = kw.value.toLowerCase();
               if (currentBlocked.has(key)) return;
               const inMaster = taxInfo.allTerms.has(key);
-              const inSession = currentAccepted.has(key);
-              const isDesigner = kw.type === 'designer' || kw.rootCategory === 'Creator';
-              const isBrand = kw.type === 'brand' || kw.rootCategory === 'Brand';
-              const isEra = kw.type === 'era' || kw.rootCategory === 'Era' || /^\d{4}s$/.test(kw.value);
-              const knownCountries = ['Germany', 'Italy', 'Japan', 'Denmark', 'Sweden', 'United States', 'United Kingdom', 'France', 'Switzerland', 'Finland', 'Netherlands', 'Norway', 'Austria', 'Belgium', 'Spain', 'Portugal', 'Brazil', 'Mexico', 'Canada', 'Australia', 'China', 'South Korea', 'India', 'Russia', 'Poland', 'Czech Republic', 'Hungary', 'Greece', 'Turkey', 'Israel', 'South Africa', 'Argentina', 'Chile', 'Colombia', 'Iceland', 'Ireland', 'Scotland', 'Wales', 'USA', 'UK'];
-              const isCountry = kw.type === 'country' || (kw.path && kw.path.includes('Origin')) || knownCountries.some(c => c.toLowerCase() === kw.value.toLowerCase());
-              const isModel = kw.type === 'model' || kw.rootCategory === 'Product';
-              const isAllUppercase = kw.value.length > 1 && kw.value === kw.value.toUpperCase() && /[A-Z]/.test(kw.value);
-              if (inMaster || inSession || isDesigner || isBrand || isEra || isCountry || isModel || isAllUppercase) {
-                if (isCountry && (!kw.path || !kw.path.includes('Origin'))) {
-                  kw.path = ['Style', 'Origin'];
-                  kw.rootCategory = 'Style';
-                  kw.type = 'country';
-                }
+              // Only auto-accept if in master taxonomy
+              // All other keywords go to review for user approval
+              if (inMaster) {
                 auto.push(kw);
               } else {
                 review.push(kw);
@@ -740,22 +737,10 @@
               return;
             }
             const inMaster = taxInfo.allTerms.has(key);
-            const inSession = currentAccepted.has(key);
-            const isDesigner = kw.type === 'designer' || kw.rootCategory === 'Creator';
-            const isBrand = kw.type === 'brand' || kw.rootCategory === 'Brand';
-            const isEra = kw.type === 'era' || kw.rootCategory === 'Era' || /^\d{4}s$/.test(kw.value);
-            const knownCountries = ['Germany', 'Italy', 'Japan', 'Denmark', 'Sweden', 'United States', 'United Kingdom', 'France', 'Switzerland', 'Finland', 'Netherlands', 'Norway', 'Austria', 'Belgium', 'Spain', 'Portugal', 'Brazil', 'Mexico', 'Canada', 'Australia', 'China', 'South Korea', 'India', 'Russia', 'Poland', 'Czech Republic', 'Hungary', 'Greece', 'Turkey', 'Israel', 'South Africa', 'Argentina', 'Chile', 'Colombia', 'Iceland', 'Ireland', 'Scotland', 'Wales', 'USA', 'UK'];
-            const isCountry = kw.type === 'country' || (kw.path && kw.path.includes('Origin')) || knownCountries.some(c => c.toLowerCase() === kw.value.toLowerCase());
-            const isModel = kw.type === 'model' || kw.rootCategory === 'Product';
-            // Auto-accept all-uppercase keywords (likely model numbers, acronyms, etc.)
-            const isAllUppercase = kw.value.length > 1 && kw.value === kw.value.toUpperCase() && /[A-Z]/.test(kw.value);
-            if (inMaster || inSession || isDesigner || isBrand || isEra || isCountry || isModel || isAllUppercase) {
-              if (isCountry && (!kw.path || !kw.path.includes('Origin'))) {
-                kw.path = ['Style', 'Origin'];
-                kw.rootCategory = 'Style';
-                kw.type = 'country';
-              }
-              console.log(`[ANALYZE] Auto-accept: "${kw.value}" (master: ${inMaster}, session: ${inSession}, designer: ${isDesigner}, brand: ${isBrand}, era: ${isEra}, country: ${isCountry}, model: ${isModel}, uppercase: ${isAllUppercase})`);
+            // Only auto-accept if in master taxonomy
+            // All other keywords go to review for user approval
+            if (inMaster) {
+              console.log(`[ANALYZE] Auto-accept: "${kw.value}" (in master taxonomy)`);
               auto.push(kw);
             } else {
               review.push(kw);
@@ -823,9 +808,25 @@
       }, [queue, isEditing, selectedImg, keywords, designer, analyzeImage, saveImage]);
 
       const analyzeAllPending = () => {
-        const pending = queue.filter(q => q.status === 'pending' && !q.hidden);
-        console.log('[ANALYZE ALL] Found', pending.length, 'pending images, geminiKey:', !!geminiKey);
-        pending.forEach(img => analyzeImage(img));
+        const pendingImgs = queue.filter(q => q.status === 'pending' && !q.hidden);
+        console.log('[ANALYZE ALL] Found', pendingImgs.length, 'pending images, geminiKey:', !!geminiKey);
+        pendingImgs.forEach(img => analyzeImage(img));
+      };
+
+      const reanalyzeSelected = () => {
+        if (!selectedImg || !geminiKey) return;
+        // Clear cache for this image
+        try {
+          const cacheKey = 'tagger_analysis_cache';
+          const cache = JSON.parse(localStorage.getItem(cacheKey) || '{}');
+          delete cache[selectedImg.hash];
+          localStorage.setItem(cacheKey, JSON.stringify(cache));
+        } catch (e) { console.error('[REANALYZE] Cache clear failed:', e); }
+        // Reset to pending and re-analyze
+        setQueue(q => q.map(i => i.id === selectedImg.id ? { ...i, status: 'pending', keywords: [], pending: [] } : i));
+        setKeywords([]);
+        setPending([]);
+        analyzeImage({ ...selectedImg, status: 'pending' });
       };
 
       const [isSavingAll, setIsSavingAll] = useState(false);
@@ -874,15 +875,30 @@
         }));
       };
 
-      const accept = (id) => {
+      const accept = async (id) => {
         const kw = pending.find(k => k.id === id);
         if (kw) {
           console.log(`[ACCEPT] Accepting keyword: "${kw.value}"`);
           setPending(p => p.filter(k => k.id !== id));
-          const newKeywords = [...keywords, kw];
+
+          // If keyword is uncategorized (Custom), try to categorize it via API
+          let categorizedKw = kw;
+          if (kw.path?.[0] === 'Custom' && geminiKey) {
+            try {
+              const results = await categorizeKeywords(geminiKey, [kw.value]);
+              if (results.length > 0 && results[0].path) {
+                categorizedKw = { ...kw, path: results[0].path, rootCategory: results[0].path[0], type: results[0].type || kw.type };
+                console.log(`[ACCEPT] Categorized "${kw.value}" as:`, results[0].path);
+              }
+            } catch (e) {
+              console.error('[ACCEPT] Categorization failed:', e);
+            }
+          }
+
+          const newKeywords = [...keywords, categorizedKw];
           setKeywords(newKeywords);
-          setAccepted(a => a.some(x => x.value.toLowerCase() === kw.value.toLowerCase()) ? a : [...a, kw]);
-          setTaxonomy(t => addToTaxonomy(t, kw));
+          setAccepted(a => a.some(x => x.value.toLowerCase() === categorizedKw.value.toLowerCase()) ? a : [...a, categorizedKw]);
+          setTaxonomy(t => addToTaxonomy(t, categorizedKw));
           setModified(true);
           setIsEditing(true);
 
@@ -893,9 +909,9 @@
               setQueue(q => q.map(img => {
                 if (similar.some(s => s.id === img.id)) {
                   const existingVals = new Set((img.keywords || []).map(k => k.value.toLowerCase()));
-                  if (!existingVals.has(kw.value.toLowerCase())) {
-                    console.log(`[ACCEPT] Syncing "${kw.value}" to "${img.name}"`);
-                    const syncedKw = { ...kw, id: `sync-${Math.random().toString(36).slice(2)}` };
+                  if (!existingVals.has(categorizedKw.value.toLowerCase())) {
+                    console.log(`[ACCEPT] Syncing "${categorizedKw.value}" to "${img.name}"`);
+                    const syncedKw = { ...categorizedKw, id: `sync-${Math.random().toString(36).slice(2)}` };
                     return { ...img, keywords: [...(img.keywords || []), syncedKw], status: img.status === 'pending' ? 'ready' : img.status };
                   }
                 }
@@ -1192,10 +1208,14 @@
               console.log('[CONSOLIDATE] Found', matches.length, 'matches');
 
               if (matches.length > 0) {
+                // Track which pending keywords we've processed to avoid duplicates
+                const processedIds = new Set();
+
                 // For each match, find the pending keyword and auto-accept it with the master term
                 matches.forEach(match => {
-                  const pendingKw = pending.find(k => k.value.toLowerCase() === match.review.toLowerCase());
+                  const pendingKw = pending.find(k => k.value.toLowerCase() === match.review.toLowerCase() && !processedIds.has(k.id));
                   if (pendingKw && match.confidence >= 0.8) {
+                    processedIds.add(pendingKw.id);
                     console.log(`[CONSOLIDATE] Replacing "${pendingKw.value}" with master term "${match.master}"`);
                     // Update the keyword value to match master taxonomy
                     const consolidatedKw = { ...pendingKw, value: match.master, consolidated: true };
@@ -1203,9 +1223,15 @@
                     consolidatedKw.path = path;
                     consolidatedKw.rootCategory = path[0];
 
-                    // Auto-accept it
+                    // Auto-accept it, but check for duplicates first
                     setPending(p => p.filter(k => k.id !== pendingKw.id));
-                    setKeywords(kws => [...kws, consolidatedKw]);
+                    setKeywords(kws => {
+                      // Don't add if already exists
+                      if (kws.some(k => k.value.toLowerCase() === consolidatedKw.value.toLowerCase())) {
+                        return kws;
+                      }
+                      return [...kws, consolidatedKw];
+                    });
                     setAccepted(a => a.some(x => x.value.toLowerCase() === consolidatedKw.value.toLowerCase()) ? a : [...a, consolidatedKw]);
                     setModified(true);
                     setIsEditing(true);
@@ -1314,7 +1340,7 @@
           <div ref={mainPanelRef} style={{ flex: 1, display: 'flex', overflow: 'hidden', width: '100%', cursor: isDraggingDivider ? 'col-resize' : 'default' }}>
 
             {/* LEFT - GRID */}
-            <div style={{ width: `${gridWidth}%`, minWidth: 250, background: s.panel, display: 'flex', flexDirection: 'column' }}>
+            <div style={{ width: `${gridWidth}%`, minWidth: 250, background: s.panel, display: 'flex', flexDirection: 'column', transition: isDraggingDivider ? 'none' : 'width 0.2s ease-out' }}>
               <div style={{ padding: '10px 12px', borderBottom: `1px solid ${s.border}`, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                 <button onClick={() => setShowPending(!showPending)}
                   style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: showPending ? 'rgba(251,191,36,0.15)' : '#1f2937', color: showPending ? '#fbbf24' : s.muted, border: 'none', borderRadius: s.radiusSm, cursor: 'pointer', fontSize: s.fontSize }}>
@@ -1328,13 +1354,21 @@
                   style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: showHidden ? 'rgba(248,113,113,0.15)' : '#1f2937', color: showHidden ? '#f87171' : s.muted, border: 'none', borderRadius: s.radiusSm, cursor: 'pointer', fontSize: s.fontSize }}>
                   <Icon name="visibility_off" size={16} /> Hidden ({hiddenCount})
                 </button>
-                <div style={{ marginLeft: 'auto', display: 'flex', gap: 2, background: '#1f2937', borderRadius: s.radiusSm, padding: 2 }}>
-                  {['S', 'M', 'L', 'XL'].map((label, i) => (
-                    <button key={label} onClick={() => setThumbSize(i)}
-                      style={{ padding: '4px 10px', background: thumbSize === i ? '#374151' : 'transparent', color: thumbSize === i ? s.bright : s.muted, border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: 13, fontWeight: thumbSize === i ? 500 : 400 }}>
-                      {label}
+                <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  {selectedImg && selectedImg.status !== 'pending' && selectedImg.status !== 'analyzing' && (
+                    <button onClick={reanalyzeSelected} title="Re-analyze selected image"
+                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 32, height: 32, background: '#1f2937', color: s.muted, border: 'none', borderRadius: s.radiusSm, cursor: 'pointer' }}>
+                      <Icon name="refresh" size={18} />
                     </button>
-                  ))}
+                  )}
+                  <div style={{ display: 'flex', gap: 2, background: '#1f2937', borderRadius: s.radiusSm, padding: 2 }}>
+                    {['S', 'M', 'L', 'XL'].map((label, i) => (
+                      <button key={label} onClick={() => setThumbSize(i)}
+                        style={{ padding: '4px 10px', background: thumbSize === i ? '#374151' : 'transparent', color: thumbSize === i ? s.bright : s.muted, border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: 13, fontWeight: thumbSize === i ? 500 : 400 }}>
+                        {label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
               <div style={{ flex: 1, overflow: 'auto', padding: 12 }}>
@@ -1352,9 +1386,10 @@
                       return (
                         <motion.div
                           key={item.id}
+                          layout
                           initial={{ opacity: 0, scale: 0.9 }}
                           animate={{ opacity: 1, scale: 1 }}
-                          transition={{ duration: 0.2 }}
+                          transition={{ duration: 0.2, layout: { duration: 0.15, ease: 'easeOut' } }}
                           onClick={() => selectImage(item.id)}
                           style={{ position: 'relative', borderRadius: s.radius, overflow: 'hidden', cursor: 'pointer',
                             border: `2px solid ${isSelected ? '#60a5fa' : 'transparent'}`,
@@ -1649,11 +1684,20 @@
                     <div style={{ fontSize: 13, color: '#4b5563' }}>Analyze images to build taxonomy</div>
                   </div>
                 ) : (
-                  Object.entries(tree).map(([name, node]) => (
-                    <TreeNode key={name} name={name} node={node} depth={0} expanded={expanded}
-                      onToggle={p => setExpanded(e => ({ ...e, [p]: e[p] === false ? true : false }))}
-                      onDeleteKeyword={deleteFromTaxonomy} />
-                  ))
+                  // Sort to put Custom/Uncategorized at top (grey), then alphabetically
+                  Object.entries(tree)
+                    .sort(([a], [b]) => {
+                      const aIsUncategorized = a === 'Custom' || a === 'Uncategorized';
+                      const bIsUncategorized = b === 'Custom' || b === 'Uncategorized';
+                      if (aIsUncategorized && !bIsUncategorized) return -1;
+                      if (!aIsUncategorized && bIsUncategorized) return 1;
+                      return a.localeCompare(b);
+                    })
+                    .map(([name, node]) => (
+                      <TreeNode key={name} name={name} node={node} depth={0} expanded={expanded}
+                        onToggle={p => setExpanded(e => ({ ...e, [p]: e[p] === false ? true : false }))}
+                        onDeleteKeyword={deleteFromTaxonomy} />
+                    ))
                 )}
               </div>
             </div>

@@ -108,7 +108,7 @@ Only return the JSON array.` }] }],
   }
 };
 
-// Consolidate review keywords by finding matching master taxonomy terms
+// Consolidate review keywords by finding EXACT or near-exact matching master taxonomy terms
 const consolidateKeywords = async (apiKey, reviewKeywords, masterTerms) => {
   if (!apiKey || reviewKeywords.length === 0 || masterTerms.length === 0) return [];
 
@@ -117,23 +117,28 @@ const consolidateKeywords = async (apiKey, reviewKeywords, masterTerms) => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        contents: [{ parts: [{ text: `Match these review keywords to equivalent terms from the master taxonomy if they mean the same thing.
+        contents: [{ parts: [{ text: `Find EXACT or near-exact matches between review keywords and master taxonomy terms.
+
+STRICT RULES - Only match if:
+1. Exact same word with different case: "headphones" = "Headphones" ✓
+2. Singular/plural of same word: "Speaker" = "Speakers" ✓
+3. Common spelling variation: "aluminium" = "aluminum" ✓
+4. Well-known abbreviation of SAME entity: "B&O" = "Bang & Olufsen" ✓
+
+DO NOT match:
+- Generic terms to specific brands: "headphone" to "Sony" ✗
+- Categories to items: "audio" to "Headphones" ✗
+- Related but different things: "music" to "Speakers" ✗
+- Brand names to category names: "Sony" to "Brand" ✗
 
 Review keywords: ${reviewKeywords.join(', ')}
 
 Master taxonomy terms: ${masterTerms.slice(0, 200).join(', ')}
 
-For each review keyword that has an equivalent in the master taxonomy, return a match.
-Examples:
-- "headphone" matches "Headphones" (singular vs plural)
-- "aluminium" matches "aluminum" (spelling variation)
-- "Hi-Fi" matches "Audio Equipment" (category equivalent)
-- "B&O" matches "Bang & Olufsen" (abbreviation)
-
-Return JSON array: [{"review": "original keyword", "master": "matching master term", "confidence": 0.9}]
-Only include matches you're confident about (>0.8 confidence).
-Return empty array [] if no good matches.` }] }],
-        generationConfig: { temperature: 0.1, maxOutputTokens: 2048 }
+Return JSON array: [{"review": "original keyword", "master": "matching master term", "confidence": 0.95}]
+Only return matches where the words refer to the EXACT same thing.
+Return empty array [] if no exact matches exist.` }] }],
+        generationConfig: { temperature: 0.0, maxOutputTokens: 2048 }
       })
     });
     if (!response.ok) return [];
