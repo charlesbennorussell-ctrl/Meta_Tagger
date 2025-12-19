@@ -650,13 +650,15 @@
             const knownCountries = ['Germany', 'Italy', 'Japan', 'Denmark', 'Sweden', 'United States', 'United Kingdom', 'France', 'Switzerland', 'Finland', 'Netherlands', 'Norway', 'Austria', 'Belgium', 'Spain', 'Portugal', 'Brazil', 'Mexico', 'Canada', 'Australia', 'China', 'South Korea', 'India', 'Russia', 'Poland', 'Czech Republic', 'Hungary', 'Greece', 'Turkey', 'Israel', 'South Africa', 'Argentina', 'Chile', 'Colombia', 'Iceland', 'Ireland', 'Scotland', 'Wales', 'USA', 'UK'];
             const isCountry = kw.type === 'country' || (kw.path && kw.path.includes('Origin')) || knownCountries.some(c => c.toLowerCase() === kw.value.toLowerCase());
             const isModel = kw.type === 'model' || kw.rootCategory === 'Product';
-            if (inMaster || inSession || isDesigner || isBrand || isEra || isCountry || isModel) {
+            // Auto-accept all-uppercase keywords (likely model numbers, acronyms, etc.)
+            const isAllUppercase = kw.value.length > 1 && kw.value === kw.value.toUpperCase() && /[A-Z]/.test(kw.value);
+            if (inMaster || inSession || isDesigner || isBrand || isEra || isCountry || isModel || isAllUppercase) {
               if (isCountry && (!kw.path || !kw.path.includes('Origin'))) {
                 kw.path = ['Style', 'Origin'];
                 kw.rootCategory = 'Style';
                 kw.type = 'country';
               }
-              console.log(`[ANALYZE] Auto-accept: "${kw.value}" (master: ${inMaster}, session: ${inSession}, designer: ${isDesigner}, brand: ${isBrand}, era: ${isEra}, country: ${isCountry}, model: ${isModel})`);
+              console.log(`[ANALYZE] Auto-accept: "${kw.value}" (master: ${inMaster}, session: ${inSession}, designer: ${isDesigner}, brand: ${isBrand}, era: ${isEra}, country: ${isCountry}, model: ${isModel}, uppercase: ${isAllUppercase})`);
               auto.push(kw);
             } else {
               review.push(kw);
@@ -1333,40 +1335,15 @@
                                   initial={{ opacity: 0, x: -10 }}
                                   animate={{ opacity: 1, x: 0 }}
                                   style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 8px', background: 'rgba(255,255,255,0.03)', borderRadius: s.radiusSm }}>
-                                  <button onClick={() => accept(k.id)} tabIndex={-1} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, background: 'rgba(74,222,128,0.15)', color: '#4ade80', border: 'none', borderRadius: s.radiusSm, cursor: 'pointer' }}>
-                                    <Icon name="check" size={16} />
-                                  </button>
-                                  <button onClick={() => ignore(k.id)} tabIndex={-1} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, background: 'rgba(251,191,36,0.15)', color: '#fbbf24', border: 'none', borderRadius: s.radiusSm, cursor: 'pointer' }}>
-                                    <Icon name="remove" size={16} />
-                                  </button>
                                   <button onClick={() => block(k.id)} tabIndex={-1} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, background: 'rgba(248,113,113,0.15)', color: '#f87171', border: 'none', borderRadius: s.radiusSm, cursor: 'pointer' }}>
                                     <Icon name="block" size={16} />
+                                  </button>
+                                  <button onClick={() => accept(k.id)} tabIndex={-1} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, background: 'rgba(74,222,128,0.15)', color: '#4ade80', border: 'none', borderRadius: s.radiusSm, cursor: 'pointer' }}>
+                                    <Icon name="check" size={16} />
                                   </button>
                                   <span style={{ width: 6, height: 6, borderRadius: 3, background: getColor(k.rootCategory), flexShrink: 0 }} />
                                   <span style={{ color: s.bright, fontSize: s.fontSize, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{k.value}</span>
                                 </motion.div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
-                        {ignored.length > 0 && (
-                          <div style={{ background: s.panel, borderRadius: s.radius, padding: 12, border: `1px solid ${s.border}` }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#fbbf24', marginBottom: 10, fontSize: s.fontSize }}>
-                              <Icon name="do_not_disturb" size={18} />
-                              Skipped ({ignored.length})
-                            </div>
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                              {ignored.map(k => (
-                                <span key={k.id} style={{ padding: '5px 10px', background: 'rgba(251,191,36,0.1)', color: '#d97706', borderRadius: 20, fontSize: 13, display: 'flex', alignItems: 'center', gap: 6, border: '1px solid rgba(251,191,36,0.25)' }}>
-                                  {k.value}
-                                  <span onClick={() => acceptIgnored(k.id)} style={{ cursor: 'pointer', color: '#4ade80', display: 'flex' }}>
-                                    <Icon name="check" size={14} />
-                                  </span>
-                                  <span onClick={() => block(k.id)} style={{ cursor: 'pointer', color: '#f87171', display: 'flex' }}>
-                                    <Icon name="block" size={14} />
-                                  </span>
-                                </span>
                               ))}
                             </div>
                           </div>
@@ -1383,11 +1360,24 @@
                           </button>
                         </div>
 
-                        {keywords.length > 0 && (
-                          <button onClick={() => saveImage(selectedImg, keywords, designer)} tabIndex={-1} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '12px 20px', background: '#2563eb', color: 'white', border: 'none', borderRadius: s.radius, cursor: 'pointer', fontSize: s.fontSize, fontWeight: 500 }}>
-                            <Icon name="save" size={20} /> Save{similarCount > 0 ? ` + ${similarCount} similar` : ''}
-                          </button>
-                        )}
+                        <button
+                          onClick={() => modified && keywords.length > 0 && saveImage(selectedImg, keywords, designer)}
+                          disabled={!modified || keywords.length === 0}
+                          tabIndex={-1}
+                          style={{
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '12px 20px',
+                            background: modified && keywords.length > 0 ? '#2563eb' : '#1f2937',
+                            color: modified && keywords.length > 0 ? 'white' : '#4b5563',
+                            border: 'none', borderRadius: s.radius,
+                            cursor: modified && keywords.length > 0 ? 'pointer' : 'default',
+                            fontSize: s.fontSize, fontWeight: 500,
+                            opacity: modified && keywords.length > 0 ? 1 : 0.6
+                          }}>
+                          <Icon name="save" size={20} />
+                          {modified && keywords.length > 0
+                            ? `Save${similarCount > 0 ? ` + ${similarCount} similar` : ''}`
+                            : 'Nothing to save'}
+                        </button>
                       </div>
                     )}
 
