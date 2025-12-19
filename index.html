@@ -69,1208 +69,27 @@
     }
   </script>
 
+  <!-- Load data and utilities (plain JS, no JSX) -->
+  <script src="js/data.js"></script>
+  <script src="js/utils.js"></script>
+  <script src="js/api.js"></script>
+
   <script type="text/babel">
     const { useState, useRef, useEffect, useMemo, useCallback } = React;
 
-    // ============================================
-    // TAXONOMY
-    // ============================================
-    const DEFAULT_TAXONOMY = {
-      "Design": {
-        "Graphic Design": ["Poster", "Book Design", "Magazine", "Editorial", "Packaging", "Logo", "Branding", "UI Design", "Web Design", "Typography", "Album Cover", "Print"],
-        "Industrial Design": {
-          "Furniture": ["Chair", "Sofa", "Table", "Desk", "Shelving", "Lighting", "Lamp", "Bench", "Cabinet"],
-          "Audio Equipment": ["Headphones", "Speakers", "Amplifier", "Turntable", "Earbuds", "DAC", "Receiver"],
-          "Consumer Electronics": ["Phone", "Computer", "Camera", "Wearable", "Tablet", "Laptop", "Monitor"],
-          "Automotive": ["Car", "Motorcycle", "Concept Car", "Interior", "Electric Vehicle"]
-        }
-      },
-      "Architecture": {
-        "Residential": ["House", "Villa", "Apartment", "Loft", "Cabin", "Townhouse"],
-        "Commercial": ["Office", "Retail", "Hotel", "Restaurant", "Store"],
-        "Institutional": ["Museum", "Library", "School", "Hospital", "Gallery"]
-      },
-      "Art": {
-        "Painting": ["Oil", "Acrylic", "Watercolor", "Abstract", "Portrait"],
-        "Sculpture": ["Bronze", "Marble", "Steel", "Wood", "Installation"],
-        "Photography": ["Portrait", "Landscape", "Street", "Fashion", "Product", "Architecture", "Editorial"]
-      },
-      "Style": {
-        "Modernism": ["Bauhaus", "De Stijl", "International Style", "Swiss Style"],
-        "Contemporary": ["Minimalism", "Brutalism", "Parametric", "Scandinavian"],
-        "Historical": ["Art Nouveau", "Art Deco", "Mid-Century Modern", "Victorian", "Retro"],
-        "Origin": ["Germany", "Italy", "Japan", "Denmark", "Sweden", "United States", "United Kingdom", "France", "Switzerland", "Finland", "Netherlands"]
-      },
-      "Brand": {
-        "Audio": ["Bang & Olufsen", "Bose", "Sony", "Sennheiser", "Focal", "Beyerdynamic", "Audio-Technica", "Grado", "HiFiMAN", "Audeze", "Master & Dynamic", "KEF", "Bowers & Wilkins", "Teenage Engineering", "Devialet", "Sonos"],
-        "Electronics": ["Apple", "Samsung", "Google", "Microsoft", "Sony", "LG", "Nothing", "OnePlus", "Xiaomi"],
-        "Camera": ["Canon", "Nikon", "Leica", "Hasselblad", "Fujifilm", "Sony", "DJI", "GoPro"],
-        "Automotive": ["BMW", "Mercedes-Benz", "Porsche", "Audi", "Ferrari", "Tesla", "Volvo", "McLaren", "Rivian", "Lucid"],
-        "Furniture": ["Herman Miller", "Knoll", "Vitra", "Fritz Hansen", "HAY", "Muuto", "Cassina", "Flos", "Artemide"],
-        "Fashion": ["Gucci", "Louis Vuitton", "Chanel", "Hermès", "Prada", "Nike", "Adidas"],
-        "Appliances": ["Braun", "Dyson", "Smeg", "Balmuda", "Miele"],
-        "Watch": ["Rolex", "Omega", "Patek Philippe", "Cartier", "Grand Seiko"]
-      },
-      "Creator": {
-        "Designer": {
-          "Industrial": [],
-          "Graphic": [],
-          "Fashion": [],
-          "Interior": []
-        },
-        "Architect": [],
-        "Artist": [],
-        "Photographer": [],
-        "Studio": []
-      },
-      "Product": {
-        "Audio": [],
-        "Electronics": [],
-        "Automotive": [],
-        "Furniture": [],
-        "Fashion": [],
-        "Appliances": [],
-        "Watch": [],
-        "Camera": []
-      },
-      "Era": {
-        "Pre-War": ["1920s", "1930s"],
-        "Mid-Century": ["1940s", "1950s", "1960s"],
-        "Late Century": ["1970s", "1980s", "1990s"],
-        "Contemporary": ["2000s", "2010s", "2020s"]
-      },
-      "Material": {
-        "Natural": ["Wood", "Leather", "Fabric", "Stone", "Wool", "Cotton", "Linen"],
-        "Metal": ["Aluminum", "Steel", "Brass", "Copper", "Chrome", "Titanium", "Gold", "Silver"],
-        "Synthetic": ["Plastic", "Carbon Fiber", "Acrylic", "Fiberglass", "Resin", "Rubber"],
-        "Mineral": ["Glass", "Ceramic", "Concrete", "Marble", "Granite"]
-      },
-      "Color": {
-        "Neutral": ["Black", "White", "Gray", "Silver", "Beige", "Cream"],
-        "Warm": ["Red", "Orange", "Yellow", "Gold", "Brown", "Copper"],
-        "Cool": ["Blue", "Green", "Teal", "Purple", "Navy"],
-        "Finish": ["Matte", "Glossy", "Satin", "Brushed", "Polished", "Natural"]
-      }
-    };
-
-    // Brand database with categories
-    const BRAND_DATABASE = {
-      'Audio': [
-        'Bang & Olufsen', 'B&O', 'Beoplay', 'Beosound', 'Beolab', 'Beovision', 'Beolit',
-        'Bose', 'Sennheiser', 'Audio-Technica', 'Beyerdynamic', 'AKG', 'Shure',
-        'Focal', 'Grado', 'HiFiMAN', 'Audeze', 'Master & Dynamic', 'Meze', 'Campfire Audio',
-        'KEF', 'Bowers & Wilkins', 'B&W', 'JBL', 'Harman Kardon', 'Marshall', 'Sonos',
-        'Devialet', 'Naim', 'McIntosh', 'Mark Levinson', 'Burmester', 'Technics',
-        'Teenage Engineering', 'Native Instruments', 'Ableton', 'Roland', 'Korg', 'Moog',
-        'Klipsch', 'Definitive Technology', 'SVS', 'REL', 'MartinLogan', 'Magnepan'
-      ],
-      'Electronics': [
-        'Apple', 'Samsung', 'Google', 'Microsoft', 'Sony', 'LG', 'Dell', 'ASUS', 'Razer',
-        'Lenovo', 'HP', 'Acer', 'MSI', 'Alienware', 'Surface', 'ThinkPad',
-        'Nothing', 'OnePlus', 'Xiaomi', 'Huawei', 'Oppo', 'Vivo', 'Realme',
-        'Nintendo', 'PlayStation', 'Xbox', 'Steam Deck', 'Analogue',
-        'Fitbit', 'Garmin', 'Whoop', 'Oura', 'Amazon', 'Echo', 'Kindle',
-        'Logitech', 'Razer', 'SteelSeries', 'Corsair', 'HyperX',
-        'Anker', 'Belkin', 'Twelve South', 'Nomad', 'Peak Design'
-      ],
-      'Camera': [
-        'Canon', 'Nikon', 'Sony', 'Leica', 'Hasselblad', 'Fujifilm', 'Zeiss',
-        'Panasonic', 'Olympus', 'Pentax', 'Sigma', 'Tamron', 'Phase One',
-        'RED', 'Blackmagic', 'ARRI', 'DJI', 'GoPro', 'Insta360', 'Ricoh'
-      ],
-      'Automotive': [
-        'BMW', 'Mercedes-Benz', 'Mercedes', 'Porsche', 'Audi', 'Volkswagen', 'Tesla', 'Volvo',
-        'Ferrari', 'Lamborghini', 'McLaren', 'Aston Martin', 'Bentley', 'Rolls-Royce',
-        'Jaguar', 'Land Rover', 'Range Rover', 'Maserati', 'Alfa Romeo', 'Bugatti',
-        'Lexus', 'Infiniti', 'Acura', 'Genesis', 'Cadillac', 'Lincoln',
-        'Rivian', 'Lucid', 'Polestar', 'NIO', 'BYD', 'Rimac', 'Koenigsegg', 'Pagani',
-        'Toyota', 'Honda', 'Mazda', 'Subaru', 'Nissan', 'Hyundai', 'Kia',
-        'Ford', 'Chevrolet', 'Dodge', 'Jeep', 'RAM', 'GMC'
-      ],
-      'Furniture': [
-        'Herman Miller', 'Knoll', 'Vitra', 'Fritz Hansen', 'Cassina', 'HAY', 'Muuto',
-        'Artek', 'Carl Hansen', 'PP Møbler', 'Louis Poulsen', 'Flos', 'Artemide',
-        'B&B Italia', 'Poltrona Frau', 'Minotti', 'Molteni', 'Flexform', 'Edra',
-        'USM', 'String', 'Montana', 'Kartell', 'Magis', 'Alessi', 'Iittala',
-        'West Elm', 'CB2', 'Design Within Reach', 'DWR', 'Room & Board',
-        'IKEA', 'Article', 'Floyd', 'Hem', 'Menu', 'Normann Copenhagen', 'Gubi'
-      ],
-      'Fashion': [
-        'Gucci', 'Louis Vuitton', 'Chanel', 'Hermès', 'Prada', 'Dior', 'Balenciaga',
-        'Saint Laurent', 'Bottega Veneta', 'Celine', 'Loewe', 'Valentino', 'Versace',
-        'Burberry', 'Givenchy', 'Fendi', 'Off-White', 'Fear of God', 'Acne Studios',
-        'Common Projects', 'Margiela', 'Rick Owens', 'Comme des Garçons', 'Issey Miyake',
-        'Nike', 'Adidas', 'New Balance', 'Asics', 'Converse', 'Vans', 'Reebok'
-      ],
-      'Appliances': [
-        'Braun', 'Dyson', 'Philips', 'Panasonic', 'Toshiba', 'Sharp', 'Miele', 'Bosch',
-        'Smeg', 'KitchenAid', 'Vitamix', 'Breville', 'De\'Longhi', 'Nespresso',
-        'Balmuda', 'Coway', 'Blueair', 'Molekule', 'Roomba', 'iRobot'
-      ],
-      'Watch': [
-        'Rolex', 'Omega', 'Patek Philippe', 'Audemars Piguet', 'Cartier', 'IWC',
-        'Jaeger-LeCoultre', 'Vacheron Constantin', 'A. Lange & Söhne', 'Breguet',
-        'TAG Heuer', 'Breitling', 'Panerai', 'Hublot', 'Zenith', 'Tudor',
-        'Grand Seiko', 'Seiko', 'Citizen', 'Casio', 'G-Shock', 'Swatch',
-        'Nomos', 'Junghans', 'Mondaine', 'Braun', 'Uniform Wares'
-      ]
-    };
-
-    // Flatten for quick lookup
-    const KNOWN_BRANDS = Object.values(BRAND_DATABASE).flat().sort((a, b) => b.length - a.length);
-
-    // Create brand to category mapping
-    const BRAND_CATEGORIES = {};
-    Object.entries(BRAND_DATABASE).forEach(([category, brands]) => {
-      brands.forEach(brand => { BRAND_CATEGORIES[brand.toLowerCase()] = category; });
-    });
-
-    // Common artist/designer name patterns (first name + last name style)
-    const KNOWN_ARTISTS = [
-      'Isamu Noguchi', 'Tadao Ando', 'Kengo Kuma', 'Shiro Kuramata', 'Naoto Fukasawa',
-      'Dieter Rams', 'Charles Eames', 'Ray Eames', 'Eero Saarinen', 'Arne Jacobsen',
-      'Hans Wegner', 'Verner Panton', 'Philippe Starck', 'Marc Newson', 'Jasper Morrison',
-      'Konstantin Grcic', 'Patricia Urquiola', 'Ronan Bouroullec', 'Erwan Bouroullec',
-      'Zaha Hadid', 'Frank Gehry', 'Norman Foster', 'Renzo Piano', 'Bjarke Ingels',
-      'Jonathan Ive', 'Jony Ive', 'Massimo Vignelli', 'Stefan Sagmeister', 'Paula Scher',
-      'David Carson', 'Neville Brody', 'Yohji Yamamoto', 'Issey Miyake', 'Rei Kawakubo'
-    ].sort((a, b) => b.length - a.length);
-
-    // Designer discipline mapping based on brand associations
-    const DESIGNER_DISCIPLINES = {
-      'Industrial': ['Dieter Rams', 'Charles Eames', 'Ray Eames', 'Eero Saarinen', 'Arne Jacobsen',
-        'Hans Wegner', 'Verner Panton', 'Philippe Starck', 'Marc Newson', 'Jasper Morrison',
-        'Konstantin Grcic', 'Patricia Urquiola', 'Ronan Bouroullec', 'Erwan Bouroullec',
-        'Jonathan Ive', 'Jony Ive', 'Naoto Fukasawa', 'Shiro Kuramata', 'Isamu Noguchi'],
-      'Graphic': ['Massimo Vignelli', 'Stefan Sagmeister', 'Paula Scher', 'David Carson', 'Neville Brody',
-        'Milton Glaser', 'Saul Bass', 'Paul Rand', 'Josef Müller-Brockmann', 'Jan Tschichold'],
-      'Fashion': ['Yohji Yamamoto', 'Issey Miyake', 'Rei Kawakubo', 'Coco Chanel', 'Christian Dior',
-        'Vivienne Westwood', 'Alexander McQueen', 'Karl Lagerfeld', 'Tom Ford', 'Virgil Abloh'],
-      'Interior': ['Kelly Wearstler', 'Ilse Crawford', 'Axel Vervoordt', 'Jean-Michel Frank']
-    };
-
-    // Architect list
-    const KNOWN_ARCHITECTS = ['Zaha Hadid', 'Frank Gehry', 'Norman Foster', 'Renzo Piano', 'Bjarke Ingels',
-      'Tadao Ando', 'Kengo Kuma', 'Frank Lloyd Wright', 'Le Corbusier', 'Ludwig Mies van der Rohe',
-      'Louis Kahn', 'Oscar Niemeyer', 'I. M. Pei', 'Santiago Calatrava', 'Jean Nouvel', 'Peter Zumthor',
-      'Rem Koolhaas', 'Herzog & de Meuron', 'SANAA', 'Kazuyo Sejima', 'Ryue Nishizawa', 'Steven Holl'];
-
-    // Era period mapping
-    const ERA_PERIODS = {
-      'Pre-War': ['1900s', '1910s', '1920s', '1930s'],
-      'Mid-Century': ['1940s', '1950s', '1960s'],
-      'Late Century': ['1970s', '1980s', '1990s'],
-      'Contemporary': ['2000s', '2010s', '2020s']
-    };
-
-    // Smart categorization function for keywords
-    const smartCategorize = (kw, contextBrand = null) => {
-      const value = kw.value;
-      const type = kw.type;
-      const valueLower = value.toLowerCase();
-
-      // If keyword already has a good path (not Custom), use it
-      if (kw.path && kw.path.length > 0 && kw.path[0] !== 'Custom') {
-        return kw.path;
-      }
-
-      // Handle designers - route to Creator > Designer > [discipline]
-      if (type === 'designer' || KNOWN_ARTISTS.some(a => a.toLowerCase() === valueLower)) {
-        // Check if known architect
-        if (KNOWN_ARCHITECTS.some(a => a.toLowerCase() === valueLower)) {
-          return ['Creator', 'Architect'];
-        }
-        // Check discipline
-        for (const [discipline, designers] of Object.entries(DESIGNER_DISCIPLINES)) {
-          if (designers.some(d => d.toLowerCase() === valueLower)) {
-            return ['Creator', 'Designer', discipline];
-          }
-        }
-        // Default to Industrial for unknown designers (most common)
-        return ['Creator', 'Designer', 'Industrial'];
-      }
-
-      // Handle brands - route to Brand > [category]
-      if (type === 'brand' || KNOWN_BRANDS.some(b => b.toLowerCase() === valueLower)) {
-        const category = BRAND_CATEGORIES[valueLower];
-        if (category) {
-          return ['Brand', category];
-        }
-        return ['Brand'];
-      }
-
-      // Handle models/products - route to Product > [category based on brand]
-      if (type === 'model') {
-        // Use context brand to determine category
-        if (contextBrand) {
-          const brandCategory = BRAND_CATEGORIES[contextBrand.toLowerCase()];
-          if (brandCategory) {
-            return ['Product', brandCategory];
-          }
-        }
-        // Fallback: try to detect category from product name
-        const productLower = valueLower;
-        if (/headphone|speaker|amp|dac|earphone|earbud|turntable/i.test(productLower)) {
-          return ['Product', 'Audio'];
-        }
-        if (/phone|laptop|tablet|computer|watch|keyboard|mouse/i.test(productLower)) {
-          return ['Product', 'Electronics'];
-        }
-        if (/camera|lens|drone/i.test(productLower)) {
-          return ['Product', 'Camera'];
-        }
-        if (/car|vehicle|sedan|suv|coupe/i.test(productLower)) {
-          return ['Product', 'Automotive'];
-        }
-        if (/chair|table|desk|lamp|sofa|shelf/i.test(productLower)) {
-          return ['Product', 'Furniture'];
-        }
-        return ['Product'];
-      }
-
-      // Handle eras - route to Era > [period]
-      if (type === 'era' || /^\d{4}s$/.test(value)) {
-        for (const [period, decades] of Object.entries(ERA_PERIODS)) {
-          if (decades.includes(value)) {
-            return ['Era', period];
-          }
-        }
-        return ['Era'];
-      }
-
-      // Handle countries - route to Style > Origin
-      const knownCountries = ['Germany', 'Italy', 'Japan', 'Denmark', 'Sweden', 'United States',
-        'United Kingdom', 'France', 'Switzerland', 'Finland', 'Netherlands', 'Norway', 'Austria',
-        'Belgium', 'Spain', 'Portugal', 'Brazil', 'Mexico', 'Canada', 'Australia', 'China',
-        'South Korea', 'India', 'Russia', 'Poland', 'USA', 'UK'];
-      if (type === 'country' || knownCountries.some(c => c.toLowerCase() === valueLower)) {
-        return ['Style', 'Origin'];
-      }
-
-      // Handle materials
-      const materials = {
-        'Natural': ['wood', 'leather', 'fabric', 'stone', 'wool', 'cotton', 'linen', 'cork', 'bamboo'],
-        'Metal': ['aluminum', 'steel', 'brass', 'copper', 'chrome', 'titanium', 'gold', 'silver', 'iron', 'bronze'],
-        'Synthetic': ['plastic', 'carbon fiber', 'acrylic', 'fiberglass', 'resin', 'rubber', 'silicone', 'nylon'],
-        'Mineral': ['glass', 'ceramic', 'concrete', 'marble', 'granite', 'porcelain', 'quartz']
-      };
-      for (const [materialType, mats] of Object.entries(materials)) {
-        if (mats.some(m => valueLower.includes(m))) {
-          return ['Material', materialType];
-        }
-      }
-
-      // Handle colors
-      const colors = {
-        'Neutral': ['black', 'white', 'gray', 'grey', 'silver', 'beige', 'cream', 'ivory'],
-        'Warm': ['red', 'orange', 'yellow', 'gold', 'brown', 'copper', 'tan', 'burgundy', 'terracotta'],
-        'Cool': ['blue', 'green', 'teal', 'purple', 'navy', 'cyan', 'turquoise', 'violet', 'indigo'],
-        'Finish': ['matte', 'glossy', 'satin', 'brushed', 'polished', 'natural', 'textured']
-      };
-      for (const [colorType, cols] of Object.entries(colors)) {
-        if (cols.some(c => valueLower === c || valueLower.includes(c + ' '))) {
-          return ['Color', colorType];
-        }
-      }
-
-      // Default to Custom
-      return ['Custom'];
-    };
-
-    // Helper to add a keyword to taxonomy structure
-    const addToTaxonomy = (taxonomy, kw) => {
-      if (!kw.path || kw.path.length === 0) return taxonomy;
-      const newTax = JSON.parse(JSON.stringify(taxonomy)); // deep clone
-      let current = newTax;
-      const path = kw.path;
-      const value = kw.value;
-
-      // Navigate/create path
-      for (let i = 0; i < path.length; i++) {
-        const key = path[i];
-        if (i === path.length - 1) {
-          // At the leaf level - add the value
-          if (Array.isArray(current[key])) {
-            if (!current[key].some(v => v.toLowerCase() === value.toLowerCase())) {
-              current[key].push(value);
-            }
-          } else if (typeof current[key] === 'object' && current[key] !== null) {
-            // It's a nested object, add as a direct child array
-            if (!current[key]._items) current[key]._items = [];
-            if (!current[key]._items.some(v => v.toLowerCase() === value.toLowerCase())) {
-              current[key]._items.push(value);
-            }
-          } else if (current[key] === undefined) {
-            current[key] = [value];
-          }
-        } else {
-          // Navigate deeper
-          if (current[key] === undefined) {
-            current[key] = {};
-          } else if (Array.isArray(current[key])) {
-            // Convert array to object with items
-            current[key] = { _items: current[key] };
-          }
-          current = current[key];
-        }
-      }
-      return newTax;
-    };
-
-    // Helper to remove a keyword from taxonomy structure
-    const removeFromTaxonomy = (taxonomy, kw) => {
-      if (!kw.path || kw.path.length === 0) return taxonomy;
-      const newTax = JSON.parse(JSON.stringify(taxonomy)); // deep clone
-      let current = newTax;
-      const path = kw.path;
-      const value = kw.value;
-
-      // Navigate to the parent
-      for (let i = 0; i < path.length - 1; i++) {
-        const key = path[i];
-        if (!current[key]) return newTax; // path doesn't exist
-        current = current[key];
-      }
-
-      // Remove from the leaf
-      const leafKey = path[path.length - 1];
-      if (Array.isArray(current[leafKey])) {
-        current[leafKey] = current[leafKey].filter(v => v.toLowerCase() !== value.toLowerCase());
-      } else if (current[leafKey]?._items) {
-        current[leafKey]._items = current[leafKey]._items.filter(v => v.toLowerCase() !== value.toLowerCase());
-      }
-      return newTax;
-    };
-
-    const ROOT_COLORS = {
-      'Design': '#a78bfa', 'Architecture': '#f87171', 'Art': '#f472b6', 'Style': '#4ade80',
-      'Brand': '#fbbf24', 'Creator': '#c084fc', 'Era': '#fb923c', 'Product': '#60a5fa',
-      'Material': '#22d3d1', 'Color': '#94a3b8', 'Custom': '#ec4899'
-    };
-
-    const flattenTaxonomy = (obj, path = [], results = null) => {
-      if (results === null) results = { paths: {}, allTerms: new Set() };
-      for (const [key, value] of Object.entries(obj)) {
-        const currentPath = [...path, key];
-        const keyLower = key.toLowerCase();
-        results.allTerms.add(keyLower);
-        results.paths[keyLower] = currentPath;
-        if (Array.isArray(value)) {
-          value.forEach(item => {
-            const itemLower = item.toLowerCase();
-            results.allTerms.add(itemLower);
-            results.paths[itemLower] = currentPath;
-          });
-        } else if (typeof value === 'object' && value !== null) {
-          flattenTaxonomy(value, currentPath, results);
-        }
-      }
-      return results;
-    };
-
-    // Helper to get brand path with proper category
-    const getBrandPath = (brandName) => {
-      const category = BRAND_CATEGORIES[brandName.toLowerCase()];
-      return category ? ['Brand', category] : ['Brand'];
-    };
-
-    // Check if text looks like a brand name (pattern-based detection)
-    const looksLikeBrand = (text) => {
-      const trimmed = text.trim();
-      // Known brand suffixes/patterns
-      if (/\b(Engineering|Audio|Acoustics|Electronics|Design|Labs|Studio|Co\.|Inc\.|Ltd|GmbH|AG)\s*$/i.test(trimmed)) return true;
-      // Two capitalized words that aren't common phrases
-      if (/^[A-Z][a-z]+\s+[A-Z][a-z]+$/.test(trimmed) && !/^(The |A |An |New |Old |Big |Small )/i.test(trimmed)) {
-        // Exclude if it looks like a person name (check against artists)
-        const isArtist = KNOWN_ARTISTS.some(a => a.toLowerCase() === trimmed.toLowerCase());
-        if (!isArtist) return true;
-      }
-      // Single capitalized word with unusual capitalization (like "OnePlus", "PlayStation")
-      if (/^[A-Z][a-z]+[A-Z]/.test(trimmed)) return true;
-      // All caps short name (like "BMW", "LG", "HP")
-      if (/^[A-Z]{2,5}$/.test(trimmed)) return true;
-      return false;
-    };
-
-    // Nationality to country mapping
-    const NATIONALITY_TO_COUNTRY = {
-      'german': 'Germany', 'deutsch': 'Germany', 'deutsche': 'Germany',
-      'italian': 'Italy', 'italiano': 'Italy', 'italiana': 'Italy',
-      'french': 'France', 'français': 'France', 'française': 'France',
-      'japanese': 'Japan', 'nippon': 'Japan',
-      'british': 'United Kingdom', 'english': 'United Kingdom', 'uk': 'United Kingdom',
-      'american': 'United States', 'usa': 'United States', 'us': 'United States',
-      'danish': 'Denmark', 'dansk': 'Denmark',
-      'swedish': 'Sweden', 'svensk': 'Sweden',
-      'norwegian': 'Norway', 'norsk': 'Norway',
-      'finnish': 'Finland', 'suomi': 'Finland',
-      'dutch': 'Netherlands', 'netherlands': 'Netherlands', 'holland': 'Netherlands',
-      'belgian': 'Belgium', 'belge': 'Belgium',
-      'swiss': 'Switzerland', 'schweiz': 'Switzerland', 'suisse': 'Switzerland',
-      'austrian': 'Austria', 'österreich': 'Austria',
-      'spanish': 'Spain', 'español': 'Spain', 'española': 'Spain',
-      'portuguese': 'Portugal', 'português': 'Portugal',
-      'brazilian': 'Brazil', 'brasileiro': 'Brazil',
-      'mexican': 'Mexico', 'mexicano': 'Mexico',
-      'canadian': 'Canada',
-      'australian': 'Australia',
-      'chinese': 'China', 'zhongguo': 'China',
-      'korean': 'South Korea', 'hanguk': 'South Korea',
-      'indian': 'India',
-      'russian': 'Russia', 'rossiya': 'Russia',
-      'polish': 'Poland', 'polski': 'Poland',
-      'czech': 'Czech Republic', 'český': 'Czech Republic',
-      'hungarian': 'Hungary', 'magyar': 'Hungary',
-      'greek': 'Greece', 'ellas': 'Greece',
-      'turkish': 'Turkey', 'türk': 'Turkey',
-      'israeli': 'Israel',
-      'south african': 'South Africa',
-      'argentinian': 'Argentina', 'argentine': 'Argentina',
-      'chilean': 'Chile',
-      'colombian': 'Colombia',
-      'icelandic': 'Iceland', 'ísland': 'Iceland',
-      'irish': 'Ireland', 'éire': 'Ireland',
-      'scottish': 'Scotland', 'welsh': 'Wales'
-    };
-
-    // Parse year/era from text
-    const parseEra = (text) => {
-      const trimmed = text.trim();
-
-      // Exact year: 1965, 2023
-      const yearMatch = trimmed.match(/^(19[0-9]{2}|20[0-2][0-9])$/);
-      if (yearMatch) {
-        const year = parseInt(yearMatch[1]);
-        const decade = Math.floor(year / 10) * 10 + 's';
-        return { value: decade, year, type: 'era', path: ['Era'] };
-      }
-
-      // Year in context: "designed in 1965", "from 1972", "circa 1980"
-      const yearContextMatch = trimmed.match(/(?:designed|created|made|built|from|circa|c\.|ca\.?|in|year)?\s*(19[0-9]{2}|20[0-2][0-9])/i);
-      if (yearContextMatch) {
-        const year = parseInt(yearContextMatch[1]);
-        const decade = Math.floor(year / 10) * 10 + 's';
-        return { value: decade, year, type: 'era', path: ['Era'] };
-      }
-
-      // Decade: 1960s, 60s, '60s, sixties
-      const decadeMatch = trimmed.match(/^'?(?:19)?([0-9])0s?$/i);
-      if (decadeMatch) {
-        const decade = (decadeMatch[1] >= '0' && decadeMatch[1] <= '2' ? '20' : '19') + decadeMatch[1] + '0s';
-        return { value: decade, type: 'era', path: ['Era'] };
-      }
-
-      // Word decades: sixties, seventies, etc.
-      const wordDecades = {
-        'twenties': '1920s', 'thirties': '1930s', 'forties': '1940s', 'fifties': '1950s',
-        'sixties': '1960s', 'seventies': '1970s', 'eighties': '1980s', 'nineties': '1990s',
-        'two thousands': '2000s', 'twenty tens': '2010s', 'twenty twenties': '2020s'
-      };
-      const lower = trimmed.toLowerCase();
-      if (wordDecades[lower]) {
-        return { value: wordDecades[lower], type: 'era', path: ['Era'] };
-      }
-
-      // Mid-century, post-war, etc.
-      if (/mid[- ]?century/i.test(trimmed)) {
-        return { value: '1950s', type: 'era', path: ['Era'] };
-      }
-      if (/post[- ]?war/i.test(trimmed)) {
-        return { value: '1950s', type: 'era', path: ['Era'] };
-      }
-      if (/pre[- ]?war/i.test(trimmed)) {
-        return { value: '1930s', type: 'era', path: ['Era'] };
-      }
-      if (/interwar/i.test(trimmed)) {
-        return { value: '1930s', type: 'era', path: ['Era'] };
-      }
-
-      return null;
-    };
-
-    const splitBrandModel = (text) => {
-      const results = [];
-      let remaining = text.trim();
-
-      // Check for "Design: Name", "Designer: Name", "By: Name", "Created by: Name" patterns
-      const designerMatch = remaining.match(/^(?:design|designer|designed by|by|created by|author|artist)\s*[:\-]\s*(.+)$/i);
-      if (designerMatch) {
-        const name = designerMatch[1].trim();
-        if (name) {
-          const path = smartCategorize({ value: name, type: 'designer' });
-          results.push({ value: name, type: 'designer', path });
-          return results;
-        }
-      }
-
-      // Check for nationality/country design patterns: "German design" -> "Germany"
-      const nationalityMatch = remaining.match(/^(\w+)\s+(?:design|style|architecture|art|aesthetic|modernism|functionalism|school)$/i);
-      if (nationalityMatch) {
-        const nationality = nationalityMatch[1].toLowerCase();
-        const country = NATIONALITY_TO_COUNTRY[nationality];
-        if (country) {
-          results.push({ value: country, type: 'country', path: ['Style', 'Origin'] });
-          return results;
-        }
-      }
-
-      // Check for era/date patterns
-      const eraResult = parseEra(remaining);
-      if (eraResult) {
-        results.push(eraResult);
-        return results;
-      }
-
-      // Check for known artists/designers
-      for (const artist of KNOWN_ARTISTS) {
-        if (remaining.toLowerCase() === artist.toLowerCase()) {
-          const path = smartCategorize({ value: artist, type: 'designer' });
-          results.push({ value: artist, type: 'designer', path });
-          return results;
-        }
-      }
-
-      // Check for known brands (exact match)
-      let foundBrand = null;
-      let brandCategory = null;
-      for (const brand of KNOWN_BRANDS) {
-        const regex = new RegExp(`^${brand.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*`, 'i');
-        if (regex.test(remaining)) {
-          foundBrand = brand;
-          brandCategory = BRAND_CATEGORIES[brand.toLowerCase()];
-          remaining = remaining.replace(regex, '').trim();
-          break;
-        }
-      }
-
-      if (foundBrand) {
-        const path = brandCategory ? ['Brand', brandCategory] : ['Brand'];
-        results.push({ value: foundBrand, type: 'brand', path });
-        if (remaining) {
-          remaining = remaining.replace(/^(model|product|series|type)\s*/i, '').replace(/^[-:]\s*/, '').trim();
-          if (remaining) {
-            // Use brand category for product path
-            const productPath = brandCategory ? ['Product', brandCategory] : smartCategorize({ value: remaining, type: 'model' }, foundBrand);
-            results.push({ value: remaining, type: 'model', path: productPath });
-          }
-        }
-      } else if (/^[A-Z]{1,3}[-]?\d+[A-Z]*\d*$/i.test(text.trim())) {
-        // Model number pattern - use smart categorization
-        const path = smartCategorize({ value: text.trim(), type: 'model' });
-        results.push({ value: text.trim(), type: 'model', path });
-      } else if (looksLikeBrand(text.trim())) {
-        // Pattern-based brand detection for unknown brands
-        results.push({ value: text.trim(), type: 'brand', path: ['Brand'] });
-      } else {
-        // Use smart categorization for generic keywords
-        const path = smartCategorize({ value: text, type: 'keyword' });
-        results.push({ value: text, type: 'keyword', path });
-      }
-      return results;
-    };
-
-    const deduplicateKeywords = (keywords) => {
-      const groups = new Map();
-      keywords.forEach(kw => {
-        let normalized = kw.value.toLowerCase().replace(/^(model|product|type|series|the)\s+/gi, '').replace(/\s+(model|product|type|series)$/gi, '').replace(/\s+/g, ' ').trim();
-        if (!groups.has(normalized)) groups.set(normalized, []);
-        groups.get(normalized).push(kw);
-      });
-      return Array.from(groups.values()).map(group => {
-        group.sort((a, b) => (b.confidence || 0) - (a.confidence || 0));
-        return group[0];
-      });
-    };
-
-    const buildTree = (keywords) => {
-      const tree = {};
-      keywords.forEach(kw => {
-        let currentLevel = tree;
-        for (let i = 0; i < kw.path.length; i++) {
-          const segment = kw.path[i];
-          if (!currentLevel[segment]) currentLevel[segment] = { _children: {}, _keywords: [], _path: kw.path.slice(0, i + 1) };
-          if (i === kw.path.length - 1) currentLevel[segment]._keywords.push(kw);
-          else currentLevel = currentLevel[segment]._children;
-        }
-      });
-      return tree;
-    };
-
-    const countKeywords = (node) => {
-      if (!node) return 0;
-      let count = node._keywords?.length || 0;
-      Object.values(node._children || {}).forEach(child => { count += countKeywords(child); });
-      return count;
-    };
-
-    const hashFile = async (file) => {
-      const buffer = await file.slice(0, 1024).arrayBuffer();
-      const arr = new Uint8Array(buffer);
-      let hash = 0;
-      for (let i = 0; i < arr.length; i++) hash = ((hash << 5) - hash) + arr[i] | 0;
-      return `${file.name}-${file.size}-${hash}`;
-    };
-
-    // Get base name for similarity matching (e.g., "ProductName" from "ProductName_01.jpg")
-    const getBaseName = (filename) => {
-      let base = filename
-        .replace(/\.[^.]+$/, '')  // Remove extension
-        .replace(/[-_]?\s*\d+$/, '') // Remove trailing numbers (with optional space)
-        .replace(/[-_]?\s*\(\d+\)$/, '') // Remove (1), (2) etc
-        .replace(/[-_](large|small|thumb|preview|hires|lowres|copy|final|edit|\d+x\d+)$/i, '') // Remove size suffixes
-        .replace(/\s+/g, ' ')
-        .toLowerCase()
-        .trim();
-      console.log(`[BASE] "${filename}" -> "${base}"`);
-      return base;
-    };
-
-    const STORAGE_KEY = 'tagger_memory';
-    const TAXONOMY_KEY = 'tagger_taxonomy';
-    const loadMemory = () => { try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {}; } catch { return {}; } };
-    const saveMemory = (m) => localStorage.setItem(STORAGE_KEY, JSON.stringify(m));
-
-    // Enhanced filename extraction
-    const extractFromFilename = (filename) => {
-      const keywords = [];
-      // Keep original with hyphens for name detection
-      const nameRaw = filename
-        .replace(/\.[^.]+$/, '')  // Remove extension
-        .replace(/\s*\(\d+\)\s*$/, '')  // Remove (1), (2) etc
-        .trim();
-
-      // Also create space-separated version
-      const name = nameRaw
-        .replace(/[-_]/g, ' ')    // Replace separators with spaces
-        .replace(/([a-z])([A-Z])/g, '$1 $2')  // Split camelCase
-        .replace(/\s+/g, ' ')
-        .trim();
-
-      console.log(`[FILENAME] Parsing: "${filename}" -> "${name}"`);
-
-      // Check for known artists/designers in filename
-      for (const artist of KNOWN_ARTISTS) {
-        if (name.toLowerCase().includes(artist.toLowerCase())) {
-          keywords.push({ value: artist, type: 'designer', source: 'filename', confidence: 0.95, path: ['Creator', 'Designer'] });
-          console.log(`[FILENAME] Found known artist: ${artist}`);
-          break;
-        }
-      }
-
-      // Look for hyphenated name patterns like "yui-tsujimura" or "firstname-lastname"
-      const hyphenNamePattern = /([a-z]+)-([a-z]+)(?:-([a-z]+))?/gi;
-      let hyphenMatch;
-      while ((hyphenMatch = hyphenNamePattern.exec(nameRaw)) !== null) {
-        const parts = [hyphenMatch[1], hyphenMatch[2], hyphenMatch[3]].filter(Boolean);
-        // Check if this looks like a person's name (2-3 parts, each 2-12 chars)
-        if (parts.length >= 2 && parts.every(p => p.length >= 2 && p.length <= 12)) {
-          // Capitalize each part
-          const potentialName = parts.map(p => p.charAt(0).toUpperCase() + p.slice(1).toLowerCase()).join(' ');
-          // Skip common non-name patterns
-          const skipPatterns = ['tea bowl', 'high resolution', 'product design', 'new york', 'los angeles'];
-          if (!skipPatterns.some(s => potentialName.toLowerCase() === s) &&
-              !keywords.some(k => k.value.toLowerCase() === potentialName.toLowerCase())) {
-            console.log(`[FILENAME] Found hyphenated name: ${potentialName}`);
-            keywords.push({ value: potentialName, type: 'designer', source: 'filename', confidence: 0.8, path: ['Creator', 'Designer'] });
-          }
-        }
-      }
-
-      // Try to detect name patterns (FirstName LastName or LastName FirstName)
-      const namePattern = /\b([A-Z][a-z]+)\s+([A-Z][a-z]+)(?:\s+([A-Z][a-z]+))?\b/g;
-      let nameMatch;
-      while ((nameMatch = namePattern.exec(name)) !== null) {
-        const potentialName = nameMatch[0].trim();
-        const skipWords = ['New York', 'Los Angeles', 'San Francisco', 'High Resolution', 'Product Design', 'Tea Bowl', 'White Shino'];
-        if (!skipWords.some(w => potentialName.toLowerCase() === w.toLowerCase()) &&
-            !KNOWN_BRANDS.some(b => potentialName.toLowerCase().includes(b.toLowerCase())) &&
-            !keywords.some(k => k.value.toLowerCase() === potentialName.toLowerCase())) {
-          const japaneseSurnames = ['Tanaka', 'Suzuki', 'Yamamoto', 'Watanabe', 'Takahashi', 'Ito', 'Nakamura', 'Kobayashi', 'Kato', 'Yoshida', 'Yamada', 'Sasaki', 'Yamaguchi', 'Matsumoto', 'Inoue', 'Kimura', 'Hayashi', 'Shimizu', 'Yamazaki', 'Mori', 'Abe', 'Ikeda', 'Hashimoto', 'Ishikawa', 'Ogawa', 'Okada', 'Hasegawa', 'Fujita', 'Goto', 'Okamoto', 'Tsujimura', 'Hamada', 'Kawai', 'Leach'];
-          const isLikelyName = japaneseSurnames.some(s => potentialName.toLowerCase().includes(s.toLowerCase())) ||
-                              /^[A-Z][a-z]+\s+[A-Z][a-z]+$/.test(potentialName);
-          if (isLikelyName && potentialName.length >= 5 && potentialName.length <= 30) {
-            console.log(`[FILENAME] Found name pattern: ${potentialName}`);
-            keywords.push({ value: potentialName, type: 'designer', source: 'filename', confidence: 0.85, path: ['Creator', 'Designer'] });
-          }
-        }
-      }
-
-      // Check for brands in filename
-      for (const brand of KNOWN_BRANDS) {
-        if (name.toLowerCase().includes(brand.toLowerCase())) {
-          keywords.push({ value: brand, type: 'brand', source: 'filename', confidence: 0.95 });
-          const brandRegex = new RegExp(`${brand.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*(.+)`, 'i');
-          const match = name.match(brandRegex);
-          if (match && match[1]) {
-            const modelPart = match[1].trim();
-            if (/^[A-Z0-9][-A-Z0-9\s]*$/i.test(modelPart) && modelPart.length < 30) {
-              keywords.push({ value: modelPart, type: 'model', source: 'filename', confidence: 0.9 });
-            }
-          }
-          break;
-        }
-      }
-
-      // Check for standalone model numbers
-      const modelPatterns = [
-        /\b([A-Z]{1,2}\d{1,4}[A-Z]?)\b/gi,
-        /\b(Beo\s*(?:Sound|Play|Vision|Lab|Lit)\s*\d+)\b/gi,
-      ];
-      for (const pattern of modelPatterns) {
-        const matches = name.match(pattern);
-        if (matches) {
-          matches.forEach(m => {
-            const clean = m.trim();
-            if (clean.length >= 2 && clean.length <= 20 && !keywords.some(k => k.value.toLowerCase() === clean.toLowerCase())) {
-              keywords.push({ value: clean, type: 'model', source: 'filename', confidence: 0.85 });
-            }
-          });
-        }
-      }
-
-      // Extract years
-      const yearMatch = name.match(/\b(19[5-9]\d|20[0-2]\d)\b/);
-      if (yearMatch) {
-        const decade = Math.floor(parseInt(yearMatch[1]) / 10) * 10 + 's';
-        keywords.push({ value: decade, type: 'era', source: 'filename', confidence: 0.8, path: ['Era'] });
-      }
-
-      // Extract colors
-      const colors = ['black', 'white', 'silver', 'gold', 'red', 'blue', 'green', 'grey', 'gray', 'bronze', 'copper'];
-      colors.forEach(color => {
-        if (name.toLowerCase().includes(color)) {
-          keywords.push({ value: color.charAt(0).toUpperCase() + color.slice(1), type: 'color', source: 'filename', confidence: 0.8, path: ['Color'] });
-        }
-      });
-
-      console.log(`[FILENAME] Extracted ${keywords.length} keywords:`, keywords.map(k => k.value));
-      return keywords;
-    };
-
-    // Extract artist/creator names from URLs
-    const extractFromUrls = (urls) => {
-      const keywords = [];
-      const seen = new Set();
-
-      urls.forEach(urlObj => {
-        try {
-          const url = new URL(urlObj.url);
-          const path = url.pathname.toLowerCase();
-
-          // Look for name patterns in URL path like /yui-tsujimura/ or /artist/john-smith
-          const segments = path.split('/').filter(s => s.length > 0);
-          segments.forEach(segment => {
-            // Check for hyphenated names
-            const hyphenParts = segment.split('-');
-            if (hyphenParts.length >= 2 && hyphenParts.length <= 4) {
-              // Each part should be 2-15 chars, alphabetic
-              if (hyphenParts.every(p => /^[a-z]{2,15}$/.test(p))) {
-                const potentialName = hyphenParts.map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' ');
-                const skipWords = ['tea-bowl', 'white-shino', 'high-resolution', 'product-design', 'full-size', 'large-image'];
-                if (!skipWords.some(s => segment === s) &&
-                    potentialName.length >= 5 && potentialName.length <= 30 &&
-                    !seen.has(potentialName.toLowerCase())) {
-                  // Check if it could be a name (has 2-3 parts, reasonable lengths)
-                  const japaneseSurnames = ['tsujimura', 'hamada', 'kawai', 'leach', 'tanaka', 'suzuki', 'yamamoto'];
-                  if (japaneseSurnames.some(s => segment.includes(s)) ||
-                      (hyphenParts.length === 2 && hyphenParts[0].length >= 3 && hyphenParts[1].length >= 3)) {
-                    seen.add(potentialName.toLowerCase());
-                    console.log(`[URL] Found name in URL: ${potentialName} from ${segment}`);
-                    keywords.push({ value: potentialName, type: 'designer', source: 'url', confidence: 0.75, path: ['Creator', 'Designer'] });
-                  }
-                }
-              }
-            }
-          });
-        } catch (e) {}
-      });
-
-      return keywords;
-    };
-
-    // Extract existing XMP/EXIF metadata
-    const extractExistingMetadata = async (file) => {
-      const keywords = [];
-      try {
-        const buffer = await file.slice(0, 65536).arrayBuffer();
-        const text = new TextDecoder('utf-8', { fatal: false }).decode(buffer);
-
-        const subjectMatch = text.match(/<dc:subject>[\s\S]*?<rdf:Bag>([\s\S]*?)<\/rdf:Bag>/);
-        if (subjectMatch) {
-          const items = subjectMatch[1].match(/<rdf:li>([^<]+)<\/rdf:li>/g);
-          if (items) {
-            items.forEach(item => {
-              const value = item.replace(/<\/?rdf:li>/g, '').trim();
-              if (value) keywords.push({ value, type: 'existing', source: 'xmp', confidence: 1.0 });
-            });
-          }
-        }
-      } catch (e) {}
-      return keywords;
-    };
-
-    // XMP Generation
-    const generateXMP = (keywords, creator) => {
-      const subjects = keywords.map(k => k.value);
-      const hierarchical = keywords.map(k => [...k.path, k.value].join('|'));
-      return `<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>
-<x:xmpmeta xmlns:x="adobe:ns:meta/">
-  <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
-    <rdf:Description rdf:about="" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:lr="http://ns.adobe.com/lightroom/1.0/" xmlns:photoshop="http://ns.adobe.com/photoshop/1.0/">
-      ${creator ? `<dc:creator><rdf:Seq><rdf:li>${creator}</rdf:li></rdf:Seq></dc:creator><photoshop:Credit>${creator}</photoshop:Credit>` : ''}
-      <dc:subject><rdf:Bag>${subjects.map(s => `<rdf:li>${s}</rdf:li>`).join('')}</rdf:Bag></dc:subject>
-      <lr:hierarchicalSubject><rdf:Bag>${hierarchical.map(h => `<rdf:li>${h}</rdf:li>`).join('')}</rdf:Bag></lr:hierarchicalSubject>
-    </rdf:Description>
-  </rdf:RDF>
-</x:xmpmeta>
-<?xpacket end="w"?>`;
-    };
-
-    const embedXMP = async (file, keywords, creator) => {
-      return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          try {
-            const u8 = new Uint8Array(e.target.result);
-            if (u8[0] !== 0xFF || u8[1] !== 0xD8) { reject(new Error('Not JPEG')); return; }
-            const xmp = new TextEncoder().encode(generateXMP(keywords, creator));
-            const ns = new TextEncoder().encode('http://ns.adobe.com/xap/1.0/\0');
-            const len = 2 + ns.length + xmp.length;
-            const parts = [new Uint8Array([0xFF, 0xD8, 0xFF, 0xE1, (len >> 8) & 0xFF, len & 0xFF]), ns, xmp];
-            let pos = 2;
-            while (pos < u8.length - 1 && u8[pos] === 0xFF) {
-              const m = u8[pos + 1];
-              if ((m >= 0xE0 && m <= 0xEF) || m === 0xFE) pos += 2 + ((u8[pos + 2] << 8) | u8[pos + 3]);
-              else break;
-            }
-            parts.push(u8.slice(pos));
-            const result = new Uint8Array(parts.reduce((s, p) => s + p.length, 0));
-            let off = 0; parts.forEach(p => { result.set(p, off); off += p.length; });
-            resolve(new Blob([result], { type: 'image/jpeg' }));
-          } catch (err) { reject(err); }
-        };
-        reader.onerror = reject;
-        reader.readAsArrayBuffer(file);
-      });
-    };
-
-    // Embed XMP in PNG using iTXt chunk
-    const embedXMPinPNG = async (file, keywords, creator) => {
-      return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          try {
-            const u8 = new Uint8Array(e.target.result);
-            // Verify PNG signature: 137 80 78 71 13 10 26 10
-            if (u8[0] !== 0x89 || u8[1] !== 0x50 || u8[2] !== 0x4E || u8[3] !== 0x47) {
-              reject(new Error('Not PNG')); return;
-            }
-
-            const xmpData = generateXMP(keywords, creator);
-            const keyword = 'XML:com.adobe.xmp';
-
-            // Build iTXt chunk: keyword + null + compression flag + compression method + language tag + null + translated keyword + null + text
-            const keywordBytes = new TextEncoder().encode(keyword);
-            const xmpBytes = new TextEncoder().encode(xmpData);
-
-            // iTXt structure: keyword(null-terminated) + compression(1) + method(1) + lang(null-terminated) + transKeyword(null-terminated) + text
-            const chunkData = new Uint8Array(keywordBytes.length + 1 + 1 + 1 + 1 + 1 + xmpBytes.length);
-            let offset = 0;
-            chunkData.set(keywordBytes, offset); offset += keywordBytes.length;
-            chunkData[offset++] = 0; // null terminator for keyword
-            chunkData[offset++] = 0; // compression flag (0 = uncompressed)
-            chunkData[offset++] = 0; // compression method
-            chunkData[offset++] = 0; // empty language tag (null terminated)
-            chunkData[offset++] = 0; // empty translated keyword (null terminated)
-            chunkData.set(xmpBytes, offset);
-
-            // Calculate CRC32
-            const crc32 = (data) => {
-              let crc = 0xFFFFFFFF;
-              const table = new Uint32Array(256);
-              for (let i = 0; i < 256; i++) {
-                let c = i;
-                for (let j = 0; j < 8; j++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
-                table[i] = c;
-              }
-              for (let i = 0; i < data.length; i++) crc = table[(crc ^ data[i]) & 0xFF] ^ (crc >>> 8);
-              return (crc ^ 0xFFFFFFFF) >>> 0;
-            };
-
-            // Build the iTXt chunk
-            const chunkType = new TextEncoder().encode('iTXt');
-            const chunkLen = chunkData.length;
-            const crcData = new Uint8Array(4 + chunkData.length);
-            crcData.set(chunkType, 0);
-            crcData.set(chunkData, 4);
-            const crc = crc32(crcData);
-
-            const chunk = new Uint8Array(4 + 4 + chunkData.length + 4);
-            chunk[0] = (chunkLen >> 24) & 0xFF;
-            chunk[1] = (chunkLen >> 16) & 0xFF;
-            chunk[2] = (chunkLen >> 8) & 0xFF;
-            chunk[3] = chunkLen & 0xFF;
-            chunk.set(chunkType, 4);
-            chunk.set(chunkData, 8);
-            chunk[chunk.length - 4] = (crc >> 24) & 0xFF;
-            chunk[chunk.length - 3] = (crc >> 16) & 0xFF;
-            chunk[chunk.length - 2] = (crc >> 8) & 0xFF;
-            chunk[chunk.length - 1] = crc & 0xFF;
-
-            // Find position after IHDR chunk (insert after first chunk)
-            let pos = 8; // After PNG signature
-            const ihdrLen = (u8[pos] << 24) | (u8[pos+1] << 16) | (u8[pos+2] << 8) | u8[pos+3];
-            pos += 4 + 4 + ihdrLen + 4; // length + type + data + crc
-
-            // Build new PNG: signature + IHDR + new iTXt + rest
-            const result = new Uint8Array(u8.length + chunk.length);
-            result.set(u8.slice(0, pos), 0);
-            result.set(chunk, pos);
-            result.set(u8.slice(pos), pos + chunk.length);
-
-            resolve(new Blob([result], { type: 'image/png' }));
-          } catch (err) { reject(err); }
-        };
-        reader.onerror = reject;
-        reader.readAsArrayBuffer(file);
-      });
-    };
-
-    // Convert any image to JPEG using canvas
-    const convertToJPEG = (file) => {
-      return new Promise((resolve, reject) => {
-        const img = new Image();
-        img.onload = () => {
-          const canvas = document.createElement('canvas');
-          canvas.width = img.naturalWidth;
-          canvas.height = img.naturalHeight;
-          const ctx = canvas.getContext('2d');
-          ctx.drawImage(img, 0, 0);
-          canvas.toBlob((blob) => {
-            if (blob) resolve(blob);
-            else reject(new Error('Conversion failed'));
-          }, 'image/jpeg', 0.95);
-          URL.revokeObjectURL(img.src);
-        };
-        img.onerror = () => { URL.revokeObjectURL(img.src); reject(new Error('Failed to load image')); };
-        img.src = URL.createObjectURL(file);
-      });
-    };
-
-    // Check if file is a raw camera format
-    const isRawFormat = (filename) => {
-      const rawExtensions = ['.cr2', '.cr3', '.nef', '.arw', '.orf', '.rw2', '.dng', '.raf', '.pef', '.srw', '.raw', '.rwl', '.mrw', '.3fr', '.ari', '.bay', '.cap', '.iiq', '.erf', '.fff', '.mef', '.mos', '.nrw', '.ptx', '.r3d', '.sr2', '.srf', '.x3f'];
-      const ext = filename.toLowerCase().match(/\.[^.]+$/)?.[0];
-      return rawExtensions.includes(ext);
-    };
-
-    // Check if file type supports metadata embedding
-    const supportsEmbedding = (file) => {
-      return file.type.includes('jpeg') || file.type.includes('png');
-    };
+    // Import from modules
+    const { DEFAULT_TAXONOMY, ROOT_COLORS, STORAGE_KEY, TAXONOMY_KEY } = window.TaggerData;
+    const {
+      smartCategorize, addToTaxonomy, removeFromTaxonomy, flattenTaxonomy,
+      getBrandPath, looksLikeBrand, parseEra, splitBrandModel, deduplicateKeywords,
+      buildTree, countKeywords, hashFile, getBaseName, loadMemory, saveMemory,
+      extractFromFilename, extractFromUrls, extractExistingMetadata, generateXMP,
+      embedXMP, embedXMPinPNG, convertToJPEG, isRawFormat, supportsEmbedding
+    } = window.TaggerUtils;
+    const { analyzeWithGemini, findDesigner, categorizeKeywords, analyzeWithVision, downloadLargerVersion } = window.TaggerAPI;
 
     // ============================================
-    // APIs
-    // ============================================
-    const analyzeWithGemini = async (apiKey, imageBase64, mimeType, existingContext = '') => {
-      const prompt = `Analyze this image for a design reference library. ${existingContext}
-IMPORTANT RULES:
-1. Separate brand from model - "Bang & Olufsen H95" = TWO keywords: "Bang & Olufsen" (brand) AND "H95" (model)
-2. ALWAYS include an Era/decade (e.g., "1960s", "1970s") - estimate based on design language, materials, styling cues
-3. For nationality, use country names not adjectives: "Germany" not "German design", "Italy" not "Italian"
-4. Include country of origin for the design/product under Style > Origin
-
-Return JSON array: [{"value": "keyword", "confidence": 0.9, "type": "brand|model|era|country|category|style|material|color", "path": ["RootCategory", "SubCategory"]}]
-
-Categories: Design, Architecture, Art, Style (including Origin for countries), Brand, Creator, Product, Era (decades like "1960s"), Material, Color.
-
-REQUIRED: Always include at least one Era keyword with the decade when this was likely designed/produced.
-
-Return 10-20 specific, useful keywords. Only return the JSON array.`;
-
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }, { inline_data: { mime_type: mimeType, data: imageBase64 } }] }],
-          generationConfig: { temperature: 0.1, maxOutputTokens: 2048 }
-        })
-      });
-      if (!response.ok) throw new Error('Gemini error');
-      const text = (await response.json()).candidates?.[0]?.content?.parts?.[0]?.text || '[]';
-      const match = text.match(/\[[\s\S]*\]/);
-      return match ? JSON.parse(match[0]) : [];
-    };
-
-    const findDesigner = async (apiKey, productInfo) => {
-      try {
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: `Who designed: ${productInfo}? If multiple designers, list them all. Return JSON: {"designer": "Full Name" or null, "designers": ["Name1", "Name2"] or null, "year": 2020 or null}` }] }],
-            generationConfig: { temperature: 0.1, maxOutputTokens: 256 },
-            tools: [{ googleSearch: {} }]
-          })
-        });
-        if (!response.ok) return null;
-        const text = (await response.json()).candidates?.[0]?.content?.parts?.[0]?.text || '';
-        const match = text.match(/\{[\s\S]*\}/);
-        if (!match) return null;
-
-        const result = JSON.parse(match[0]);
-
-        // If designer field contains "Multiple" or similar, try to extract names
-        if (result.designer && /multiple|various|several|team|including/i.test(result.designer)) {
-          const names = result.designer.match(/[A-Z][a-z]+\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)?/g);
-          if (names && names.length > 0) {
-            result.designers = names;
-            result.designer = names[0]; // Use first as primary
-          }
-        }
-
-        return result;
-      } catch { return null; }
-    };
-
-    // Categorize uncategorized keywords using Gemini
-    const categorizeKeywords = async (apiKey, keywords) => {
-      if (!apiKey || keywords.length === 0) return [];
-
-      const categoryStructure = `
-Available categories and subcategories:
-- Design > Graphic Design, Industrial Design > Furniture, Audio Equipment, Consumer Electronics, Automotive
-- Architecture > Residential, Commercial, Institutional
-- Art > Painting, Sculpture, Photography
-- Style > Modernism, Contemporary, Historical
-- Brand > Audio, Electronics, Camera, Automotive, Furniture, Fashion, Appliances, Watch
-- Creator > Designer, Architect, Artist, Photographer, Studio
-- Product > Model, Series, Collection
-- Era (decades like 1950s, 1960s, etc.)
-- Material (Wood, Metal, Glass, Leather, etc.)
-- Color (Black, White, Silver, etc.)`;
-
-      try {
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: `Categorize these design/product keywords into the correct taxonomy path.
-${categoryStructure}
-
-Keywords to categorize: ${keywords.join(', ')}
-
-Return JSON array: [{"keyword": "original keyword", "path": ["Category", "Subcategory"], "type": "brand|designer|model|category|style|material|color"}]
-For brands, determine if they are Audio, Electronics, Camera, Automotive, Furniture, Fashion, Appliances, or Watch brands.
-For car-related terms (car models, car parts, automotive terms), use Brand > Automotive or Design > Industrial Design > Automotive.
-Only return the JSON array.` }] }],
-            generationConfig: { temperature: 0.1, maxOutputTokens: 2048 }
-          })
-        });
-        if (!response.ok) return [];
-        const text = (await response.json()).candidates?.[0]?.content?.parts?.[0]?.text || '';
-        const match = text.match(/\[[\s\S]*\]/);
-        return match ? JSON.parse(match[0]) : [];
-      } catch (e) {
-        console.error('[CATEGORIZE] Error:', e);
-        return [];
-      }
-    };
-
-    const analyzeWithVision = async (apiKey, imageBase64) => {
-      try {
-        const response = await fetch(`https://vision.googleapis.com/v1/images:annotate?key=${apiKey}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            requests: [{
-              image: { content: imageBase64 },
-              features: [
-                { type: 'WEB_DETECTION', maxResults: 15 },
-                { type: 'LABEL_DETECTION', maxResults: 20 },
-                { type: 'LOGO_DETECTION', maxResults: 5 }
-              ]
-            }]
-          })
-        });
-        if (!response.ok) return null;
-        const data = await response.json();
-        const result = data.responses?.[0];
-        if (!result) return null;
-
-        const keywords = [];
-        const seen = new Set();
-
-        result.webDetection?.webEntities?.forEach(entity => {
-          if (entity.description && entity.score > 0.4 && !seen.has(entity.description.toLowerCase())) {
-            seen.add(entity.description.toLowerCase());
-            keywords.push({ value: entity.description, confidence: entity.score, type: 'web', source: 'vision' });
-          }
-        });
-
-        result.webDetection?.bestGuessLabels?.forEach(label => {
-          if (label.label && !seen.has(label.label.toLowerCase())) {
-            seen.add(label.label.toLowerCase());
-            keywords.push({ value: label.label, confidence: 0.9, type: 'guess', source: 'vision' });
-          }
-        });
-
-        result.labelAnnotations?.forEach(label => {
-          if (label.description && label.score > 0.6 && !seen.has(label.description.toLowerCase())) {
-            seen.add(label.description.toLowerCase());
-            keywords.push({ value: label.description, confidence: label.score, type: 'label', source: 'vision' });
-          }
-        });
-
-        result.logoAnnotations?.forEach(logo => {
-          if (logo.description && !seen.has(logo.description.toLowerCase())) {
-            seen.add(logo.description.toLowerCase());
-            keywords.push({ value: logo.description, confidence: logo.score || 0.9, type: 'brand', source: 'vision' });
-          }
-        });
-
-        const matchingImages = [];
-        result.webDetection?.fullMatchingImages?.forEach(img => matchingImages.push({ url: img.url, type: 'full' }));
-        result.webDetection?.partialMatchingImages?.forEach(img => matchingImages.push({ url: img.url, type: 'partial' }));
-        result.webDetection?.visuallySimilarImages?.slice(0, 10).forEach(img => matchingImages.push({ url: img.url, type: 'similar' }));
-
-        // Also add pagesWithMatchingImages for URL extraction
-        result.webDetection?.pagesWithMatchingImages?.forEach(page => {
-          if (page.url) matchingImages.push({ url: page.url, type: 'page' });
-        });
-
-        // Extract names from URLs
-        const urlKeywords = extractFromUrls(matchingImages);
-        urlKeywords.forEach(uk => {
-          if (!seen.has(uk.value.toLowerCase())) {
-            seen.add(uk.value.toLowerCase());
-            keywords.push(uk);
-          }
-        });
-
-        return { keywords, matchingImages };
-      } catch (err) {
-        console.error('[VISION] Error:', err);
-        return null;
-      }
-    };
-
-    const downloadLargerVersion = async (url, originalName) => {
-      try {
-        const response = await fetch(url, { mode: 'cors' });
-        if (!response.ok) return null;
-        const blob = await response.blob();
-        if (blob.size > 50000) {
-          const ext = blob.type.includes('png') ? 'png' : blob.type.includes('webp') ? 'webp' : 'jpg';
-          const filename = originalName.replace(/\.[^.]+$/, '') + '_large.' + ext;
-          return { blob, filename, size: blob.size };
-        }
-      } catch {}
-      return null;
-    };
-
-    // ============================================
-    // TREE NODE
+    // REACT COMPONENTS (must be in Babel block for JSX)
     // ============================================
     const TreeNode = ({ name, node, depth = 0, expanded, onToggle, onDeleteKeyword }) => {
       const children = node._children || {};
@@ -1307,16 +126,12 @@ Only return the JSON array.` }] }],
       );
     };
 
-    // ============================================
-    // MASTER TAXONOMY NODE (for viewing/editing master taxonomy)
-    // ============================================
     const MasterTaxonomyNode = ({ name, value, path = [], depth = 0, expanded, onToggle, onDelete }) => {
       const currentPath = [...path, name];
       const pathKey = currentPath.join('>');
       const isExpanded = expanded[pathKey] !== false;
       const color = ROOT_COLORS[currentPath[0]] || '#94a3b8';
 
-      // Determine children and items
       let children = {};
       let items = [];
       if (Array.isArray(value)) {
@@ -1413,7 +228,6 @@ Only return the JSON array.` }] }],
         return queue.filter(q => {
           if (q.hidden && !showHidden) return false;
           if (q.status === 'done' && !showDone) return false;
-          // Pending means not yet processed (pending or analyzing status)
           if ((q.status === 'pending' || q.status === 'analyzing') && !showPending) return false;
           return true;
         });
@@ -1421,9 +235,7 @@ Only return the JSON array.` }] }],
 
       const findPath = useCallback((kwValue, kwType = 'keyword') => {
         const key = kwValue.toLowerCase().trim();
-        // First check if it's already in the taxonomy
         if (taxInfo.paths[key]) return taxInfo.paths[key];
-        // Otherwise use smart categorization
         return smartCategorize({ value: kwValue, type: kwType });
       }, [taxInfo]);
 
@@ -1612,26 +424,20 @@ Only return the JSON array.` }] }],
           const canEmbed = supportsEmbedding(img.file);
 
           if (saveMode === 'embed' && img.file.type.includes('jpeg')) {
-            // JPEG - embed directly
             blob = await embedXMP(img.file, kws, creator);
           } else if (saveMode === 'embed' && img.file.type.includes('png')) {
-            // PNG - embed in iTXt chunk
             blob = await embedXMPinPNG(img.file, kws, creator);
           } else if (saveMode === 'embed' && !canEmbed && !isRaw) {
-            // WebP, AVIF, etc - convert to JPEG with embedded metadata
             console.log('[SAVE] Converting to JPEG:', img.name);
             const jpegBlob = await convertToJPEG(img.file);
-            // Create a fake file object for embedXMP
             const jpegFile = new File([jpegBlob], 'temp.jpg', { type: 'image/jpeg' });
             blob = await embedXMP(jpegFile, kws, creator);
             filename = filename.replace(/\.[^.]+$/, '.jpg');
           } else {
-            // Sidecar mode or raw files - create XMP sidecar
             blob = new Blob([generateXMP(kws, creator)], { type: 'application/rdf+xml' });
             filename = filename.replace(/\.[^.]+$/, '') + '.xmp';
           }
 
-          // Helper to save a file
           const saveFile = async (data, name) => {
             if (outputDir) {
               const fh = await outputDir.getFileHandle(name, { create: true });
@@ -1647,10 +453,8 @@ Only return the JSON array.` }] }],
             }
           };
 
-          // Save the main file (image or XMP)
           await saveFile(blob, filename);
 
-          // For raw files, also copy the original file
           if (isRaw && outputDir) {
             await saveFile(img.file, img.name);
             console.log('[SAVE] Copied raw file:', img.name);
@@ -1661,7 +465,6 @@ Only return the JSON array.` }] }],
           setModified(false);
           setIsEditing(false);
 
-          // Auto-sync to similar images
           await syncToSimilarAndSave(img, kws, des);
         } catch (e) { console.error('[SAVE] Failed:', e); }
       }, [saveMode, outputDir, syncToSimilarAndSave]);
@@ -1729,7 +532,6 @@ Only return the JSON array.` }] }],
           rawKws.forEach(k => {
             splitBrandModel(k.value).forEach(part => {
               let path = part.path;
-              // Use smart categorization for all keywords if path is Custom
               if (part.path[0] === 'Custom' || part.type === 'keyword') {
                 path = findPath(part.value, part.type);
               }
@@ -1751,7 +553,6 @@ Only return the JSON array.` }] }],
           if (brandFound.length > 0 && modelFound.length > 0) {
             designerInfo = await findDesigner(geminiKey, `${brandFound[0].value} ${modelFound[0].value}`);
             if (designerInfo?.designers && designerInfo.designers.length > 0) {
-              // Multiple designers - add each as a keyword with proper discipline
               designerInfo.designers.forEach(name => {
                 const designerPath = smartCategorize({ value: name, type: 'designer' });
                 processedKws.push({
@@ -1761,7 +562,6 @@ Only return the JSON array.` }] }],
                 });
               });
             } else if (designerInfo?.designer) {
-              // Single designer with proper discipline
               const designerPath = smartCategorize({ value: designerInfo.designer, type: 'designer' });
               processedKws.push({
                 id: `designer-${Math.random().toString(36).slice(2)}`,
@@ -1788,12 +588,10 @@ Only return the JSON array.` }] }],
             const isDesigner = kw.type === 'designer' || kw.rootCategory === 'Creator';
             const isBrand = kw.type === 'brand' || kw.rootCategory === 'Brand';
             const isEra = kw.type === 'era' || kw.rootCategory === 'Era' || /^\d{4}s$/.test(kw.value);
-            // Aggressive country detection - check type, path, or if it's a known country name
             const knownCountries = ['Germany', 'Italy', 'Japan', 'Denmark', 'Sweden', 'United States', 'United Kingdom', 'France', 'Switzerland', 'Finland', 'Netherlands', 'Norway', 'Austria', 'Belgium', 'Spain', 'Portugal', 'Brazil', 'Mexico', 'Canada', 'Australia', 'China', 'South Korea', 'India', 'Russia', 'Poland', 'Czech Republic', 'Hungary', 'Greece', 'Turkey', 'Israel', 'South Africa', 'Argentina', 'Chile', 'Colombia', 'Iceland', 'Ireland', 'Scotland', 'Wales', 'USA', 'UK'];
             const isCountry = kw.type === 'country' || (kw.path && kw.path.includes('Origin')) || knownCountries.some(c => c.toLowerCase() === kw.value.toLowerCase());
             const isModel = kw.type === 'model' || kw.rootCategory === 'Product';
             if (inMaster || inSession || isDesigner || isBrand || isEra || isCountry || isModel) {
-              // If it's a country but doesn't have the right path, fix it
               if (isCountry && (!kw.path || !kw.path.includes('Origin'))) {
                 kw.path = ['Style', 'Origin'];
                 kw.rootCategory = 'Style';
@@ -1829,7 +627,6 @@ Only return the JSON array.` }] }],
       }, [geminiKey, visionKey, useVision, autoDownloadLarger, outputDir, taxInfo, findPath]);
 
       const selectImage = useCallback(async (id) => {
-        // Auto-save current image if it was edited
         if (isEditing && selectedImg && keywords.length > 0) {
           console.log('[NAV] Auto-saving before navigation:', selectedImg.name);
           await saveImage(selectedImg, keywords, designer);
@@ -1861,7 +658,6 @@ Only return the JSON array.` }] }],
         filteredQueue.filter(q => q.status === 'pending').forEach(img => analyzeImage(img));
       };
 
-      // Save all ready/editing images that are not hidden
       const [isSavingAll, setIsSavingAll] = useState(false);
       const saveAll = async () => {
         if (isSavingAll) return;
@@ -1908,7 +704,6 @@ Only return the JSON array.` }] }],
         }));
       };
 
-      // Keyword actions - sync to similar images when accepting
       const accept = (id) => {
         const kw = pending.find(k => k.id === id);
         if (kw) {
@@ -1917,12 +712,10 @@ Only return the JSON array.` }] }],
           const newKeywords = [...keywords, kw];
           setKeywords(newKeywords);
           setAccepted(a => a.some(x => x.value.toLowerCase() === kw.value.toLowerCase()) ? a : [...a, kw]);
-          // Add to master taxonomy
           setTaxonomy(t => addToTaxonomy(t, kw));
           setModified(true);
           setIsEditing(true);
 
-          // Sync this keyword to similar images immediately
           if (selectedImg) {
             const similar = getSimilarImages(selectedImg);
             console.log(`[ACCEPT] Similar images for sync:`, similar.length);
@@ -1974,7 +767,6 @@ Only return the JSON array.` }] }],
           setModified(true);
           setIsEditing(true);
 
-          // Sync to similar images
           if (selectedImg) {
             const similar = getSimilarImages(selectedImg);
             if (similar.length > 0) {
@@ -2003,7 +795,6 @@ Only return the JSON array.` }] }],
         setModified(true);
         setIsEditing(true);
 
-        // Sync all to similar images
         if (selectedImg) {
           const similar = getSimilarImages(selectedImg);
           if (similar.length > 0) {
@@ -2033,19 +824,16 @@ Only return the JSON array.` }] }],
         setAccepted(a => a.filter(k => k.id !== id));
       };
 
-      // Delete from master taxonomy by path and value
       const deleteFromMasterTaxonomy = (path, value) => {
         setTaxonomy(prevTax => {
           const newTax = JSON.parse(JSON.stringify(prevTax));
           let current = newTax;
 
-          // Navigate to the parent
           for (let i = 0; i < path.length - 1; i++) {
             if (!current[path[i]]) return prevTax;
             current = current[path[i]];
           }
 
-          // Remove from the leaf
           const leafKey = path[path.length - 1];
           if (Array.isArray(current[leafKey])) {
             current[leafKey] = current[leafKey].filter(v => v.toLowerCase() !== value.toLowerCase());
@@ -2061,20 +849,17 @@ Only return the JSON array.` }] }],
         if (!val) return;
         const newKws = [];
         splitBrandModel(val).forEach(part => {
-          // Use smart categorization for Custom paths
           const path = part.path[0] === 'Custom' ? findPath(part.value, part.type) : part.path;
           const kw = { id: `custom-${Date.now()}-${Math.random().toString(36).slice(2)}`, value: part.value, confidence: 1, type: part.type, path, rootCategory: path[0] };
           newKws.push(kw);
           setKeywords(c => [...c, kw]);
           setAccepted(a => a.some(x => x.value.toLowerCase() === kw.value.toLowerCase()) ? a : [...a, kw]);
-          // Add to master taxonomy
           setTaxonomy(t => addToTaxonomy(t, kw));
         });
         setCustomInput('');
         setModified(true);
         setIsEditing(true);
 
-        // Sync to similar images
         if (selectedImg && newKws.length > 0) {
           const similar = getSimilarImages(selectedImg);
           if (similar.length > 0) {
@@ -2094,7 +879,6 @@ Only return the JSON array.` }] }],
         }
       };
 
-      // Only sync from queue when NOT actively editing
       useEffect(() => {
         if (selectedImg && (selectedImg.status === 'ready' || selectedImg.status === 'done') && !modified && !isEditing) {
           setKeywords(selectedImg.keywords || []);
@@ -2104,7 +888,6 @@ Only return the JSON array.` }] }],
         }
       }, [selectedImg?.id, selectedImg?.status]);
 
-      // Get custom keywords from taxonomy that need categorization
       const getCustomKeywords = useCallback(() => {
         const customs = [];
         const collectCustom = (obj, path = []) => {
@@ -2124,7 +907,6 @@ Only return the JSON array.` }] }],
         return customs;
       }, [taxonomy]);
 
-      // Categorize uncategorized (Custom) keywords
       const runCategorization = async () => {
         if (!geminiKey || isCategorizing) return;
 
@@ -2138,7 +920,6 @@ Only return the JSON array.` }] }],
         console.log(`[CATEGORIZE] Categorizing ${customKws.length} custom keywords...`);
 
         try {
-          // Process in batches of 20
           const batchSize = 20;
           for (let i = 0; i < customKws.length; i += batchSize) {
             const batch = customKws.slice(i, i + batchSize);
@@ -2151,19 +932,16 @@ Only return the JSON array.` }] }],
                 results.forEach(result => {
                   if (!result.path || result.path.length === 0 || result.path[0] === 'Custom') return;
 
-                  // Remove from Custom
                   if (Array.isArray(newTax.Custom)) {
                     newTax.Custom = newTax.Custom.filter(k => k.toLowerCase() !== result.keyword.toLowerCase());
                   } else if (newTax.Custom?._items) {
                     newTax.Custom._items = newTax.Custom._items.filter(k => k.toLowerCase() !== result.keyword.toLowerCase());
                   }
 
-                  // Add to correct path
                   let current = newTax;
                   for (let j = 0; j < result.path.length; j++) {
                     const key = result.path[j];
                     if (j === result.path.length - 1) {
-                      // At leaf - add the keyword
                       if (Array.isArray(current[key])) {
                         if (!current[key].some(k => k.toLowerCase() === result.keyword.toLowerCase())) {
                           current[key].push(result.keyword);
@@ -2177,7 +955,6 @@ Only return the JSON array.` }] }],
                         current[key] = [result.keyword];
                       }
                     } else {
-                      // Navigate deeper
                       if (current[key] === undefined) {
                         current[key] = {};
                       } else if (Array.isArray(current[key])) {
