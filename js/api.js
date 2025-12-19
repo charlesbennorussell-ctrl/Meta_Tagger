@@ -70,16 +70,19 @@ const categorizeKeywords = async (apiKey, keywords) => {
 
   const categoryStructure = `
 Available categories and subcategories:
-- Design > Graphic Design, Industrial Design > Furniture, Audio Equipment, Consumer Electronics, Automotive
-- Architecture > Residential, Commercial, Institutional
-- Art > Painting, Sculpture, Photography
-- Style > Modernism, Contemporary, Historical
+- Design > Graphic Design > Print, Identity, Typography, Digital, Illustration
+- Design > Industrial Design > Furniture, Audio Equipment, Consumer Electronics, Automotive, Appliances, Tools
+- Design > Interior Design > Residential, Commercial, Exhibition
+- Design > Fashion Design > Apparel, Accessories, Textile
+- Architecture > Residential, Commercial, Institutional, Religious, Industrial
+- Art > Painting, Sculpture, Photography > Portrait/Landscape/Documentary/Commercial/Fine Art, Digital Art, Ceramics
+- Style > Modernism, Contemporary, Historical, Regional, Origin
 - Brand > Audio, Electronics, Camera, Automotive, Furniture, Fashion, Appliances, Watch
-- Creator > Designer, Architect, Artist, Photographer, Studio
-- Product > Model, Series, Collection
+- Creator > Designer > Industrial/Graphic/Fashion/Interior, Architect, Artist, Photographer, Studio
+- Product > Audio, Electronics, Automotive, Furniture, Fashion, Appliances, Watch, Camera
 - Era (decades like 1950s, 1960s, etc.)
-- Material (Wood, Metal, Glass, Leather, etc.)
-- Color (Black, White, Silver, etc.)`;
+- Material > Natural, Metal, Synthetic, Mineral
+- Color > Neutral, Warm, Cool, Finish`;
 
   try {
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
@@ -205,14 +208,13 @@ const analyzeWithVision = async (apiKey, imageBase64) => {
       }
     });
 
+    // Only collect full/exact matches - these are the most useful
     const matchingImages = [];
     result.webDetection?.fullMatchingImages?.forEach(img => matchingImages.push({ url: img.url, type: 'full' }));
-    result.webDetection?.partialMatchingImages?.forEach(img => matchingImages.push({ url: img.url, type: 'partial' }));
-    result.webDetection?.visuallySimilarImages?.slice(0, 10).forEach(img => matchingImages.push({ url: img.url, type: 'similar' }));
 
-    // Also add pagesWithMatchingImages for URL extraction
+    // Pages with matching images are useful for creator extraction
     result.webDetection?.pagesWithMatchingImages?.forEach(page => {
-      if (page.url) matchingImages.push({ url: page.url, type: 'page' });
+      if (page.url) matchingImages.push({ url: page.url, type: 'page', pageTitle: page.pageTitle });
     });
 
     // Extract names from URLs
@@ -231,6 +233,81 @@ const analyzeWithVision = async (apiKey, imageBase64) => {
   }
 };
 
+// Use Gemini with Google Search grounding to extract creator info from web matches
+const extractCreatorsFromWebMatches = async (apiKey, matchingImages, productContext = '') => {
+  if (!apiKey || !matchingImages || matchingImages.length === 0) return [];
+
+  // Get page URLs and titles for context
+  const pageInfo = matchingImages
+    .filter(m => m.type === 'page' || m.type === 'full')
+    .slice(0, 5)
+    .map(m => m.pageTitle ? `${m.pageTitle} (${m.url})` : m.url)
+    .join('\n');
+
+  if (!pageInfo) return [];
+
+  try {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: `Based on these web pages where an image was found, identify the creator/designer/artist/photographer.
+${productContext ? `Product context: ${productContext}` : ''}
+
+Web pages:
+${pageInfo}
+
+Search for information about who created/designed this work. Return JSON:
+{
+  "creators": [{"name": "Full Name", "role": "designer|artist|photographer|architect", "confidence": 0.9}],
+  "brand": "Brand name if found" or null,
+  "year": 2020 or null
+}
+
+Only include creators you're confident about. Return empty creators array if uncertain.` }] }],
+        generationConfig: { temperature: 0.1, maxOutputTokens: 512 },
+        tools: [{ googleSearch: {} }]
+      })
+    });
+    if (!response.ok) return [];
+    const text = (await response.json()).candidates?.[0]?.content?.parts?.[0]?.text || '';
+    const match = text.match(/\{[\s\S]*\}/);
+    if (!match) return [];
+
+    const result = JSON.parse(match[0]);
+    const keywords = [];
+
+    if (result.creators && Array.isArray(result.creators)) {
+      result.creators.forEach(creator => {
+        if (creator.name && creator.confidence >= 0.7) {
+          keywords.push({
+            value: creator.name,
+            type: creator.role || 'designer',
+            source: 'web-grounded',
+            confidence: creator.confidence,
+            path: ['Creator', creator.role === 'architect' ? 'Architect' : creator.role === 'photographer' ? 'Photographer' : 'Designer']
+          });
+        }
+      });
+    }
+
+    if (result.brand) {
+      keywords.push({ value: result.brand, type: 'brand', source: 'web-grounded', confidence: 0.8 });
+    }
+
+    if (result.year) {
+      const decade = Math.floor(result.year / 10) * 10 + 's';
+      keywords.push({ value: decade, type: 'era', source: 'web-grounded', confidence: 0.8, path: ['Era'] });
+    }
+
+    console.log('[WEB-GROUNDED] Extracted:', keywords.map(k => k.value));
+    return keywords;
+  } catch (e) {
+    console.error('[WEB-GROUNDED] Error:', e);
+    return [];
+  }
+};
+
 const downloadLargerVersion = async (url, originalName) => {
   try {
     const response = await fetch(url, { mode: 'cors' });
@@ -245,252 +322,339 @@ const downloadLargerVersion = async (url, originalName) => {
   return null;
 };
 
-// Organize taxonomy - audit, fix misplacements, remove duplicates, research unknown keywords
-const organizeTaxonomy = async (apiKey, taxonomy, onProgress) => {
-  const { DEFAULT_TAXONOMY } = window.TaggerData;
-  const { flattenTaxonomy } = window.TaggerUtils;
+// Comprehensive taxonomy audit - collects ALL keywords from both taxonomies
+const auditTaxonomy = (userTaxonomy, defaultTaxonomy) => {
+  const allKeywords = new Map(); // keyword -> { value, paths: [{source, path}], inDefault: bool }
 
-  let newTaxonomy = JSON.parse(JSON.stringify(taxonomy));
-  let totalChanges = 0;
-
-  // Phase 1: Audit taxonomies
-  onProgress({ phase: 1, message: 'Auditing taxonomies...' });
-  await new Promise(r => setTimeout(r, 100)); // Allow UI update
-
-  // Collect all items with their paths
-  const allItems = [];
-  const collectItems = (obj, path = []) => {
+  // Helper to collect all keywords from a taxonomy
+  const collectKeywords = (obj, path = [], source = 'user') => {
     for (const [key, value] of Object.entries(obj)) {
       if (key === '_items') {
-        value.forEach(item => allItems.push({ value: item, path: [...path] }));
-      } else if (Array.isArray(value)) {
-        value.forEach(item => allItems.push({ value: item, path: [...path, key] }));
-      } else if (typeof value === 'object' && value !== null) {
-        collectItems(value, [...path, key]);
-      }
-    }
-  };
-  collectItems(newTaxonomy);
-
-  // Phase 2: Find and fix misplaced keywords
-  const misplaced = [];
-  const defaultInfo = flattenTaxonomy(DEFAULT_TAXONOMY);
-
-  for (const item of allItems) {
-    const itemLower = item.value.toLowerCase();
-    // Check if this item exists in default taxonomy at a different path
-    if (defaultInfo.paths[itemLower]) {
-      const correctPath = defaultInfo.paths[itemLower];
-      const currentPathStr = item.path.join('>');
-      const correctPathStr = correctPath.join('>');
-      if (currentPathStr !== correctPathStr && !currentPathStr.startsWith(correctPathStr)) {
-        misplaced.push({ ...item, correctPath });
-      }
-    }
-  }
-
-  if (misplaced.length > 0) {
-    onProgress({ phase: 2, message: `Fixing ${misplaced.length} misplaced keywords...` });
-    await new Promise(r => setTimeout(r, 100));
-
-    for (const item of misplaced) {
-      // Remove from current location
-      const removeFromPath = (obj, path, value) => {
-        if (path.length === 0) return;
-        let current = obj;
-        for (let i = 0; i < path.length - 1; i++) {
-          if (!current[path[i]]) return;
-          current = current[path[i]];
-        }
-        const lastKey = path[path.length - 1];
-        if (Array.isArray(current[lastKey])) {
-          current[lastKey] = current[lastKey].filter(v => v.toLowerCase() !== value.toLowerCase());
-        } else if (current[lastKey]?._items) {
-          current[lastKey]._items = current[lastKey]._items.filter(v => v.toLowerCase() !== value.toLowerCase());
-        }
-      };
-
-      // Add to correct location
-      const addToPath = (obj, path, value) => {
-        let current = obj;
-        for (let i = 0; i < path.length; i++) {
-          const key = path[i];
-          if (i === path.length - 1) {
-            if (Array.isArray(current[key])) {
-              if (!current[key].some(v => v.toLowerCase() === value.toLowerCase())) {
-                current[key].push(value);
-              }
-            } else if (typeof current[key] === 'object' && current[key] !== null) {
-              if (!current[key]._items) current[key]._items = [];
-              if (!current[key]._items.some(v => v.toLowerCase() === value.toLowerCase())) {
-                current[key]._items.push(value);
-              }
-            }
-          } else {
-            if (!current[key]) current[key] = {};
-            current = current[key];
-          }
-        }
-      };
-
-      removeFromPath(newTaxonomy, item.path, item.value);
-      addToPath(newTaxonomy, item.correctPath, item.value);
-      totalChanges++;
-    }
-  }
-
-  // Phase 3: Remove duplicates
-  const seen = new Map();
-  const duplicates = [];
-
-  const findDuplicates = (obj, path = []) => {
-    for (const [key, value] of Object.entries(obj)) {
-      if (key === '_items') {
-        value.forEach(item => {
-          const lower = item.toLowerCase();
-          if (seen.has(lower)) {
-            duplicates.push({ value: item, path: [...path], originalPath: seen.get(lower) });
-          } else {
-            seen.set(lower, [...path]);
-          }
-        });
-      } else if (Array.isArray(value)) {
-        value.forEach(item => {
-          const lower = item.toLowerCase();
-          if (seen.has(lower)) {
-            duplicates.push({ value: item, path: [...path, key], originalPath: seen.get(lower) });
-          } else {
-            seen.set(lower, [...path, key]);
-          }
-        });
-      } else if (typeof value === 'object' && value !== null) {
-        findDuplicates(value, [...path, key]);
-      }
-    }
-  };
-  findDuplicates(newTaxonomy);
-
-  if (duplicates.length > 0) {
-    onProgress({ phase: 3, message: `Removing ${duplicates.length} duplicates...` });
-    await new Promise(r => setTimeout(r, 100));
-
-    for (const dup of duplicates) {
-      const removeFromPath = (obj, path, value) => {
-        if (path.length === 0) return;
-        let current = obj;
-        for (let i = 0; i < path.length - 1; i++) {
-          if (!current[path[i]]) return;
-          current = current[path[i]];
-        }
-        const lastKey = path[path.length - 1];
-        if (Array.isArray(current[lastKey])) {
-          current[lastKey] = current[lastKey].filter(v => v.toLowerCase() !== value.toLowerCase());
-        } else if (current[lastKey]?._items) {
-          current[lastKey]._items = current[lastKey]._items.filter(v => v.toLowerCase() !== value.toLowerCase());
-        }
-      };
-      removeFromPath(newTaxonomy, dup.path, dup.value);
-      totalChanges++;
-    }
-  }
-
-  // Phase 4: Research uncategorized keywords using Gemini
-  const uncategorized = [];
-  const findUncategorized = (obj, path = []) => {
-    for (const [key, value] of Object.entries(obj)) {
-      const currentPath = [...path, key];
-      if ((key === 'Custom' || key === 'Uncategorized') && path.length === 0) {
         if (Array.isArray(value)) {
-          uncategorized.push(...value);
-        } else if (value?._items) {
-          uncategorized.push(...value._items);
+          value.forEach(item => {
+            const itemLower = item.toLowerCase();
+            if (!allKeywords.has(itemLower)) {
+              allKeywords.set(itemLower, { value: item, paths: [], inDefault: false });
+            }
+            allKeywords.get(itemLower).paths.push({ source, path: [...path] });
+          });
         }
+        continue;
+      }
+
+      const currentPath = [...path, key];
+
+      if (Array.isArray(value)) {
+        value.forEach(item => {
+          const itemLower = item.toLowerCase();
+          if (!allKeywords.has(itemLower)) {
+            allKeywords.set(itemLower, { value: item, paths: [], inDefault: false });
+          }
+          const entry = allKeywords.get(itemLower);
+          entry.paths.push({ source, path: currentPath });
+          if (source === 'default') entry.inDefault = true;
+        });
+      } else if (typeof value === 'object' && value !== null) {
+        collectKeywords(value, currentPath, source);
       }
     }
   };
-  findUncategorized(newTaxonomy);
 
-  if (uncategorized.length > 0 && apiKey) {
-    const batchSize = 20;
-    const batches = Math.ceil(uncategorized.length / batchSize);
+  // Collect from default taxonomy first
+  collectKeywords(defaultTaxonomy, [], 'default');
 
-    for (let i = 0; i < batches; i++) {
-      const batch = uncategorized.slice(i * batchSize, (i + 1) * batchSize);
-      onProgress({ phase: 4, message: `Researching keywords (batch ${i + 1}/${batches})...` });
+  // Then from user taxonomy
+  collectKeywords(userTaxonomy, [], 'user');
 
-      try {
-        const categorized = await categorizeKeywords(apiKey, batch);
+  // Identify keywords that need attention
+  const needsResearch = []; // Keywords not in default taxonomy
+  const misplaced = []; // Keywords in wrong location vs default
+  const duplicates = []; // Keywords appearing in multiple locations
 
-        for (const result of categorized) {
-          if (result.path && result.path.length > 0 && result.path[0] !== 'Custom') {
-            // Remove from Custom/Uncategorized
-            if (newTaxonomy.Custom) {
-              if (Array.isArray(newTaxonomy.Custom)) {
-                newTaxonomy.Custom = newTaxonomy.Custom.filter(v => v.toLowerCase() !== result.keyword.toLowerCase());
-              } else if (newTaxonomy.Custom._items) {
-                newTaxonomy.Custom._items = newTaxonomy.Custom._items.filter(v => v.toLowerCase() !== result.keyword.toLowerCase());
-              }
-            }
-            if (newTaxonomy.Uncategorized) {
-              if (Array.isArray(newTaxonomy.Uncategorized)) {
-                newTaxonomy.Uncategorized = newTaxonomy.Uncategorized.filter(v => v.toLowerCase() !== result.keyword.toLowerCase());
-              } else if (newTaxonomy.Uncategorized._items) {
-                newTaxonomy.Uncategorized._items = newTaxonomy.Uncategorized._items.filter(v => v.toLowerCase() !== result.keyword.toLowerCase());
-              }
-            }
+  for (const [key, data] of allKeywords) {
+    const userPaths = data.paths.filter(p => p.source === 'user');
+    const defaultPaths = data.paths.filter(p => p.source === 'default');
 
-            // Add to correct path
-            let current = newTaxonomy;
-            for (let j = 0; j < result.path.length; j++) {
-              const key = result.path[j];
-              if (j === result.path.length - 1) {
-                if (Array.isArray(current[key])) {
-                  if (!current[key].some(v => v.toLowerCase() === result.keyword.toLowerCase())) {
-                    current[key].push(result.keyword);
-                    totalChanges++;
-                  }
-                } else if (typeof current[key] === 'object' && current[key] !== null) {
-                  if (!current[key]._items) current[key]._items = [];
-                  if (!current[key]._items.some(v => v.toLowerCase() === result.keyword.toLowerCase())) {
-                    current[key]._items.push(result.keyword);
-                    totalChanges++;
-                  }
-                } else if (current[key] === undefined) {
-                  current[key] = [result.keyword];
-                  totalChanges++;
-                }
-              } else {
-                if (!current[key]) current[key] = {};
-                current = current[key];
-              }
-            }
+    if (!data.inDefault && userPaths.length > 0) {
+      // Keyword only exists in user taxonomy - needs research
+      needsResearch.push({
+        value: data.value,
+        currentPath: userPaths[0].path
+      });
+    } else if (data.inDefault && userPaths.length > 0) {
+      // Check if user has it in a different location than default
+      const defaultPath = defaultPaths[0]?.path.join('|');
+      const userPath = userPaths[0]?.path.join('|');
+      if (defaultPath && userPath && defaultPath !== userPath) {
+        misplaced.push({
+          value: data.value,
+          currentPath: userPaths[0].path,
+          correctPath: defaultPaths[0].path
+        });
+      }
+    }
+
+    // Check for duplicates within user taxonomy
+    if (userPaths.length > 1) {
+      duplicates.push({
+        value: data.value,
+        paths: userPaths.map(p => p.path)
+      });
+    }
+  }
+
+  return {
+    total: allKeywords.size,
+    needsResearch,
+    misplaced,
+    duplicates,
+    allKeywords
+  };
+};
+
+// Organize taxonomy - full audit and reorganization
+const organizeTaxonomy = async (apiKey, taxonomy, onProgress = null) => {
+  if (!apiKey) return { taxonomy, changes: [], audit: null };
+
+  const { DEFAULT_TAXONOMY } = window.TaggerData;
+
+  // Step 1: Audit both taxonomies
+  if (onProgress) onProgress({ phase: 'audit', message: 'Auditing taxonomies...' });
+  const audit = auditTaxonomy(taxonomy, DEFAULT_TAXONOMY);
+
+  console.log(`[ORGANIZE] Audit complete:
+    - Total unique keywords: ${audit.total}
+    - Needs research: ${audit.needsResearch.length}
+    - Misplaced: ${audit.misplaced.length}
+    - Duplicates: ${audit.duplicates.length}`);
+
+  const changes = [];
+  let newTaxonomy = JSON.parse(JSON.stringify(taxonomy));
+
+  // Helper to remove keyword from a path in taxonomy
+  const removeFromPath = (tax, path, keyword) => {
+    let current = tax;
+    for (let i = 0; i < path.length - 1; i++) {
+      current = current[path[i]];
+      if (!current) return;
+    }
+    const leafKey = path[path.length - 1];
+    if (Array.isArray(current[leafKey])) {
+      current[leafKey] = current[leafKey].filter(v => v.toLowerCase() !== keyword.toLowerCase());
+    } else if (current[leafKey]?._items) {
+      current[leafKey]._items = current[leafKey]._items.filter(v => v.toLowerCase() !== keyword.toLowerCase());
+    }
+  };
+
+  // Helper to add keyword to a path in taxonomy
+  const addToPath = (tax, path, keyword) => {
+    let current = tax;
+    for (let i = 0; i < path.length; i++) {
+      const segment = path[i];
+      if (!current[segment]) {
+        current[segment] = i === path.length - 1 ? [] : {};
+      }
+      if (i === path.length - 1) {
+        if (Array.isArray(current[segment])) {
+          if (!current[segment].some(v => v.toLowerCase() === keyword.toLowerCase())) {
+            current[segment].push(keyword);
+          }
+        } else {
+          if (!current[segment]._items) current[segment]._items = [];
+          if (!current[segment]._items.some(v => v.toLowerCase() === keyword.toLowerCase())) {
+            current[segment]._items.push(keyword);
           }
         }
-      } catch (e) {
-        console.error('[ORGANIZE] Error categorizing batch:', e);
+      } else {
+        current = current[segment];
+      }
+    }
+  };
+
+  // Step 2: Fix misplaced keywords (move to correct default location)
+  if (audit.misplaced.length > 0) {
+    if (onProgress) onProgress({ phase: 'fix', message: `Fixing ${audit.misplaced.length} misplaced keywords...` });
+
+    for (const item of audit.misplaced) {
+      removeFromPath(newTaxonomy, item.currentPath, item.value);
+      addToPath(newTaxonomy, item.correctPath, item.value);
+      changes.push({
+        keyword: item.value,
+        action: 'moved',
+        from: item.currentPath,
+        to: item.correctPath
+      });
+      console.log(`[ORGANIZE] Moved "${item.value}" from ${item.currentPath.join(' > ')} to ${item.correctPath.join(' > ')}`);
+    }
+  }
+
+  // Step 3: Remove duplicates (keep first occurrence)
+  if (audit.duplicates.length > 0) {
+    if (onProgress) onProgress({ phase: 'dedupe', message: `Removing ${audit.duplicates.length} duplicates...` });
+
+    for (const item of audit.duplicates) {
+      // Keep the first path, remove from others
+      for (let i = 1; i < item.paths.length; i++) {
+        removeFromPath(newTaxonomy, item.paths[i], item.value);
+        changes.push({
+          keyword: item.value,
+          action: 'deduplicated',
+          from: item.paths[i],
+          kept: item.paths[0]
+        });
+        console.log(`[ORGANIZE] Deduplicated "${item.value}" - removed from ${item.paths[i].join(' > ')}`);
       }
     }
   }
 
-  // Clean up empty Custom/Uncategorized
-  if (newTaxonomy.Custom) {
-    if (Array.isArray(newTaxonomy.Custom) && newTaxonomy.Custom.length === 0) {
-      delete newTaxonomy.Custom;
-    } else if (newTaxonomy.Custom._items && newTaxonomy.Custom._items.length === 0) {
-      delete newTaxonomy.Custom;
+  // Step 4: Research and categorize unknown keywords
+  if (audit.needsResearch.length > 0) {
+    if (onProgress) onProgress({ phase: 'research', message: `Researching ${audit.needsResearch.length} keywords...`, current: 0, total: audit.needsResearch.length });
+
+    const batchSize = 15;
+    const batches = [];
+    for (let i = 0; i < audit.needsResearch.length; i += batchSize) {
+      batches.push(audit.needsResearch.slice(i, i + batchSize));
     }
-  }
-  if (newTaxonomy.Uncategorized) {
-    if (Array.isArray(newTaxonomy.Uncategorized) && newTaxonomy.Uncategorized.length === 0) {
-      delete newTaxonomy.Uncategorized;
-    } else if (newTaxonomy.Uncategorized._items && newTaxonomy.Uncategorized._items.length === 0) {
-      delete newTaxonomy.Uncategorized;
+
+    for (let i = 0; i < batches.length; i++) {
+      const batch = batches[i];
+      const processed = i * batchSize;
+
+      if (onProgress) onProgress({
+        phase: 'research',
+        message: `Researching keywords (batch ${i + 1}/${batches.length})...`,
+        current: processed,
+        total: audit.needsResearch.length
+      });
+
+      const keywords = batch.map(b => b.value);
+      const categorized = await categorizeKeywords(apiKey, keywords);
+
+      for (const result of categorized) {
+        if (!result.path || result.path.length === 0) continue;
+
+        const original = batch.find(b => b.value.toLowerCase() === result.keyword.toLowerCase());
+        if (!original) continue;
+
+        const newPath = result.path;
+        const oldPath = original.currentPath;
+
+        if (newPath.join('|') !== oldPath.join('|')) {
+          removeFromPath(newTaxonomy, oldPath, original.value);
+          addToPath(newTaxonomy, newPath, original.value);
+
+          changes.push({
+            keyword: original.value,
+            action: 'categorized',
+            from: oldPath,
+            to: newPath,
+            type: result.type
+          });
+          console.log(`[ORGANIZE] Categorized "${original.value}" from ${oldPath.join(' > ')} to ${newPath.join(' > ')}`);
+        }
+      }
+
+      // Rate limiting between batches
+      if (i < batches.length - 1) {
+        await new Promise(r => setTimeout(r, 500));
+      }
     }
   }
 
-  onProgress({ phase: 5, message: `Done! ${totalChanges} changes made.`, done: true });
+  // Step 5: Sort arrays alphabetically within each category
+  const sortTaxonomy = (obj) => {
+    for (const [key, value] of Object.entries(obj)) {
+      if (key === '_items' && Array.isArray(value)) {
+        value.sort((a, b) => a.localeCompare(b));
+      } else if (Array.isArray(value)) {
+        value.sort((a, b) => a.localeCompare(b));
+      } else if (typeof value === 'object' && value !== null) {
+        sortTaxonomy(value);
+      }
+    }
+  };
+  sortTaxonomy(newTaxonomy);
 
-  return { taxonomy: newTaxonomy, changes: totalChanges };
+  if (onProgress) onProgress({ phase: 'complete', message: `Done! ${changes.length} changes made.` });
+
+  console.log(`[ORGANIZE] Complete - ${changes.length} total changes`);
+  return { taxonomy: newTaxonomy, changes, audit };
+};
+
+// Research a single keyword and return suggested categorization
+const researchKeyword = async (apiKey, keyword) => {
+  if (!apiKey || !keyword) return null;
+
+  try {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: `Research this design/creative term and categorize it:
+
+Term: "${keyword}"
+
+Determine:
+1. What type of thing is this? (brand, designer, product, style, material, etc.)
+2. What category does it belong in?
+3. Any relevant metadata (country of origin, time period, discipline)
+
+Return JSON:
+{
+  "keyword": "${keyword}",
+  "type": "brand|designer|architect|artist|photographer|product|style|material|color|era|category",
+  "path": ["Category", "Subcategory"],
+  "confidence": 0.9,
+  "metadata": {
+    "origin": "Country or null",
+    "era": "1960s or null",
+    "discipline": "Industrial Design, Graphic Design, etc. or null",
+    "description": "Brief description"
+  }
+}
+
+Use web search to verify information. Only return the JSON.` }] }],
+        generationConfig: { temperature: 0.1, maxOutputTokens: 512 },
+        tools: [{ googleSearch: {} }]
+      })
+    });
+
+    if (!response.ok) return null;
+    const text = (await response.json()).candidates?.[0]?.content?.parts?.[0]?.text || '';
+    const match = text.match(/\{[\s\S]*\}/);
+    if (!match) return null;
+
+    const result = JSON.parse(match[0]);
+    console.log(`[RESEARCH] ${keyword}:`, result);
+    return result;
+  } catch (e) {
+    console.error('[RESEARCH] Error:', e);
+    return null;
+  }
+};
+
+// Batch research uncategorized keywords in the background
+const researchUncategorizedKeywords = async (apiKey, keywords, onResult = null) => {
+  if (!apiKey || keywords.length === 0) return [];
+
+  const results = [];
+  for (let i = 0; i < keywords.length; i++) {
+    const kw = keywords[i];
+    const result = await researchKeyword(apiKey, kw.value || kw);
+
+    if (result) {
+      results.push(result);
+      if (onResult) onResult(result, i, keywords.length);
+    }
+
+    // Rate limiting
+    if (i < keywords.length - 1) {
+      await new Promise(r => setTimeout(r, 300));
+    }
+  }
+
+  return results;
 };
 
 // Export for use in other modules
@@ -500,8 +664,12 @@ window.TaggerAPI = {
   categorizeKeywords,
   consolidateKeywords,
   analyzeWithVision,
+  extractCreatorsFromWebMatches,
   downloadLargerVersion,
-  organizeTaxonomy
+  auditTaxonomy,
+  organizeTaxonomy,
+  researchKeyword,
+  researchUncategorizedKeywords
 };
 
 })();

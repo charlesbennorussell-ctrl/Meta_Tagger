@@ -123,7 +123,7 @@
       extractFromFilename, extractFromUrls, extractExistingMetadata, generateXMP,
       embedXMP, embedXMPinPNG, convertToJPEG, isRawFormat, supportsEmbedding
     } = window.TaggerUtils;
-    const { analyzeWithGemini, findDesigner, categorizeKeywords, consolidateKeywords, analyzeWithVision, downloadLargerVersion, organizeTaxonomy } = window.TaggerAPI;
+    const { analyzeWithGemini, findDesigner, categorizeKeywords, analyzeWithVision, extractCreatorsFromWebMatches, downloadLargerVersion, organizeTaxonomy, researchKeyword } = window.TaggerAPI;
 
     // ============================================
     // REACT COMPONENTS (must be in Babel block for JSX)
@@ -222,6 +222,7 @@
       const [showSettings, setShowSettings] = useState(false);
       const [saveMode, setSaveMode] = useState(localStorage.getItem('save_mode') || 'embed');
       const [outputDir, setOutputDir] = useState(null);
+      const [outputDirName, setOutputDirName] = useState(localStorage.getItem('output_dir_name') || '');
       const [thumbSize, setThumbSize] = useState(parseInt(localStorage.getItem('thumb_size')) || 1);
 
       const [taxonomy, setTaxonomy] = useState(() => {
@@ -229,6 +230,12 @@
         catch { return DEFAULT_TAXONOMY; }
       });
       const taxInfo = useMemo(() => flattenTaxonomy(taxonomy), [taxonomy]);
+      // Master taxonomy terms - only from DEFAULT_TAXONOMY, not user additions
+      const masterTerms = useMemo(() => {
+        const result = flattenTaxonomy(DEFAULT_TAXONOMY);
+        console.log('[MASTER] Built', result.allTerms.size, 'master terms');
+        return result.allTerms;
+      }, []);
 
       const [queue, setQueue] = useState([]);
       const [memory, setMemory] = useState(loadMemory);
@@ -254,7 +261,7 @@
       const [customInput, setCustomInput] = useState('');
       const [isCategorizing, setIsCategorizing] = useState(false);
       const [isOrganizing, setIsOrganizing] = useState(false);
-      const [organizeStatus, setOrganizeStatus] = useState('Organize');
+      const [organizeProgress, setOrganizeProgress] = useState(null);
       const [gridWidth, setGridWidth] = useState(() => parseInt(localStorage.getItem('grid_width')) || 50); // percentage
       const [isDraggingDivider, setIsDraggingDivider] = useState(false);
 
@@ -272,10 +279,12 @@
 
       const filteredQueue = useMemo(() => {
         return queue.filter(q => {
-          if (q.hidden && !showHidden) return false;
-          if (q.status === 'done' && !showDone) return false;
-          if ((q.status === 'pending' || q.status === 'analyzing') && !showPending) return false;
-          return true;
+          // Hidden items only show when showHidden is true (exclusive filter)
+          if (q.hidden) return showHidden;
+          // Non-hidden items filter by status
+          if (q.status === 'done') return showDone;
+          // Ready filter controls: pending, analyzing, ready, editing statuses
+          return showPending;
         });
       }, [queue, showDone, showHidden, showPending]);
 
@@ -287,8 +296,20 @@
 
       // Keyboard navigation
       useEffect(() => {
-        const handleKeyDown = (e) => {
+        const handleKeyDown = async (e) => {
           if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+          // Enter key - save current image
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            const img = selectedImgRef.current;
+            const kws = keywordsRef.current;
+            if (img && kws.length > 0 && saveImageRef.current) {
+              console.log('[KEYBOARD] Enter pressed - saving:', img.name);
+              await saveImageRef.current(img, kws, designerRef.current);
+            }
+            return;
+          }
 
           if (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'ArrowUp' || e.key === 'ArrowDown') {
             e.preventDefault();
@@ -369,14 +390,99 @@
       const memoryRef = useRef(memory);
       const geminiKeyRef = useRef(geminiKey);
       const analyzeImageRef = useRef(null);
+      const saveImageRef = useRef(null);
+      const selectedImgRef = useRef(null);
+      const keywordsRef = useRef([]);
+      const designerRef = useRef(null);
       useEffect(() => { queueRef.current = queue; }, [queue]);
       useEffect(() => { memoryRef.current = memory; }, [memory]);
       useEffect(() => { geminiKeyRef.current = geminiKey; }, [geminiKey]);
+      useEffect(() => { keywordsRef.current = keywords; }, [keywords]);
+      useEffect(() => { designerRef.current = designer; }, [designer]);
 
       useEffect(() => {
         window.onFilesDropped = async (files) => { await processFilesRef.current(files); };
         return () => { window.onFilesDropped = null; };
       }, []);
+
+      // Restore output directory on mount if we have a saved name
+      useEffect(() => {
+        if (outputDirName && !outputDir) {
+          // Show a hint that output folder needs to be re-selected
+          console.log('[OUTPUT] Previous output folder was:', outputDirName);
+        }
+      }, []);
+
+      // Save output dir name when it changes
+      useEffect(() => {
+        if (outputDir) {
+          localStorage.setItem('output_dir_name', outputDir.name);
+          setOutputDirName(outputDir.name);
+        }
+      }, [outputDir]);
+
+      // Clear cache and re-analyze non-done images
+      const refreshAnalysis = useCallback(() => {
+        const cacheKey = 'tagger_analysis_cache';
+        const nonDoneImages = queue.filter(q => q.status !== 'done' && !q.hidden);
+
+        console.log('[REFRESH] Clearing cache for', nonDoneImages.length, 'non-done images');
+
+        // Clear cache entries for non-done images
+        try {
+          const cache = JSON.parse(localStorage.getItem(cacheKey) || '{}');
+          nonDoneImages.forEach(img => {
+            delete cache[img.hash];
+          });
+          localStorage.setItem(cacheKey, JSON.stringify(cache));
+        } catch (e) {
+          console.error('[REFRESH] Cache clear failed:', e);
+        }
+
+        // Reset status to pending and trigger re-analysis
+        setQueue(q => q.map(item => {
+          if (item.status !== 'done' && !item.hidden) {
+            return { ...item, status: 'pending', keywords: [], pending: [] };
+          }
+          return item;
+        }));
+
+        // Trigger analysis after state update
+        setTimeout(() => {
+          if (geminiKey) {
+            nonDoneImages.forEach(img => {
+              analyzeImageRef.current?.({ ...img, status: 'pending' });
+            });
+          }
+        }, 100);
+      }, [queue, geminiKey]);
+
+      // Organize taxonomy - research and categorize custom keywords
+      const handleOrganizeTaxonomy = useCallback(async () => {
+        if (!geminiKey || isOrganizing) return;
+
+        setIsOrganizing(true);
+        setOrganizeProgress({ phase: 'init', message: 'Starting...' });
+
+        try {
+          const result = await organizeTaxonomy(geminiKey, taxonomy, (progress) => {
+            setOrganizeProgress(progress);
+          });
+
+          if (result.changes.length > 0) {
+            setTaxonomy(result.taxonomy);
+            localStorage.setItem(TAXONOMY_KEY, JSON.stringify(result.taxonomy));
+            console.log('[ORGANIZE] Applied', result.changes.length, 'changes');
+          } else {
+            console.log('[ORGANIZE] No changes needed');
+          }
+        } catch (e) {
+          console.error('[ORGANIZE] Error:', e);
+        } finally {
+          setIsOrganizing(false);
+          setOrganizeProgress(null);
+        }
+      }, [geminiKey, isOrganizing, taxonomy]);
 
       const processFilesRef = useRef(null);
       processFilesRef.current = async (files) => {
@@ -603,17 +709,23 @@
 
             const auto = [], review = [];
             allKws.forEach(kw => {
-              const key = kw.value.toLowerCase();
+              const key = kw.value.toLowerCase().trim();
               if (currentBlocked.has(key)) return;
-              const inMaster = taxInfo.allTerms.has(key);
-              // Only auto-accept if in master taxonomy
-              // All other keywords go to review for user approval
-              if (inMaster) {
+              // Auto-accept if:
+              // - In master taxonomy
+              // - From embedded XMP metadata (user's own tags)
+              // - Identified as brand, creator, or country of origin
+              const inMaster = masterTerms.has(key);
+              const isEmbedded = kw.source === 'xmp' || kw.source === 'existing';
+              const isBrandOrCreator = ['brand', 'designer', 'artist', 'photographer', 'architect', 'creator'].includes(kw.type);
+              const isCountry = kw.type === 'country' || (kw.path && kw.path.includes('Origin'));
+              if (inMaster || isEmbedded || isBrandOrCreator || isCountry) {
                 auto.push(kw);
               } else {
                 review.push(kw);
               }
             });
+            console.log(`[CACHE] ${auto.length} auto-accepted, ${review.length} for review`);
 
             setQueue(q => q.map(i => i.id === img.id ? {
               ...i, status: 'ready', keywords: auto, pending: review,
@@ -659,6 +771,17 @@
               visionResult.keywords.forEach(vk => {
                 if (!rawKws.some(k => k.value.toLowerCase() === vk.value.toLowerCase())) {
                   rawKws.push(vk);
+                }
+              });
+            }
+
+            // Use Gemini with grounding to extract creator info from web matches
+            if (visionResult?.matchingImages?.length > 0) {
+              const productContext = rawKws.filter(k => k.type === 'brand' || k.type === 'model').map(k => k.value).join(' ');
+              const webCreators = await extractCreatorsFromWebMatches(geminiKey, visionResult.matchingImages, productContext);
+              webCreators.forEach(wc => {
+                if (!rawKws.some(k => k.value.toLowerCase() === wc.value.toLowerCase())) {
+                  rawKws.push(wc);
                 }
               });
             }
@@ -730,26 +853,27 @@
           const currentAccepted = acceptedRef.current;
           const auto = [], review = [];
 
-          console.log(`[ANALYZE] Master taxonomy has ${taxInfo.allTerms.size} terms, session has ${currentAccepted.size} accepted`);
+          console.log(`[ANALYZE] Master taxonomy has ${masterTerms.size} terms, session has ${currentAccepted.size} accepted`);
 
           processedKws.forEach(kw => {
-            const key = kw.value.toLowerCase();
-            if (currentBlocked.has(key)) {
-              console.log(`[ANALYZE] Blocked: "${kw.value}"`);
-              return;
-            }
-            const inMaster = taxInfo.allTerms.has(key);
-            // Only auto-accept if in master taxonomy
-            // All other keywords go to review for user approval
-            if (inMaster) {
-              console.log(`[ANALYZE] Auto-accept: "${kw.value}" (in master taxonomy)`);
+            const key = kw.value.toLowerCase().trim();
+            if (currentBlocked.has(key)) return;
+            // Auto-accept if:
+            // - In master taxonomy
+            // - From embedded XMP metadata (user's own tags)
+            // - Identified as brand, creator, or country of origin
+            const inMaster = masterTerms.has(key);
+            const isEmbedded = kw.source === 'xmp' || kw.source === 'existing';
+            const isBrandOrCreator = ['brand', 'designer', 'artist', 'photographer', 'architect', 'creator'].includes(kw.type);
+            const isCountry = kw.type === 'country' || (kw.path && kw.path.includes('Origin'));
+            if (inMaster || isEmbedded || isBrandOrCreator || isCountry) {
               auto.push(kw);
             } else {
               review.push(kw);
             }
           });
 
-          console.log(`[ANALYZE] Result: ${auto.length} auto-accepted, ${review.length} for review`);
+          console.log(`[ANALYZE] ${auto.length} auto-accepted, ${review.length} for review`);
 
           // Cache the raw analysis results
           setCachedAnalysis(img.hash, {
@@ -776,13 +900,16 @@
           console.error('[ANALYZE] Failed:', err);
           setQueue(q => q.map(i => i.id === img.id ? { ...i, status: 'error' } : i));
         }
-      }, [geminiKey, visionKey, useVision, autoDownloadLarger, outputDir, taxInfo, findPath]);
+      }, [geminiKey, visionKey, useVision, autoDownloadLarger, outputDir, taxInfo, masterTerms, findPath]);
 
       // Keep ref updated for use in processFiles
       useEffect(() => { analyzeImageRef.current = analyzeImage; }, [analyzeImage]);
+      useEffect(() => { saveImageRef.current = saveImage; }, [saveImage]);
+      useEffect(() => { selectedImgRef.current = selectedImg; }, [selectedImg]);
 
       const selectImage = useCallback(async (id) => {
-        if (isEditing && selectedImg && keywords.length > 0) {
+        // Only auto-save if actually modified
+        if (isEditing && modified && selectedImg && keywords.length > 0) {
           console.log('[NAV] Auto-saving before navigation:', selectedImg.name);
           await saveImage(selectedImg, keywords, designer);
         }
@@ -807,7 +934,7 @@
         } else {
           setKeywords([]); setPending([]); setDesigner(null); setVisionData(null); setIgnored([]); setModified(false);
         }
-      }, [queue, isEditing, selectedImg, keywords, designer, analyzeImage, saveImage]);
+      }, [queue, isEditing, modified, selectedImg, keywords, designer, analyzeImage, saveImage]);
 
       const analyzeAllPending = () => {
         const pendingImgs = queue.filter(q => q.status === 'pending' && !q.hidden);
@@ -1032,10 +1159,12 @@
         });
       };
 
-      const addCustom = () => {
+      const addCustom = async () => {
         const val = customInput.trim();
         if (!val) return;
         const newKws = [];
+        const uncategorizedKws = [];
+
         splitBrandModel(val).forEach(part => {
           const path = part.path[0] === 'Custom' ? findPath(part.value, part.type) : part.path;
           const kw = { id: `custom-${Date.now()}-${Math.random().toString(36).slice(2)}`, value: part.value, confidence: 1, type: part.type, path, rootCategory: path[0] };
@@ -1043,6 +1172,11 @@
           setKeywords(c => [...c, kw]);
           setAccepted(a => a.some(x => x.value.toLowerCase() === kw.value.toLowerCase()) ? a : [...a, kw]);
           setTaxonomy(t => addToTaxonomy(t, kw));
+
+          // Track uncategorized keywords for background research
+          if (path[0] === 'Custom' && geminiKey) {
+            uncategorizedKws.push(kw);
+          }
         });
         setCustomInput('');
         setModified(true);
@@ -1064,6 +1198,54 @@
               return img;
             }));
           }
+        }
+
+        // Background research for uncategorized keywords
+        if (uncategorizedKws.length > 0 && geminiKey) {
+          setTimeout(async () => {
+            for (const kw of uncategorizedKws) {
+              const result = await researchKeyword(geminiKey, kw.value);
+              if (result && result.path && result.path.length > 0 && result.path[0] !== 'Custom') {
+                console.log(`[AUTO-CATEGORIZE] ${kw.value} -> ${result.path.join(' > ')}`);
+                // Update the keyword's path in taxonomy
+                setTaxonomy(prevTax => {
+                  const newTax = JSON.parse(JSON.stringify(prevTax));
+                  // Remove from Custom
+                  if (newTax.Custom) {
+                    if (Array.isArray(newTax.Custom)) {
+                      newTax.Custom = newTax.Custom.filter(v => v.toLowerCase() !== kw.value.toLowerCase());
+                    } else if (newTax.Custom._items) {
+                      newTax.Custom._items = newTax.Custom._items.filter(v => v.toLowerCase() !== kw.value.toLowerCase());
+                    }
+                  }
+                  // Add to new path
+                  let current = newTax;
+                  for (let i = 0; i < result.path.length; i++) {
+                    const segment = result.path[i];
+                    if (!current[segment]) current[segment] = i === result.path.length - 1 ? [] : {};
+                    if (i === result.path.length - 1) {
+                      if (Array.isArray(current[segment])) {
+                        if (!current[segment].includes(kw.value)) current[segment].push(kw.value);
+                      } else {
+                        if (!current[segment]._items) current[segment]._items = [];
+                        if (!current[segment]._items.includes(kw.value)) current[segment]._items.push(kw.value);
+                      }
+                    } else {
+                      current = current[segment];
+                    }
+                  }
+                  localStorage.setItem(TAXONOMY_KEY, JSON.stringify(newTax));
+                  return newTax;
+                });
+                // Update keyword in current keywords list
+                setKeywords(prev => prev.map(k =>
+                  k.value.toLowerCase() === kw.value.toLowerCase()
+                    ? { ...k, path: result.path, rootCategory: result.path[0], type: result.type || k.type }
+                    : k
+                ));
+              }
+            }
+          }, 100);
         }
       };
 
@@ -1167,36 +1349,6 @@
         }
       };
 
-      const runOrganize = async () => {
-        if (!geminiKey || isOrganizing) return;
-
-        setIsOrganizing(true);
-        setOrganizeStatus('Starting...');
-
-        try {
-          const result = await organizeTaxonomy(geminiKey, taxonomy, (progress) => {
-            if (progress.done) {
-              setOrganizeStatus(progress.message);
-              // Reset to "Organize" after 3 seconds
-              setTimeout(() => setOrganizeStatus('Organize'), 3000);
-            } else {
-              setOrganizeStatus(progress.message);
-            }
-          });
-
-          if (result.changes > 0) {
-            setTaxonomy(result.taxonomy);
-            console.log(`[ORGANIZE] Made ${result.changes} changes to taxonomy`);
-          }
-        } catch (e) {
-          console.error('[ORGANIZE] Error:', e);
-          setOrganizeStatus('Error!');
-          setTimeout(() => setOrganizeStatus('Organize'), 3000);
-        } finally {
-          setIsOrganizing(false);
-        }
-      };
-
       const customCount = getCustomKeywords().length;
 
       // Auto-run categorization when custom keywords accumulate
@@ -1220,69 +1372,8 @@
         };
       }, [customCount, geminiKey, isCategorizing]);
 
-      // Auto-consolidate pending keywords to master taxonomy synonyms
+      // Auto-consolidation disabled - was causing false matches
       const [isConsolidating, setIsConsolidating] = useState(false);
-      const consolidateTimeoutRef = useRef(null);
-
-      useEffect(() => {
-        if (pending.length > 0 && geminiKey && !isConsolidating && taxInfo.allTerms.size > 0) {
-          if (consolidateTimeoutRef.current) {
-            clearTimeout(consolidateTimeoutRef.current);
-          }
-          consolidateTimeoutRef.current = setTimeout(async () => {
-            setIsConsolidating(true);
-            try {
-              const reviewKws = pending.map(k => k.value);
-              const masterTerms = Array.from(taxInfo.allTerms);
-              console.log('[CONSOLIDATE] Checking', reviewKws.length, 'keywords against', masterTerms.length, 'master terms');
-
-              const matches = await consolidateKeywords(geminiKey, reviewKws, masterTerms);
-              console.log('[CONSOLIDATE] Found', matches.length, 'matches');
-
-              if (matches.length > 0) {
-                // Track which pending keywords we've processed to avoid duplicates
-                const processedIds = new Set();
-
-                // For each match, find the pending keyword and auto-accept it with the master term
-                matches.forEach(match => {
-                  const pendingKw = pending.find(k => k.value.toLowerCase() === match.review.toLowerCase() && !processedIds.has(k.id));
-                  if (pendingKw && match.confidence >= 0.8) {
-                    processedIds.add(pendingKw.id);
-                    console.log(`[CONSOLIDATE] Replacing "${pendingKw.value}" with master term "${match.master}"`);
-                    // Update the keyword value to match master taxonomy
-                    const consolidatedKw = { ...pendingKw, value: match.master, consolidated: true };
-                    const path = smartCategorize(consolidatedKw);
-                    consolidatedKw.path = path;
-                    consolidatedKw.rootCategory = path[0];
-
-                    // Auto-accept it, but check for duplicates first
-                    setPending(p => p.filter(k => k.id !== pendingKw.id));
-                    setKeywords(kws => {
-                      // Don't add if already exists
-                      if (kws.some(k => k.value.toLowerCase() === consolidatedKw.value.toLowerCase())) {
-                        return kws;
-                      }
-                      return [...kws, consolidatedKw];
-                    });
-                    setAccepted(a => a.some(x => x.value.toLowerCase() === consolidatedKw.value.toLowerCase()) ? a : [...a, consolidatedKw]);
-                    setModified(true);
-                    setIsEditing(true);
-                  }
-                });
-              }
-            } catch (e) {
-              console.error('[CONSOLIDATE] Error:', e);
-            } finally {
-              setIsConsolidating(false);
-            }
-          }, 2000);
-        }
-        return () => {
-          if (consolidateTimeoutRef.current) {
-            clearTimeout(consolidateTimeoutRef.current);
-          }
-        };
-      }, [pending, geminiKey, taxInfo.allTerms]);
 
       const tree = buildTree(accepted);
       const getColor = (r) => ROOT_COLORS[r] || '#94a3b8';
@@ -1328,6 +1419,26 @@
               </button>
               <button onClick={() => folderRef.current?.click()} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: '#1f2937', color: s.bright, border: 'none', borderRadius: s.radius, cursor: 'pointer', fontSize: s.fontSize }}>
                 <Icon name="folder_open" size={18} /> Folder
+              </button>
+              {queue.filter(q => q.status !== 'done' && !q.hidden).length > 0 && (
+                <button onClick={refreshAnalysis} title="Clear cache and re-analyze non-done images" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 40, height: 40, background: '#1f2937', color: '#60a5fa', border: 'none', borderRadius: s.radius, cursor: 'pointer' }}>
+                  <Icon name="refresh" size={20} />
+                </button>
+              )}
+              <button
+                onClick={handleOrganizeTaxonomy}
+                disabled={!geminiKey || isOrganizing}
+                title="Organize taxonomy - research and categorize custom keywords"
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                  padding: '8px 12px', background: isOrganizing ? '#374151' : '#1f2937',
+                  color: isOrganizing ? '#fbbf24' : '#a855f7', border: 'none',
+                  borderRadius: s.radius, cursor: isOrganizing ? 'default' : 'pointer',
+                  fontSize: s.fontSize, opacity: geminiKey ? 1 : 0.5
+                }}
+              >
+                <Icon name={isOrganizing ? "hourglass_empty" : "auto_fix_high"} size={18} />
+                {isOrganizing ? (organizeProgress?.message || 'Starting...') : 'Organize'}
               </button>
             </div>
 
@@ -1375,8 +1486,8 @@
             <div style={{ width: `${gridWidth}%`, minWidth: 250, background: s.panel, display: 'flex', flexDirection: 'column', transition: isDraggingDivider ? 'none' : 'width 0.2s ease-out' }}>
               <div style={{ padding: '10px 12px', borderBottom: `1px solid ${s.border}`, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                 <button onClick={() => setShowPending(!showPending)}
-                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: showPending ? 'rgba(251,191,36,0.15)' : '#1f2937', color: showPending ? '#fbbf24' : s.muted, border: 'none', borderRadius: s.radiusSm, cursor: 'pointer', fontSize: s.fontSize }}>
-                  <Icon name="pending" size={16} /> Pending ({pendingCount})
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: showPending ? 'rgba(96,165,250,0.15)' : '#1f2937', color: showPending ? '#60a5fa' : s.muted, border: 'none', borderRadius: s.radiusSm, cursor: 'pointer', fontSize: s.fontSize }}>
+                  <Icon name="rate_review" size={16} /> Ready ({readyCount})
                 </button>
                 <button onClick={() => setShowDone(!showDone)}
                   style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: showDone ? 'rgba(74,222,128,0.15)' : '#1f2937', color: showDone ? '#4ade80' : s.muted, border: 'none', borderRadius: s.radiusSm, cursor: 'pointer', fontSize: s.fontSize }}>
@@ -1547,18 +1658,21 @@
                           </div>
                         )}
 
-                        {visionData?.matchingImages?.length > 0 && (
+                        {visionData?.matchingImages?.filter(m => m.type === 'full').length > 0 && (
                           <div style={{ background: 'rgba(96,165,250,0.1)', padding: '10px 12px', borderRadius: s.radius, border: '1px solid rgba(96,165,250,0.25)' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#60a5fa', fontSize: s.fontSize, marginBottom: 8 }}>
                               <Icon name="image_search" size={18} />
-                              {visionData.matchingImages.length} web matches
+                              {visionData.matchingImages.filter(m => m.type === 'full').length} exact matches
                             </div>
                             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                              {visionData.matchingImages.slice(0, 4).map((img, i) => (
-                                <a key={i} href={img.url} target="_blank" rel="noreferrer" style={{ color: '#60a5fa', fontSize: 12, textDecoration: 'none', padding: '4px 8px', background: 'rgba(96,165,250,0.15)', borderRadius: s.radiusSm }}>
-                                  {img.type}
-                                </a>
-                              ))}
+                              {visionData.matchingImages.filter(m => m.type === 'full').slice(0, 4).map((img, i) => {
+                                const domain = new URL(img.url).hostname.replace('www.', '');
+                                return (
+                                  <a key={i} href={img.url} target="_blank" rel="noreferrer" style={{ color: '#60a5fa', fontSize: 12, textDecoration: 'none', padding: '4px 8px', background: 'rgba(96,165,250,0.15)', borderRadius: s.radiusSm }}>
+                                    {domain}
+                                  </a>
+                                );
+                              })}
                             </div>
                           </div>
                         )}
@@ -1692,13 +1806,6 @@
                       <Icon name={isCategorizing ? "hourglass_empty" : "auto_fix_high"} size={16} /> {customCount}
                     </button>
                   )}
-                  {showMasterTaxonomy && (
-                    <button onClick={runOrganize} disabled={isOrganizing || !geminiKey} tabIndex={-1}
-                      style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 10px', background: isOrganizing ? '#374151' : '#8b5cf6', color: isOrganizing ? '#9ca3af' : 'white', border: 'none', borderRadius: s.radiusSm, cursor: isOrganizing ? 'default' : 'pointer', fontSize: 13, minWidth: 80 }}>
-                      <Icon name={isOrganizing ? "hourglass_empty" : "auto_awesome"} size={16} />
-                      <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 150 }}>{organizeStatus}</span>
-                    </button>
-                  )}
                   <button onClick={() => setShowMasterTaxonomy(!showMasterTaxonomy)} tabIndex={-1}
                     style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 10px', background: showMasterTaxonomy ? 'rgba(96,165,250,0.15)' : '#1f2937', color: showMasterTaxonomy ? '#60a5fa' : s.muted, border: 'none', borderRadius: s.radiusSm, cursor: 'pointer', fontSize: 13 }}>
                     <Icon name={showMasterTaxonomy ? "list" : "library_books"} size={16} />
@@ -1817,9 +1924,9 @@
                     </div>
 
                     <button onClick={async () => { try { setOutputDir(await window.showDirectoryPicker({ mode: 'readwrite' })); } catch {} }}
-                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '12px 16px', background: outputDir ? 'rgba(16,185,129,0.15)' : '#1f2937', color: outputDir ? '#10b981' : s.text, border: `1px solid ${outputDir ? 'rgba(16,185,129,0.3)' : s.border}`, borderRadius: s.radius, cursor: 'pointer', fontSize: s.fontSize }}>
-                      <Icon name={outputDir ? "check_circle" : "folder_open"} size={20} />
-                      {outputDir ? 'Output folder set' : 'Choose output folder'}
+                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '12px 16px', background: outputDir ? 'rgba(16,185,129,0.15)' : (outputDirName ? 'rgba(251,191,36,0.15)' : '#1f2937'), color: outputDir ? '#10b981' : (outputDirName ? '#fbbf24' : s.text), border: `1px solid ${outputDir ? 'rgba(16,185,129,0.3)' : (outputDirName ? 'rgba(251,191,36,0.3)' : s.border)}`, borderRadius: s.radius, cursor: 'pointer', fontSize: s.fontSize }}>
+                      <Icon name={outputDir ? "check_circle" : (outputDirName ? "warning" : "folder_open")} size={20} />
+                      {outputDir ? `Output: ${outputDir.name}` : (outputDirName ? `Re-select: ${outputDirName}` : 'Choose output folder')}
                     </button>
                   </div>
                   <div style={{ padding: '16px 20px', borderTop: `1px solid ${s.border}`, display: 'flex', justifyContent: 'flex-end' }}>

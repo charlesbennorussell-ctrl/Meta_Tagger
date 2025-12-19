@@ -89,6 +89,98 @@ const smartCategorize = (kw, contextBrand = null) => {
     return ['Style', 'Origin'];
   }
 
+  // Handle Graphic Design sub-categories
+  const graphicDesignCategories = {
+    'Print': ['poster', 'book design', 'magazine', 'editorial', 'packaging', 'album cover', 'catalog', 'brochure', 'print design'],
+    'Identity': ['logo', 'branding', 'corporate identity', 'visual identity', 'logotype', 'wordmark', 'brand identity'],
+    'Typography': ['typeface', 'font', 'lettering', 'calligraphy', 'type specimen', 'typography', 'typographic'],
+    'Digital': ['ui design', 'web design', 'app design', 'interface', 'ux design', 'icon design', 'ui/ux', 'user interface'],
+    'Illustration': ['vector', 'infographic', 'technical illustration', 'illustration', 'illustrator']
+  };
+  for (const [subcat, terms] of Object.entries(graphicDesignCategories)) {
+    if (terms.some(t => valueLower === t || valueLower.includes(t))) {
+      return ['Design', 'Graphic Design', subcat];
+    }
+  }
+
+  // Handle Industrial Design sub-categories
+  const industrialDesignCategories = {
+    'Furniture': ['chair', 'sofa', 'table', 'desk', 'shelving', 'lamp', 'bench', 'cabinet', 'stool', 'bed', 'furniture'],
+    'Audio Equipment': ['headphone', 'speaker', 'amplifier', 'turntable', 'earbud', 'dac', 'receiver', 'radio', 'soundbar', 'audio'],
+    'Consumer Electronics': ['phone', 'computer', 'camera', 'wearable', 'tablet', 'laptop', 'monitor', 'television', 'tv', 'remote', 'electronics'],
+    'Automotive': ['car', 'motorcycle', 'concept car', 'electric vehicle', 'bicycle', 'scooter', 'vehicle', 'automotive'],
+    'Appliances': ['kitchen', 'vacuum', 'coffee machine', 'toaster', 'blender', 'fan', 'heater', 'appliance'],
+    'Tools': ['power tool', 'hand tool', 'office equipment', 'medical device', 'tool']
+  };
+  for (const [subcat, terms] of Object.entries(industrialDesignCategories)) {
+    if (terms.some(t => valueLower === t || valueLower.includes(t))) {
+      return ['Design', 'Industrial Design', subcat];
+    }
+  }
+
+  // Handle Interior Design sub-categories
+  const interiorDesignTerms = ['interior', 'living room', 'bedroom', 'kitchen design', 'bathroom design', 'home office', 'showroom', 'exhibition', 'gallery space'];
+  if (interiorDesignTerms.some(t => valueLower === t || valueLower.includes(t))) {
+    return ['Design', 'Interior Design'];
+  }
+
+  // Handle Fashion Design sub-categories
+  const fashionDesignCategories = {
+    'Apparel': ['menswear', 'womenswear', 'outerwear', 'sportswear', 'streetwear', 'clothing', 'garment'],
+    'Accessories': ['bag', 'handbag', 'shoes', 'jewelry', 'eyewear', 'sunglasses', 'watch design'],
+    'Textile': ['fabric', 'pattern', 'textile', 'weave']
+  };
+  for (const [subcat, terms] of Object.entries(fashionDesignCategories)) {
+    if (terms.some(t => valueLower === t || valueLower.includes(t))) {
+      return ['Design', 'Fashion Design', subcat];
+    }
+  }
+
+  // Handle Photography sub-categories
+  const photographyCategories = {
+    'Portrait': ['portrait', 'studio portrait', 'environmental portrait', 'headshot'],
+    'Landscape': ['landscape', 'nature photography', 'seascape', 'aerial photography'],
+    'Documentary': ['street photography', 'photojournalism', 'documentary', 'travel photography'],
+    'Commercial': ['fashion photography', 'product photography', 'food photography', 'advertising photography'],
+    'Fine Art': ['fine art photography', 'conceptual photography', 'black and white', 'experimental']
+  };
+  for (const [subcat, terms] of Object.entries(photographyCategories)) {
+    if (terms.some(t => valueLower === t || valueLower.includes(t))) {
+      return ['Art', 'Photography', subcat];
+    }
+  }
+  // Generic photography fallback
+  if (['photo', 'photograph', 'photography', 'photographer'].some(t => valueLower === t || valueLower.includes(t))) {
+    return ['Art', 'Photography'];
+  }
+
+  // Handle Art sub-categories
+  const artCategories = {
+    'Painting': ['painting', 'oil painting', 'acrylic', 'watercolor', 'canvas'],
+    'Sculpture': ['sculpture', 'bronze', 'marble sculpture', 'installation art', 'kinetic'],
+    'Digital Art': ['3d rendering', 'cgi', 'motion graphics', 'generative art', 'digital painting', 'digital art'],
+    'Ceramics': ['pottery', 'porcelain', 'stoneware', 'earthenware', 'raku', 'tea bowl', 'ceramic', 'ceramics']
+  };
+  for (const [subcat, terms] of Object.entries(artCategories)) {
+    if (terms.some(t => valueLower === t || valueLower.includes(t))) {
+      return ['Art', subcat];
+    }
+  }
+
+  // Handle Architecture sub-categories
+  const architectureCategories = {
+    'Residential': ['house', 'villa', 'apartment', 'loft', 'cabin', 'townhouse', 'penthouse', 'estate', 'residential'],
+    'Commercial': ['office building', 'retail', 'hotel', 'restaurant', 'store', 'mall', 'tower', 'skyscraper', 'commercial'],
+    'Institutional': ['museum', 'library', 'school', 'hospital', 'gallery', 'university', 'theater', 'concert hall'],
+    'Religious': ['church', 'temple', 'mosque', 'chapel', 'shrine'],
+    'Industrial': ['factory', 'warehouse', 'airport', 'station', 'bridge']
+  };
+  for (const [subcat, terms] of Object.entries(architectureCategories)) {
+    if (terms.some(t => valueLower === t || valueLower.includes(t))) {
+      return ['Architecture', subcat];
+    }
+  }
+
   // Handle materials
   const materials = {
     'Natural': ['wood', 'leather', 'fabric', 'stone', 'wool', 'cotton', 'linen', 'cork', 'bamboo'],
@@ -184,13 +276,28 @@ const removeFromTaxonomy = (taxonomy, kw) => {
   return newTax;
 };
 
-const flattenTaxonomy = (obj, path = [], results = null) => {
+const flattenTaxonomy = (obj, path = [], results = null, isTopLevel = true) => {
   if (results === null) results = { paths: {}, allTerms: new Set() };
   for (const [key, value] of Object.entries(obj)) {
+    // Skip _items key as it's internal
+    if (key === '_items') {
+      if (Array.isArray(value)) {
+        value.forEach(item => {
+          const itemLower = item.toLowerCase();
+          results.allTerms.add(itemLower);
+          results.paths[itemLower] = path;
+        });
+      }
+      continue;
+    }
     const currentPath = [...path, key];
     const keyLower = key.toLowerCase();
-    results.allTerms.add(keyLower);
-    results.paths[keyLower] = currentPath;
+    // Only add category names to allTerms if they're also leaf values
+    // Don't add top-level category names like "Design", "Brand", etc.
+    if (!isTopLevel) {
+      results.allTerms.add(keyLower);
+      results.paths[keyLower] = currentPath;
+    }
     if (Array.isArray(value)) {
       value.forEach(item => {
         const itemLower = item.toLowerCase();
@@ -198,7 +305,7 @@ const flattenTaxonomy = (obj, path = [], results = null) => {
         results.paths[itemLower] = currentPath;
       });
     } else if (typeof value === 'object' && value !== null) {
-      flattenTaxonomy(value, currentPath, results);
+      flattenTaxonomy(value, currentPath, results, false);
     }
   }
   return results;
@@ -211,22 +318,58 @@ const getBrandPath = (brandName) => {
   return category ? ['Brand', category] : ['Brand'];
 };
 
+// Check if text looks like a person name (First Last pattern)
+const looksLikePersonName = (text) => {
+  const trimmed = text.trim();
+  // Must be exactly two or three capitalized words (First Last or First Middle Last)
+  if (!/^[A-Z][a-z]+(\s+[A-Z][a-z]+){1,2}$/.test(trimmed)) return false;
+
+  // Common first name patterns that suggest a person
+  const commonFirstNames = /^(Adam|Alex|Alexander|Andrew|Anna|Anne|Antonio|Benjamin|Brian|Charles|Chris|Christian|Christopher|Daniel|David|Edward|Eric|Frank|George|Hans|Henry|Jack|Jacob|James|Jason|Jean|Jeff|Jennifer|Jessica|Joanna|Joe|John|Jonathan|Joseph|Joshua|Karl|Kenneth|Kevin|Louis|Ludwig|Marc|Mark|Martin|Matthew|Max|Michael|Michelle|Nathan|Nicholas|Oscar|Patricia|Patrick|Paul|Peter|Philip|Philippe|Rachel|Ray|Richard|Robert|Roger|Ronald|Ryan|Samuel|Sandra|Sarah|Scott|Sergio|Stefan|Stephen|Steven|Thomas|Tim|Timothy|Tom|Victor|Walter|William|Zaha)\b/i;
+
+  // If starts with common first name, likely a person
+  if (commonFirstNames.test(trimmed)) return true;
+
+  // Foreign/design world first names
+  const designerNames = /^(Arne|Bjarke|Dieter|Eero|Erwan|Isamu|Issey|Jasper|Jony|Kazuyo|Kengo|Konstantin|Massimo|Naoto|Neville|Paula|Rei|Renzo|Ronan|Ryue|Shiro|Tadao|Verner|Virgil|Vivienne|Yohji)\b/i;
+  if (designerNames.test(trimmed)) return true;
+
+  return false;
+};
+
 // Check if text looks like a brand name (pattern-based detection)
 const looksLikeBrand = (text) => {
-  const { KNOWN_ARTISTS } = window.TaggerData;
+  const { KNOWN_ARTISTS, KNOWN_ARCHITECTS, KNOWN_BRANDS } = window.TaggerData;
   const trimmed = text.trim();
+
+  // First check: if it's a known brand, return true
+  if (KNOWN_BRANDS.some(b => b.toLowerCase() === trimmed.toLowerCase())) return true;
+
+  // Second check: if it's a known artist/architect, return false
+  if (KNOWN_ARTISTS.some(a => a.toLowerCase() === trimmed.toLowerCase())) return false;
+  if (KNOWN_ARCHITECTS.some(a => a.toLowerCase() === trimmed.toLowerCase())) return false;
+
+  // Third check: if it looks like a person name, return false
+  if (looksLikePersonName(trimmed)) return false;
+
   // Known brand suffixes/patterns
   if (/\b(Engineering|Audio|Acoustics|Electronics|Design|Labs|Studio|Co\.|Inc\.|Ltd|GmbH|AG)\s*$/i.test(trimmed)) return true;
-  // Two capitalized words that aren't common phrases
-  if (/^[A-Z][a-z]+\s+[A-Z][a-z]+$/.test(trimmed) && !/^(The |A |An |New |Old |Big |Small )/i.test(trimmed)) {
-    // Exclude if it looks like a person name (check against artists)
-    const isArtist = KNOWN_ARTISTS.some(a => a.toLowerCase() === trimmed.toLowerCase());
-    if (!isArtist) return true;
-  }
+
   // Single capitalized word with unusual capitalization (like "OnePlus", "PlayStation")
   if (/^[A-Z][a-z]+[A-Z]/.test(trimmed)) return true;
+
   // All caps short name (like "BMW", "LG", "HP")
   if (/^[A-Z]{2,5}$/.test(trimmed)) return true;
+
+  // Two capitalized words - now we DON'T treat these as brands by default
+  // since they could be person names. Only match if it has brand-like characteristics
+  if (/^[A-Z][a-z]+\s+[A-Z][a-z]+$/.test(trimmed)) {
+    // Only consider it a brand if it ends with brand-like words
+    if (/\b(Motors|Industries|Systems|Works|Products|Instruments|Manufacturing)\s*$/i.test(trimmed)) return true;
+    // Otherwise, don't assume it's a brand
+    return false;
+  }
+
   return false;
 };
 
@@ -286,7 +429,7 @@ const parseEra = (text) => {
 };
 
 const splitBrandModel = (text) => {
-  const { KNOWN_ARTISTS, KNOWN_BRANDS, BRAND_CATEGORIES, NATIONALITY_TO_COUNTRY } = window.TaggerData;
+  const { KNOWN_ARTISTS, KNOWN_ARCHITECTS, KNOWN_BRANDS, BRAND_CATEGORIES, NATIONALITY_TO_COUNTRY } = window.TaggerData;
   const results = [];
   let remaining = text.trim();
 
@@ -328,6 +471,14 @@ const splitBrandModel = (text) => {
     }
   }
 
+  // Check for known architects
+  for (const architect of KNOWN_ARCHITECTS) {
+    if (remaining.toLowerCase() === architect.toLowerCase()) {
+      results.push({ value: architect, type: 'architect', path: ['Creator', 'Architect'] });
+      return results;
+    }
+  }
+
   // Check for known brands (exact match)
   let foundBrand = null;
   let brandCategory = null;
@@ -356,6 +507,10 @@ const splitBrandModel = (text) => {
     // Model number pattern - use smart categorization
     const path = smartCategorize({ value: text.trim(), type: 'model' });
     results.push({ value: text.trim(), type: 'model', path });
+  } else if (looksLikePersonName(text.trim())) {
+    // Person name pattern - route to Creator > Designer
+    const path = smartCategorize({ value: text.trim(), type: 'designer' });
+    results.push({ value: text.trim(), type: 'designer', path });
   } else if (looksLikeBrand(text.trim())) {
     // Pattern-based brand detection for unknown brands
     results.push({ value: text.trim(), type: 'brand', path: ['Brand'] });
@@ -587,10 +742,82 @@ const extractFromUrls = (urls) => {
   urls.forEach(urlObj => {
     try {
       const url = new URL(urlObj.url);
+      const hostname = url.hostname.toLowerCase();
       const path = url.pathname.toLowerCase();
-
-      // Look for name patterns in URL path like /yui-tsujimura/ or /artist/john-smith
       const segments = path.split('/').filter(s => s.length > 0);
+
+      // Instagram: extract username from instagram.com/username/
+      if (hostname.includes('instagram.com')) {
+        // Instagram URLs: /username/ or /p/postid/ or /reel/id/
+        const firstSegment = segments[0];
+        if (firstSegment && !['p', 'reel', 'reels', 'stories', 'explore', 'accounts', 'direct', 'tv'].includes(firstSegment)) {
+          // This is likely a username
+          const username = firstSegment.replace(/[._]/g, ' ').trim();
+          if (username.length >= 3 && username.length <= 30 && !seen.has(username.toLowerCase())) {
+            seen.add(username.toLowerCase());
+            // Format: convert underscores to spaces, capitalize words if it looks like a name
+            let displayName = username;
+            if (/^[a-z]+[._][a-z]+$/i.test(firstSegment)) {
+              // Looks like firstname.lastname or firstname_lastname
+              displayName = firstSegment.split(/[._]/).map(p => p.charAt(0).toUpperCase() + p.slice(1).toLowerCase()).join(' ');
+            }
+            console.log(`[URL] Found Instagram creator: @${firstSegment} -> ${displayName}`);
+            keywords.push({ value: displayName, type: 'creator', source: 'instagram', confidence: 0.85, path: ['Creator'], handle: `@${firstSegment}` });
+          }
+        }
+      }
+
+      // Behance: extract username from behance.net/username
+      if (hostname.includes('behance.net')) {
+        const firstSegment = segments[0];
+        if (firstSegment && !['gallery', 'search', 'featured', 'curated'].includes(firstSegment)) {
+          if (!seen.has(firstSegment.toLowerCase())) {
+            seen.add(firstSegment.toLowerCase());
+            const displayName = firstSegment.replace(/[-_]/g, ' ').split(' ').map(p => p.charAt(0).toUpperCase() + p.slice(1).toLowerCase()).join(' ');
+            console.log(`[URL] Found Behance creator: ${displayName}`);
+            keywords.push({ value: displayName, type: 'designer', source: 'behance', confidence: 0.85, path: ['Creator', 'Designer'] });
+          }
+        }
+      }
+
+      // Dribbble: extract username from dribbble.com/username
+      if (hostname.includes('dribbble.com')) {
+        const firstSegment = segments[0];
+        if (firstSegment && !['shots', 'tags', 'search', 'designers'].includes(firstSegment)) {
+          if (!seen.has(firstSegment.toLowerCase())) {
+            seen.add(firstSegment.toLowerCase());
+            const displayName = firstSegment.replace(/[-_]/g, ' ').split(' ').map(p => p.charAt(0).toUpperCase() + p.slice(1).toLowerCase()).join(' ');
+            console.log(`[URL] Found Dribbble creator: ${displayName}`);
+            keywords.push({ value: displayName, type: 'designer', source: 'dribbble', confidence: 0.85, path: ['Creator', 'Designer'] });
+          }
+        }
+      }
+
+      // Pinterest: extract from pinterest.com/username/ or /pin/
+      if (hostname.includes('pinterest.com')) {
+        const firstSegment = segments[0];
+        if (firstSegment && !['pin', 'search', 'ideas', 'today', 'categories'].includes(firstSegment)) {
+          if (!seen.has(firstSegment.toLowerCase())) {
+            seen.add(firstSegment.toLowerCase());
+            // Pinterest usernames are often not real names, so lower confidence
+            console.log(`[URL] Found Pinterest user: ${firstSegment}`);
+            keywords.push({ value: firstSegment, type: 'source', source: 'pinterest', confidence: 0.5, path: ['Custom'] });
+          }
+        }
+      }
+
+      // Flickr: extract from flickr.com/photos/username/
+      if (hostname.includes('flickr.com') && segments[0] === 'photos' && segments[1]) {
+        const username = segments[1];
+        if (!seen.has(username.toLowerCase())) {
+          seen.add(username.toLowerCase());
+          const displayName = username.replace(/[-_]/g, ' ').split(' ').map(p => p.charAt(0).toUpperCase() + p.slice(1).toLowerCase()).join(' ');
+          console.log(`[URL] Found Flickr photographer: ${displayName}`);
+          keywords.push({ value: displayName, type: 'photographer', source: 'flickr', confidence: 0.8, path: ['Creator', 'Photographer'] });
+        }
+      }
+
+      // Generic: Look for name patterns in URL path like /yui-tsujimura/ or /artist/john-smith
       segments.forEach(segment => {
         // Check for hyphenated names
         const hyphenParts = segment.split('-');
@@ -598,7 +825,7 @@ const extractFromUrls = (urls) => {
           // Each part should be 2-15 chars, alphabetic
           if (hyphenParts.every(p => /^[a-z]{2,15}$/.test(p))) {
             const potentialName = hyphenParts.map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' ');
-            const skipWords = ['tea-bowl', 'white-shino', 'high-resolution', 'product-design', 'full-size', 'large-image'];
+            const skipWords = ['tea-bowl', 'white-shino', 'high-resolution', 'product-design', 'full-size', 'large-image', 'my-account', 'sign-in', 'log-in'];
             if (!skipWords.some(s => segment === s) &&
                 potentialName.length >= 5 && potentialName.length <= 30 &&
                 !seen.has(potentialName.toLowerCase())) {
@@ -643,7 +870,19 @@ const extractExistingMetadata = async (file) => {
 
 // XMP Generation
 const generateXMP = (keywords, creator) => {
-  const subjects = keywords.map(k => k.value);
+  // Include keyword values and all parent path segments as subjects
+  const subjectSet = new Set();
+  keywords.forEach(k => {
+    // Add the keyword value itself
+    subjectSet.add(k.value);
+    // Add all path segments (upstream keywords) except 'Custom'
+    if (k.path) {
+      k.path.forEach(segment => {
+        if (segment !== 'Custom') subjectSet.add(segment);
+      });
+    }
+  });
+  const subjects = Array.from(subjectSet);
   const hierarchical = keywords.map(k => [...k.path, k.value].join('|'));
   return `<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>
 <x:xmpmeta xmlns:x="adobe:ns:meta/">
@@ -808,6 +1047,7 @@ window.TaggerUtils = {
   removeFromTaxonomy,
   flattenTaxonomy,
   getBrandPath,
+  looksLikePersonName,
   looksLikeBrand,
   parseEra,
   splitBrandModel,

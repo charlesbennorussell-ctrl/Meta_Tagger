@@ -5,79 +5,148 @@
 
 const DEFAULT_TAXONOMY = {
   "Design": {
-    "Graphic Design": ["Poster", "Book Design", "Magazine", "Editorial", "Packaging", "Logo", "Branding", "UI Design", "Web Design", "Typography", "Album Cover", "Print"],
+    "Graphic Design": {
+      "Print": ["Poster", "Book Design", "Magazine", "Editorial", "Packaging", "Album Cover", "Catalog", "Brochure"],
+      "Identity": ["Logo", "Branding", "Corporate Identity", "Visual Identity", "Logotype", "Wordmark"],
+      "Typography": ["Typeface", "Font", "Lettering", "Calligraphy", "Type Specimen"],
+      "Digital": ["UI Design", "Web Design", "App Design", "Interface", "UX Design", "Icon Design"],
+      "Illustration": ["Vector", "Digital Art", "Infographic", "Technical Illustration"]
+    },
     "Industrial Design": {
-      "Furniture": ["Chair", "Sofa", "Table", "Desk", "Shelving", "Lighting", "Lamp", "Bench", "Cabinet"],
-      "Audio Equipment": ["Headphones", "Speakers", "Amplifier", "Turntable", "Earbuds", "DAC", "Receiver"],
-      "Consumer Electronics": ["Phone", "Computer", "Camera", "Wearable", "Tablet", "Laptop", "Monitor"],
-      "Automotive": ["Car", "Motorcycle", "Concept Car", "Interior", "Electric Vehicle"]
+      "Furniture": ["Chair", "Sofa", "Table", "Desk", "Shelving", "Lighting", "Lamp", "Bench", "Cabinet", "Stool", "Bed"],
+      "Audio Equipment": ["Headphones", "Speakers", "Amplifier", "Turntable", "Earbuds", "DAC", "Receiver", "Radio", "Soundbar"],
+      "Consumer Electronics": ["Phone", "Computer", "Camera", "Wearable", "Tablet", "Laptop", "Monitor", "Television", "Remote"],
+      "Automotive": ["Car", "Motorcycle", "Concept Car", "Interior", "Electric Vehicle", "Bicycle", "Scooter"],
+      "Appliances": ["Kitchen", "Bathroom", "Vacuum", "Coffee Machine", "Toaster", "Blender", "Fan", "Heater"],
+      "Tools": ["Power Tools", "Hand Tools", "Office Equipment", "Medical Device"]
+    },
+    "Interior Design": {
+      "Residential": ["Living Room", "Bedroom", "Kitchen", "Bathroom", "Home Office"],
+      "Commercial": ["Office", "Retail", "Restaurant", "Hotel Lobby", "Showroom"],
+      "Exhibition": ["Gallery", "Museum", "Trade Show", "Installation"]
+    },
+    "Fashion Design": {
+      "Apparel": ["Menswear", "Womenswear", "Outerwear", "Sportswear", "Streetwear"],
+      "Accessories": ["Bags", "Shoes", "Jewelry", "Eyewear", "Watches"],
+      "Textile": ["Fabric", "Pattern", "Print", "Weave"]
     }
   },
   "Architecture": {
-    "Residential": ["House", "Villa", "Apartment", "Loft", "Cabin", "Townhouse"],
-    "Commercial": ["Office", "Retail", "Hotel", "Restaurant", "Store"],
-    "Institutional": ["Museum", "Library", "School", "Hospital", "Gallery"]
+    "Residential": ["House", "Villa", "Apartment", "Loft", "Cabin", "Townhouse", "Penthouse", "Estate"],
+    "Commercial": ["Office", "Retail", "Hotel", "Restaurant", "Store", "Mall", "Tower", "Skyscraper"],
+    "Institutional": ["Museum", "Library", "School", "Hospital", "Gallery", "University", "Theater", "Concert Hall"],
+    "Religious": ["Church", "Temple", "Mosque", "Chapel", "Shrine"],
+    "Industrial": ["Factory", "Warehouse", "Airport", "Station", "Bridge"]
   },
   "Art": {
-    "Painting": ["Oil", "Acrylic", "Watercolor", "Abstract", "Portrait"],
-    "Sculpture": ["Bronze", "Marble", "Steel", "Wood", "Installation"],
-    "Photography": ["Portrait", "Landscape", "Street", "Fashion", "Product", "Architecture", "Editorial"]
+    "Painting": ["Oil", "Acrylic", "Watercolor", "Abstract", "Portrait", "Landscape", "Still Life", "Contemporary"],
+    "Sculpture": ["Bronze", "Marble", "Steel", "Wood", "Installation", "Kinetic", "Ceramic", "Mixed Media"],
+    "Photography": {
+      "Portrait": ["Studio Portrait", "Environmental Portrait", "Editorial Portrait"],
+      "Landscape": ["Nature", "Urban Landscape", "Seascape", "Aerial"],
+      "Documentary": ["Street", "Photojournalism", "Travel", "Social Documentary"],
+      "Commercial": ["Fashion", "Product", "Architecture", "Food", "Advertising"],
+      "Fine Art": ["Conceptual", "Abstract", "Black and White", "Experimental"]
+    },
+    "Digital Art": ["3D Rendering", "CGI", "Motion Graphics", "Generative Art", "Digital Painting"],
+    "Ceramics": ["Pottery", "Porcelain", "Stoneware", "Earthenware", "Raku", "Tea Bowl"]
   },
   "Style": {
-    "Modernism": ["Bauhaus", "De Stijl", "International Style", "Swiss Style"],
-    "Contemporary": ["Minimalism", "Brutalism", "Parametric", "Scandinavian"],
-    "Historical": ["Art Nouveau", "Art Deco", "Mid-Century Modern", "Victorian", "Retro"],
-    "Origin": ["Germany", "Italy", "Japan", "Denmark", "Sweden", "United States", "United Kingdom", "France", "Switzerland", "Finland", "Netherlands"]
+    "Modernism": ["Bauhaus", "De Stijl", "International Style", "Swiss Style", "Functionalism", "Constructivism"],
+    "Contemporary": ["Minimalism", "Brutalism", "Parametric", "Scandinavian", "Japanese Minimalism", "Neo-Futurism"],
+    "Historical": ["Art Nouveau", "Art Deco", "Mid-Century Modern", "Victorian", "Retro", "Memphis", "Postmodern"],
+    "Regional": ["Nordic", "Japanese", "Italian", "German", "American", "British", "French", "Dutch"],
+    "Origin": ["Germany", "Italy", "Japan", "Denmark", "Sweden", "United States", "United Kingdom", "France", "Switzerland", "Finland", "Netherlands", "Norway", "Austria", "Belgium", "Spain"]
   },
   "Brand": {
     "Audio": ["Bang & Olufsen", "Bose", "Sony", "Sennheiser", "Focal", "Beyerdynamic", "Audio-Technica", "Grado", "HiFiMAN", "Audeze", "Master & Dynamic", "KEF", "Bowers & Wilkins", "Teenage Engineering", "Devialet", "Sonos"],
     "Electronics": ["Apple", "Samsung", "Google", "Microsoft", "Sony", "LG", "Nothing", "OnePlus", "Xiaomi"],
-    "Camera": ["Canon", "Nikon", "Leica", "Hasselblad", "Fujifilm", "Sony", "DJI", "GoPro"],
-    "Automotive": ["BMW", "Mercedes-Benz", "Porsche", "Audi", "Ferrari", "Tesla", "Volvo", "McLaren", "Rivian", "Lucid"],
-    "Furniture": ["Herman Miller", "Knoll", "Vitra", "Fritz Hansen", "HAY", "Muuto", "Cassina", "Flos", "Artemide"],
-    "Fashion": ["Gucci", "Louis Vuitton", "Chanel", "Hermes", "Prada", "Nike", "Adidas"],
-    "Appliances": ["Braun", "Dyson", "Smeg", "Balmuda", "Miele"],
-    "Watch": ["Rolex", "Omega", "Patek Philippe", "Cartier", "Grand Seiko"]
+    "Camera": ["Canon", "Nikon", "Leica", "Hasselblad", "Fujifilm", "Sony", "DJI", "GoPro", "Zeiss", "Phase One"],
+    "Automotive": ["BMW", "Mercedes-Benz", "Porsche", "Audi", "Ferrari", "Tesla", "Volvo", "McLaren", "Rivian", "Lucid", "Lamborghini", "Aston Martin"],
+    "Furniture": ["Herman Miller", "Knoll", "Vitra", "Fritz Hansen", "HAY", "Muuto", "Cassina", "Flos", "Artemide", "B&B Italia", "Carl Hansen"],
+    "Fashion": ["Gucci", "Louis Vuitton", "Chanel", "Hermes", "Prada", "Nike", "Adidas", "Comme des Garcons", "Issey Miyake"],
+    "Appliances": ["Braun", "Dyson", "Smeg", "Balmuda", "Miele", "KitchenAid", "Vitamix"],
+    "Watch": ["Rolex", "Omega", "Patek Philippe", "Cartier", "Grand Seiko", "Audemars Piguet", "IWC", "Nomos"]
   },
   "Creator": {
     "Designer": {
       "Industrial": [],
       "Graphic": [],
       "Fashion": [],
-      "Interior": []
+      "Interior": [],
+      "Product": []
     },
     "Architect": [],
-    "Artist": [],
-    "Photographer": [],
-    "Studio": []
+    "Artist": {
+      "Painter": [],
+      "Sculptor": [],
+      "Ceramicist": []
+    },
+    "Photographer": {
+      "Portrait": [],
+      "Fashion": [],
+      "Architecture": [],
+      "Documentary": []
+    },
+    "Studio": {
+      "Design Studio": [],
+      "Architecture Firm": [],
+      "Creative Agency": []
+    }
   },
   "Product": {
-    "Audio": [],
-    "Electronics": [],
-    "Automotive": [],
-    "Furniture": [],
-    "Fashion": [],
+    "Audio": {
+      "Headphones": [],
+      "Speakers": [],
+      "Amplifiers": [],
+      "Turntables": []
+    },
+    "Electronics": {
+      "Phones": [],
+      "Computers": [],
+      "Wearables": [],
+      "Tablets": []
+    },
+    "Automotive": {
+      "Cars": [],
+      "Motorcycles": [],
+      "Concepts": []
+    },
+    "Furniture": {
+      "Seating": [],
+      "Tables": [],
+      "Storage": [],
+      "Lighting": []
+    },
+    "Fashion": {
+      "Apparel": [],
+      "Accessories": [],
+      "Footwear": []
+    },
     "Appliances": [],
     "Watch": [],
-    "Camera": []
+    "Camera": {
+      "Cameras": [],
+      "Lenses": []
+    }
   },
   "Era": {
-    "Pre-War": ["1920s", "1930s"],
+    "Pre-War": ["1900s", "1910s", "1920s", "1930s"],
     "Mid-Century": ["1940s", "1950s", "1960s"],
     "Late Century": ["1970s", "1980s", "1990s"],
     "Contemporary": ["2000s", "2010s", "2020s"]
   },
   "Material": {
-    "Natural": ["Wood", "Leather", "Fabric", "Stone", "Wool", "Cotton", "Linen"],
-    "Metal": ["Aluminum", "Steel", "Brass", "Copper", "Chrome", "Titanium", "Gold", "Silver"],
-    "Synthetic": ["Plastic", "Carbon Fiber", "Acrylic", "Fiberglass", "Resin", "Rubber"],
-    "Mineral": ["Glass", "Ceramic", "Concrete", "Marble", "Granite"]
+    "Natural": ["Wood", "Leather", "Fabric", "Stone", "Wool", "Cotton", "Linen", "Cork", "Bamboo", "Rattan"],
+    "Metal": ["Aluminum", "Steel", "Brass", "Copper", "Chrome", "Titanium", "Gold", "Silver", "Bronze", "Iron"],
+    "Synthetic": ["Plastic", "Carbon Fiber", "Acrylic", "Fiberglass", "Resin", "Rubber", "Silicone", "Nylon"],
+    "Mineral": ["Glass", "Ceramic", "Concrete", "Marble", "Granite", "Porcelain", "Quartz", "Terrazzo"]
   },
   "Color": {
-    "Neutral": ["Black", "White", "Gray", "Silver", "Beige", "Cream"],
-    "Warm": ["Red", "Orange", "Yellow", "Gold", "Brown", "Copper"],
-    "Cool": ["Blue", "Green", "Teal", "Purple", "Navy"],
-    "Finish": ["Matte", "Glossy", "Satin", "Brushed", "Polished", "Natural"]
+    "Neutral": ["Black", "White", "Gray", "Silver", "Beige", "Cream", "Ivory", "Charcoal"],
+    "Warm": ["Red", "Orange", "Yellow", "Gold", "Brown", "Copper", "Terracotta", "Burgundy", "Tan"],
+    "Cool": ["Blue", "Green", "Teal", "Purple", "Navy", "Cyan", "Turquoise", "Indigo", "Violet"],
+    "Finish": ["Matte", "Glossy", "Satin", "Brushed", "Polished", "Natural", "Textured", "Patina"]
   }
 };
 
