@@ -245,6 +245,254 @@ const downloadLargerVersion = async (url, originalName) => {
   return null;
 };
 
+// Organize taxonomy - audit, fix misplacements, remove duplicates, research unknown keywords
+const organizeTaxonomy = async (apiKey, taxonomy, onProgress) => {
+  const { DEFAULT_TAXONOMY } = window.TaggerData;
+  const { flattenTaxonomy } = window.TaggerUtils;
+
+  let newTaxonomy = JSON.parse(JSON.stringify(taxonomy));
+  let totalChanges = 0;
+
+  // Phase 1: Audit taxonomies
+  onProgress({ phase: 1, message: 'Auditing taxonomies...' });
+  await new Promise(r => setTimeout(r, 100)); // Allow UI update
+
+  // Collect all items with their paths
+  const allItems = [];
+  const collectItems = (obj, path = []) => {
+    for (const [key, value] of Object.entries(obj)) {
+      if (key === '_items') {
+        value.forEach(item => allItems.push({ value: item, path: [...path] }));
+      } else if (Array.isArray(value)) {
+        value.forEach(item => allItems.push({ value: item, path: [...path, key] }));
+      } else if (typeof value === 'object' && value !== null) {
+        collectItems(value, [...path, key]);
+      }
+    }
+  };
+  collectItems(newTaxonomy);
+
+  // Phase 2: Find and fix misplaced keywords
+  const misplaced = [];
+  const defaultInfo = flattenTaxonomy(DEFAULT_TAXONOMY);
+
+  for (const item of allItems) {
+    const itemLower = item.value.toLowerCase();
+    // Check if this item exists in default taxonomy at a different path
+    if (defaultInfo.paths[itemLower]) {
+      const correctPath = defaultInfo.paths[itemLower];
+      const currentPathStr = item.path.join('>');
+      const correctPathStr = correctPath.join('>');
+      if (currentPathStr !== correctPathStr && !currentPathStr.startsWith(correctPathStr)) {
+        misplaced.push({ ...item, correctPath });
+      }
+    }
+  }
+
+  if (misplaced.length > 0) {
+    onProgress({ phase: 2, message: `Fixing ${misplaced.length} misplaced keywords...` });
+    await new Promise(r => setTimeout(r, 100));
+
+    for (const item of misplaced) {
+      // Remove from current location
+      const removeFromPath = (obj, path, value) => {
+        if (path.length === 0) return;
+        let current = obj;
+        for (let i = 0; i < path.length - 1; i++) {
+          if (!current[path[i]]) return;
+          current = current[path[i]];
+        }
+        const lastKey = path[path.length - 1];
+        if (Array.isArray(current[lastKey])) {
+          current[lastKey] = current[lastKey].filter(v => v.toLowerCase() !== value.toLowerCase());
+        } else if (current[lastKey]?._items) {
+          current[lastKey]._items = current[lastKey]._items.filter(v => v.toLowerCase() !== value.toLowerCase());
+        }
+      };
+
+      // Add to correct location
+      const addToPath = (obj, path, value) => {
+        let current = obj;
+        for (let i = 0; i < path.length; i++) {
+          const key = path[i];
+          if (i === path.length - 1) {
+            if (Array.isArray(current[key])) {
+              if (!current[key].some(v => v.toLowerCase() === value.toLowerCase())) {
+                current[key].push(value);
+              }
+            } else if (typeof current[key] === 'object' && current[key] !== null) {
+              if (!current[key]._items) current[key]._items = [];
+              if (!current[key]._items.some(v => v.toLowerCase() === value.toLowerCase())) {
+                current[key]._items.push(value);
+              }
+            }
+          } else {
+            if (!current[key]) current[key] = {};
+            current = current[key];
+          }
+        }
+      };
+
+      removeFromPath(newTaxonomy, item.path, item.value);
+      addToPath(newTaxonomy, item.correctPath, item.value);
+      totalChanges++;
+    }
+  }
+
+  // Phase 3: Remove duplicates
+  const seen = new Map();
+  const duplicates = [];
+
+  const findDuplicates = (obj, path = []) => {
+    for (const [key, value] of Object.entries(obj)) {
+      if (key === '_items') {
+        value.forEach(item => {
+          const lower = item.toLowerCase();
+          if (seen.has(lower)) {
+            duplicates.push({ value: item, path: [...path], originalPath: seen.get(lower) });
+          } else {
+            seen.set(lower, [...path]);
+          }
+        });
+      } else if (Array.isArray(value)) {
+        value.forEach(item => {
+          const lower = item.toLowerCase();
+          if (seen.has(lower)) {
+            duplicates.push({ value: item, path: [...path, key], originalPath: seen.get(lower) });
+          } else {
+            seen.set(lower, [...path, key]);
+          }
+        });
+      } else if (typeof value === 'object' && value !== null) {
+        findDuplicates(value, [...path, key]);
+      }
+    }
+  };
+  findDuplicates(newTaxonomy);
+
+  if (duplicates.length > 0) {
+    onProgress({ phase: 3, message: `Removing ${duplicates.length} duplicates...` });
+    await new Promise(r => setTimeout(r, 100));
+
+    for (const dup of duplicates) {
+      const removeFromPath = (obj, path, value) => {
+        if (path.length === 0) return;
+        let current = obj;
+        for (let i = 0; i < path.length - 1; i++) {
+          if (!current[path[i]]) return;
+          current = current[path[i]];
+        }
+        const lastKey = path[path.length - 1];
+        if (Array.isArray(current[lastKey])) {
+          current[lastKey] = current[lastKey].filter(v => v.toLowerCase() !== value.toLowerCase());
+        } else if (current[lastKey]?._items) {
+          current[lastKey]._items = current[lastKey]._items.filter(v => v.toLowerCase() !== value.toLowerCase());
+        }
+      };
+      removeFromPath(newTaxonomy, dup.path, dup.value);
+      totalChanges++;
+    }
+  }
+
+  // Phase 4: Research uncategorized keywords using Gemini
+  const uncategorized = [];
+  const findUncategorized = (obj, path = []) => {
+    for (const [key, value] of Object.entries(obj)) {
+      const currentPath = [...path, key];
+      if ((key === 'Custom' || key === 'Uncategorized') && path.length === 0) {
+        if (Array.isArray(value)) {
+          uncategorized.push(...value);
+        } else if (value?._items) {
+          uncategorized.push(...value._items);
+        }
+      }
+    }
+  };
+  findUncategorized(newTaxonomy);
+
+  if (uncategorized.length > 0 && apiKey) {
+    const batchSize = 20;
+    const batches = Math.ceil(uncategorized.length / batchSize);
+
+    for (let i = 0; i < batches; i++) {
+      const batch = uncategorized.slice(i * batchSize, (i + 1) * batchSize);
+      onProgress({ phase: 4, message: `Researching keywords (batch ${i + 1}/${batches})...` });
+
+      try {
+        const categorized = await categorizeKeywords(apiKey, batch);
+
+        for (const result of categorized) {
+          if (result.path && result.path.length > 0 && result.path[0] !== 'Custom') {
+            // Remove from Custom/Uncategorized
+            if (newTaxonomy.Custom) {
+              if (Array.isArray(newTaxonomy.Custom)) {
+                newTaxonomy.Custom = newTaxonomy.Custom.filter(v => v.toLowerCase() !== result.keyword.toLowerCase());
+              } else if (newTaxonomy.Custom._items) {
+                newTaxonomy.Custom._items = newTaxonomy.Custom._items.filter(v => v.toLowerCase() !== result.keyword.toLowerCase());
+              }
+            }
+            if (newTaxonomy.Uncategorized) {
+              if (Array.isArray(newTaxonomy.Uncategorized)) {
+                newTaxonomy.Uncategorized = newTaxonomy.Uncategorized.filter(v => v.toLowerCase() !== result.keyword.toLowerCase());
+              } else if (newTaxonomy.Uncategorized._items) {
+                newTaxonomy.Uncategorized._items = newTaxonomy.Uncategorized._items.filter(v => v.toLowerCase() !== result.keyword.toLowerCase());
+              }
+            }
+
+            // Add to correct path
+            let current = newTaxonomy;
+            for (let j = 0; j < result.path.length; j++) {
+              const key = result.path[j];
+              if (j === result.path.length - 1) {
+                if (Array.isArray(current[key])) {
+                  if (!current[key].some(v => v.toLowerCase() === result.keyword.toLowerCase())) {
+                    current[key].push(result.keyword);
+                    totalChanges++;
+                  }
+                } else if (typeof current[key] === 'object' && current[key] !== null) {
+                  if (!current[key]._items) current[key]._items = [];
+                  if (!current[key]._items.some(v => v.toLowerCase() === result.keyword.toLowerCase())) {
+                    current[key]._items.push(result.keyword);
+                    totalChanges++;
+                  }
+                } else if (current[key] === undefined) {
+                  current[key] = [result.keyword];
+                  totalChanges++;
+                }
+              } else {
+                if (!current[key]) current[key] = {};
+                current = current[key];
+              }
+            }
+          }
+        }
+      } catch (e) {
+        console.error('[ORGANIZE] Error categorizing batch:', e);
+      }
+    }
+  }
+
+  // Clean up empty Custom/Uncategorized
+  if (newTaxonomy.Custom) {
+    if (Array.isArray(newTaxonomy.Custom) && newTaxonomy.Custom.length === 0) {
+      delete newTaxonomy.Custom;
+    } else if (newTaxonomy.Custom._items && newTaxonomy.Custom._items.length === 0) {
+      delete newTaxonomy.Custom;
+    }
+  }
+  if (newTaxonomy.Uncategorized) {
+    if (Array.isArray(newTaxonomy.Uncategorized) && newTaxonomy.Uncategorized.length === 0) {
+      delete newTaxonomy.Uncategorized;
+    } else if (newTaxonomy.Uncategorized._items && newTaxonomy.Uncategorized._items.length === 0) {
+      delete newTaxonomy.Uncategorized;
+    }
+  }
+
+  onProgress({ phase: 5, message: `Done! ${totalChanges} changes made.`, done: true });
+
+  return { taxonomy: newTaxonomy, changes: totalChanges };
+};
+
 // Export for use in other modules
 window.TaggerAPI = {
   analyzeWithGemini,
@@ -252,7 +500,8 @@ window.TaggerAPI = {
   categorizeKeywords,
   consolidateKeywords,
   analyzeWithVision,
-  downloadLargerVersion
+  downloadLargerVersion,
+  organizeTaxonomy
 };
 
 })();

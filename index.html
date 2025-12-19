@@ -123,7 +123,7 @@
       extractFromFilename, extractFromUrls, extractExistingMetadata, generateXMP,
       embedXMP, embedXMPinPNG, convertToJPEG, isRawFormat, supportsEmbedding
     } = window.TaggerUtils;
-    const { analyzeWithGemini, findDesigner, categorizeKeywords, consolidateKeywords, analyzeWithVision, downloadLargerVersion } = window.TaggerAPI;
+    const { analyzeWithGemini, findDesigner, categorizeKeywords, consolidateKeywords, analyzeWithVision, downloadLargerVersion, organizeTaxonomy } = window.TaggerAPI;
 
     // ============================================
     // REACT COMPONENTS (must be in Babel block for JSX)
@@ -253,6 +253,8 @@
       const [expanded, setExpanded] = useState({});
       const [customInput, setCustomInput] = useState('');
       const [isCategorizing, setIsCategorizing] = useState(false);
+      const [isOrganizing, setIsOrganizing] = useState(false);
+      const [organizeStatus, setOrganizeStatus] = useState('Organize');
       const [gridWidth, setGridWidth] = useState(() => parseInt(localStorage.getItem('grid_width')) || 50); // percentage
       const [isDraggingDivider, setIsDraggingDivider] = useState(false);
 
@@ -1165,6 +1167,36 @@
         }
       };
 
+      const runOrganize = async () => {
+        if (!geminiKey || isOrganizing) return;
+
+        setIsOrganizing(true);
+        setOrganizeStatus('Starting...');
+
+        try {
+          const result = await organizeTaxonomy(geminiKey, taxonomy, (progress) => {
+            if (progress.done) {
+              setOrganizeStatus(progress.message);
+              // Reset to "Organize" after 3 seconds
+              setTimeout(() => setOrganizeStatus('Organize'), 3000);
+            } else {
+              setOrganizeStatus(progress.message);
+            }
+          });
+
+          if (result.changes > 0) {
+            setTaxonomy(result.taxonomy);
+            console.log(`[ORGANIZE] Made ${result.changes} changes to taxonomy`);
+          }
+        } catch (e) {
+          console.error('[ORGANIZE] Error:', e);
+          setOrganizeStatus('Error!');
+          setTimeout(() => setOrganizeStatus('Organize'), 3000);
+        } finally {
+          setIsOrganizing(false);
+        }
+      };
+
       const customCount = getCustomKeywords().length;
 
       // Auto-run categorization when custom keywords accumulate
@@ -1658,6 +1690,13 @@
                     <button onClick={runCategorization} disabled={isCategorizing || !geminiKey} tabIndex={-1}
                       style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 10px', background: isCategorizing ? '#374151' : '#ec4899', color: isCategorizing ? '#9ca3af' : 'white', border: 'none', borderRadius: s.radiusSm, cursor: isCategorizing ? 'default' : 'pointer', fontSize: 13 }}>
                       <Icon name={isCategorizing ? "hourglass_empty" : "auto_fix_high"} size={16} /> {customCount}
+                    </button>
+                  )}
+                  {showMasterTaxonomy && (
+                    <button onClick={runOrganize} disabled={isOrganizing || !geminiKey} tabIndex={-1}
+                      style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 10px', background: isOrganizing ? '#374151' : '#8b5cf6', color: isOrganizing ? '#9ca3af' : 'white', border: 'none', borderRadius: s.radiusSm, cursor: isOrganizing ? 'default' : 'pointer', fontSize: 13, minWidth: 80 }}>
+                      <Icon name={isOrganizing ? "hourglass_empty" : "auto_awesome"} size={16} />
+                      <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 150 }}>{organizeStatus}</span>
                     </button>
                   )}
                   <button onClick={() => setShowMasterTaxonomy(!showMasterTaxonomy)} tabIndex={-1}
