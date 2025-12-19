@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(start \"\" \"C:\\Users\\benno\\.claude-worktrees\\Meta_Tagger\\determined-haslett\\index.html\")",
+      "Bash(dir:*)",
+      "Bash(python -m http.server:*)",
+      "Bash(start http://localhost:8080)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push)",
+      "Bash(git push:*)"
+    ]
+  }
+}

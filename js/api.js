@@ -108,6 +108,49 @@ Only return the JSON array.` }] }],
   }
 };
 
+// Consolidate review keywords by finding EXACT or near-exact matching master taxonomy terms
+const consolidateKeywords = async (apiKey, reviewKeywords, masterTerms) => {
+  if (!apiKey || reviewKeywords.length === 0 || masterTerms.length === 0) return [];
+
+  try {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: `Find EXACT or near-exact matches between review keywords and master taxonomy terms.
+
+STRICT RULES - Only match if:
+1. Exact same word with different case: "headphones" = "Headphones" ✓
+2. Singular/plural of same word: "Speaker" = "Speakers" ✓
+3. Common spelling variation: "aluminium" = "aluminum" ✓
+4. Well-known abbreviation of SAME entity: "B&O" = "Bang & Olufsen" ✓
+
+DO NOT match:
+- Generic terms to specific brands: "headphone" to "Sony" ✗
+- Categories to items: "audio" to "Headphones" ✗
+- Related but different things: "music" to "Speakers" ✗
+- Brand names to category names: "Sony" to "Brand" ✗
+
+Review keywords: ${reviewKeywords.join(', ')}
+
+Master taxonomy terms: ${masterTerms.slice(0, 200).join(', ')}
+
+Return JSON array: [{"review": "original keyword", "master": "matching master term", "confidence": 0.95}]
+Only return matches where the words refer to the EXACT same thing.
+Return empty array [] if no exact matches exist.` }] }],
+        generationConfig: { temperature: 0.0, maxOutputTokens: 2048 }
+      })
+    });
+    if (!response.ok) return [];
+    const text = (await response.json()).candidates?.[0]?.content?.parts?.[0]?.text || '';
+    const match = text.match(/\[[\s\S]*\]/);
+    return match ? JSON.parse(match[0]) : [];
+  } catch (e) {
+    console.error('[CONSOLIDATE] Error:', e);
+    return [];
+  }
+};
+
 const analyzeWithVision = async (apiKey, imageBase64) => {
   const { extractFromUrls } = window.TaggerUtils;
 
@@ -207,6 +250,7 @@ window.TaggerAPI = {
   analyzeWithGemini,
   findDesigner,
   categorizeKeywords,
+  consolidateKeywords,
   analyzeWithVision,
   downloadLargerVersion
 };

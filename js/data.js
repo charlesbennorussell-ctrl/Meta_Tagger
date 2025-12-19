@@ -235,11 +235,12 @@ const NATIONALITY_TO_COUNTRY = {
 const ROOT_COLORS = {
   'Design': '#a78bfa', 'Architecture': '#f87171', 'Art': '#f472b6', 'Style': '#4ade80',
   'Brand': '#fbbf24', 'Creator': '#c084fc', 'Era': '#fb923c', 'Product': '#60a5fa',
-  'Material': '#22d3d1', 'Color': '#94a3b8', 'Custom': '#ec4899'
+  'Material': '#22d3d1', 'Color': '#94a3b8', 'Custom': '#6b7280', 'Uncategorized': '#6b7280'
 };
 
 const STORAGE_KEY = 'tagger_memory';
 const TAXONOMY_KEY = 'tagger_taxonomy';
+const ANALYSIS_CACHE_KEY = 'tagger_analysis_cache';
 
 // Export for use in other modules
 window.TaggerData = {
@@ -254,7 +255,8 @@ window.TaggerData = {
   NATIONALITY_TO_COUNTRY,
   ROOT_COLORS,
   STORAGE_KEY,
-  TAXONOMY_KEY
+  TAXONOMY_KEY,
+  ANALYSIS_CACHE_KEY
 };
 
 })();

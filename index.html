@@ -7,18 +7,26 @@
   <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://unpkg.com/framer-motion@11/dist/framer-motion.js"></script>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { overflow: hidden; background: #0a0a0a; }
-    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    body { overflow: hidden; background: #0a0a0a; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
     ::-webkit-scrollbar-track { background: #111; }
-    ::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
-    #drop-overlay { display: none; position: fixed; inset: 0; background: rgba(96,165,250,0.2); border: 4px dashed #60a5fa; z-index: 9999; align-items: center; justify-content: center; }
+    ::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #444; }
+    #drop-overlay { display: none; position: fixed; inset: 0; background: rgba(96,165,250,0.15); border: 3px dashed #60a5fa; z-index: 9999; align-items: center; justify-content: center; backdrop-filter: blur(4px); }
     #drop-overlay.active { display: flex; }
+    .material-symbols-rounded { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; vertical-align: middle; }
+    .material-symbols-rounded.filled { font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+    button { transition: all 0.15s ease; }
+    button:hover:not(:disabled) { filter: brightness(1.1); }
+    button:active:not(:disabled) { transform: scale(0.98); }
   </style>
 </head>
 <body>
-  <div id="drop-overlay"><div style="background: rgba(0,0,0,0.9); padding: 32px 64px; border-radius: 16px; color: #60a5fa; font-size: 20px; font-family: system-ui;">📁 Drop images or folder here</div></div>
+  <div id="drop-overlay"><div style="background: rgba(0,0,0,0.95); padding: 40px 72px; border-radius: 20px; color: #60a5fa; font-size: 16px; display: flex; align-items: center; gap: 16px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);"><span class="material-symbols-rounded" style="font-size: 36px;">upload_file</span> Drop images or folder here</div></div>
   <div id="root"></div>
 
   <script>
@@ -35,36 +43,55 @@
 
     async function extractFiles(dataTransfer) {
       const files = [];
+      const entries = [];
+
+      // First, collect all entries (must be done synchronously before promises)
+      const items = dataTransfer.items;
+      if (items?.length > 0) {
+        for (let i = 0; i < items.length; i++) {
+          const entry = items[i].webkitGetAsEntry?.();
+          if (entry) entries.push(entry);
+        }
+      }
+
+      console.log('[EXTRACT] Items:', items?.length, 'Entries:', entries.length);
+
       async function processEntry(entry) {
         if (!entry) return;
         if (entry.isFile) {
           try {
             const file = await new Promise((resolve, reject) => entry.file(resolve, reject));
-            if (file.type.startsWith('image/')) files.push(file);
-          } catch (e) {}
+            if (file.type.startsWith('image/')) {
+              console.log('[EXTRACT] Found image:', file.name);
+              files.push(file);
+            }
+          } catch (e) { console.error('[EXTRACT] Error getting file:', e); }
         } else if (entry.isDirectory) {
           const reader = entry.createReader();
-          let entries = [];
+          let dirEntries = [];
           while (true) {
             const batch = await new Promise((resolve) => reader.readEntries(resolve, () => resolve([])));
             if (batch.length === 0) break;
-            entries = entries.concat(batch);
+            dirEntries = dirEntries.concat(batch);
           }
-          for (const e of entries) await processEntry(e);
+          for (const e of dirEntries) await processEntry(e);
         }
       }
-      const items = dataTransfer.items;
-      if (items?.length > 0) {
-        for (let i = 0; i < items.length; i++) {
-          const entry = items[i].webkitGetAsEntry?.();
-          if (entry) await processEntry(entry);
-        }
+
+      // Process all entries
+      for (const entry of entries) {
+        await processEntry(entry);
       }
+
+      // Fallback to dataTransfer.files if no entries worked
       if (files.length === 0 && dataTransfer.files) {
+        console.log('[EXTRACT] Fallback to dataTransfer.files:', dataTransfer.files.length);
         for (let i = 0; i < dataTransfer.files.length; i++) {
           if (dataTransfer.files[i].type.startsWith('image/')) files.push(dataTransfer.files[i]);
         }
       }
+
+      console.log('[EXTRACT] Total files:', files.length);
       return files;
     }
   </script>
@@ -76,6 +103,15 @@
 
   <script type="text/babel">
     const { useState, useRef, useEffect, useMemo, useCallback } = React;
+    const { motion, AnimatePresence } = window.Motion;
+
+    // Icon component for Material Symbols
+    const Icon = ({ name, size = 20, filled = false, style = {} }) => (
+      <span
+        className={`material-symbols-rounded${filled ? ' filled' : ''}`}
+        style={{ fontSize: size, ...style }}
+      >{name}</span>
+    );
 
     // Import from modules
     const { DEFAULT_TAXONOMY, ROOT_COLORS, STORAGE_KEY, TAXONOMY_KEY } = window.TaggerData;
@@ -83,10 +119,11 @@
       smartCategorize, addToTaxonomy, removeFromTaxonomy, flattenTaxonomy,
       getBrandPath, looksLikeBrand, parseEra, splitBrandModel, deduplicateKeywords,
       buildTree, countKeywords, hashFile, getBaseName, loadMemory, saveMemory,
+      getCachedAnalysis, setCachedAnalysis,
       extractFromFilename, extractFromUrls, extractExistingMetadata, generateXMP,
       embedXMP, embedXMPinPNG, convertToJPEG, isRawFormat, supportsEmbedding
     } = window.TaggerUtils;
-    const { analyzeWithGemini, findDesigner, categorizeKeywords, analyzeWithVision, downloadLargerVersion } = window.TaggerAPI;
+    const { analyzeWithGemini, findDesigner, categorizeKeywords, consolidateKeywords, analyzeWithVision, downloadLargerVersion } = window.TaggerAPI;
 
     // ============================================
     // REACT COMPONENTS (must be in Babel block for JSX)
@@ -101,20 +138,22 @@
       const color = ROOT_COLORS[node._path?.[0]] || '#94a3b8';
 
       return (
-        <div style={{ marginLeft: depth > 0 ? 12 : 0 }}>
+        <div style={{ marginLeft: depth > 0 ? 16 : 0 }}>
           <div onClick={() => (hasChildren || keywords.length > 0) && onToggle(pathKey)}
-            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 6px', borderRadius: 4, cursor: 'pointer', background: depth === 0 ? 'rgba(255,255,255,0.03)' : 'transparent' }}>
-            <span style={{ fontSize: 9, color: '#555', width: 10 }}>{(hasChildren || keywords.length > 0) ? (isExpanded ? '▼' : '▶') : ''}</span>
-            {depth === 0 && <span style={{ width: 8, height: 8, borderRadius: 3, background: color }} />}
-            <span style={{ flex: 1, color: depth === 0 ? '#e5e5e5' : '#aaa', fontSize: 11 }}>{name}</span>
-            <span style={{ color: '#666', fontSize: 10 }}>{count}</span>
+            style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', borderRadius: 6, cursor: 'pointer', background: depth === 0 ? 'rgba(255,255,255,0.03)' : 'transparent' }}>
+            <Icon name={isExpanded ? "expand_more" : "chevron_right"} size={16} style={{ color: '#4b5563', opacity: (hasChildren || keywords.length > 0) ? 1 : 0 }} />
+            {depth === 0 && <span style={{ width: 10, height: 10, borderRadius: 4, background: color }} />}
+            <span style={{ flex: 1, color: depth === 0 ? '#f3f4f6' : '#9ca3af', fontSize: 13 }}>{name}</span>
+            <span style={{ color: '#6b7280', fontSize: 12 }}>{count}</span>
           </div>
           {isExpanded && keywords.length > 0 && (
-            <div style={{ marginLeft: 20, marginTop: 4, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+            <div style={{ marginLeft: 28, marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
               {keywords.map(kw => (
-                <span key={kw.id} style={{ padding: '2px 6px', background: `${color}20`, color, borderRadius: 3, fontSize: 10, display: 'flex', alignItems: 'center', gap: 4 }}>
+                <span key={kw.id} style={{ padding: '4px 10px', background: `${color}15`, color, borderRadius: 16, fontSize: 12, display: 'flex', alignItems: 'center', gap: 6, border: `1px solid ${color}25` }}>
                   {kw.value}
-                  <span onClick={(e) => { e.stopPropagation(); onDeleteKeyword(kw.id); }} style={{ cursor: 'pointer', opacity: 0.5, fontSize: 8 }}>✕</span>
+                  <span onClick={(e) => { e.stopPropagation(); onDeleteKeyword(kw.id); }} style={{ cursor: 'pointer', opacity: 0.6, display: 'flex' }}>
+                    <Icon name="close" size={12} />
+                  </span>
                 </span>
               ))}
             </div>
@@ -146,19 +185,21 @@
       const hasContent = hasChildren || hasItems;
 
       return (
-        <div style={{ marginLeft: depth > 0 ? 12 : 0 }}>
+        <div style={{ marginLeft: depth > 0 ? 16 : 0 }}>
           <div onClick={() => hasContent && onToggle(pathKey)}
-            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 6px', borderRadius: 4, cursor: hasContent ? 'pointer' : 'default', background: depth === 0 ? 'rgba(255,255,255,0.03)' : 'transparent' }}>
-            <span style={{ fontSize: 9, color: '#555', width: 10 }}>{hasContent ? (isExpanded ? '▼' : '▶') : ''}</span>
-            {depth === 0 && <span style={{ width: 8, height: 8, borderRadius: 3, background: color }} />}
-            <span style={{ flex: 1, color: depth === 0 ? '#e5e5e5' : '#aaa', fontSize: 11 }}>{name}</span>
+            style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', borderRadius: 6, cursor: hasContent ? 'pointer' : 'default', background: depth === 0 ? 'rgba(255,255,255,0.03)' : 'transparent' }}>
+            <Icon name={isExpanded ? "expand_more" : "chevron_right"} size={16} style={{ color: '#4b5563', opacity: hasContent ? 1 : 0 }} />
+            {depth === 0 && <span style={{ width: 10, height: 10, borderRadius: 4, background: color }} />}
+            <span style={{ flex: 1, color: depth === 0 ? '#f3f4f6' : '#9ca3af', fontSize: 13 }}>{name}</span>
           </div>
           {isExpanded && hasItems && (
-            <div style={{ marginLeft: 20, marginTop: 4, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+            <div style={{ marginLeft: 28, marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
               {items.map((item, idx) => (
-                <span key={`${pathKey}-${item}-${idx}`} style={{ padding: '2px 6px', background: `${color}20`, color, borderRadius: 3, fontSize: 10, display: 'flex', alignItems: 'center', gap: 4 }}>
+                <span key={`${pathKey}-${item}-${idx}`} style={{ padding: '4px 10px', background: `${color}15`, color, borderRadius: 16, fontSize: 12, display: 'flex', alignItems: 'center', gap: 6, border: `1px solid ${color}25` }}>
                   {item}
-                  <span onClick={(e) => { e.stopPropagation(); onDelete(currentPath, item); }} style={{ cursor: 'pointer', opacity: 0.5, fontSize: 8 }}>✕</span>
+                  <span onClick={(e) => { e.stopPropagation(); onDelete(currentPath, item); }} style={{ cursor: 'pointer', opacity: 0.6, display: 'flex' }}>
+                    <Icon name="close" size={12} />
+                  </span>
                 </span>
               ))}
             </div>
@@ -212,12 +253,15 @@
       const [expanded, setExpanded] = useState({});
       const [customInput, setCustomInput] = useState('');
       const [isCategorizing, setIsCategorizing] = useState(false);
+      const [gridWidth, setGridWidth] = useState(() => parseInt(localStorage.getItem('grid_width')) || 50); // percentage
+      const [isDraggingDivider, setIsDraggingDivider] = useState(false);
 
       const fileRef = useRef(null);
       const folderRef = useRef(null);
       const acceptedRef = useRef(new Set());
       const blockedRef = useRef(new Set());
       const containerRef = useRef(null);
+      const mainPanelRef = useRef(null);
 
       useEffect(() => { acceptedRef.current = new Set(accepted.map(k => k.value.toLowerCase())); }, [accepted]);
       useEffect(() => { blockedRef.current = new Set(blocked.map(k => k.value.toLowerCase())); }, [blocked]);
@@ -277,11 +321,55 @@
 
       useEffect(() => { saveMemory(memory); }, [memory]);
       useEffect(() => { localStorage.setItem(TAXONOMY_KEY, JSON.stringify(taxonomy)); }, [taxonomy]);
+      useEffect(() => { localStorage.setItem('grid_width', gridWidth.toString()); }, [gridWidth]);
+
+      // Divider drag handlers
+      const handleDividerMouseDown = useCallback((e) => {
+        e.preventDefault();
+        setIsDraggingDivider(true);
+      }, []);
+
+      useEffect(() => {
+        if (!isDraggingDivider) return;
+
+        const handleMouseMove = (e) => {
+          const container = mainPanelRef.current;
+          if (!container) return;
+          const rect = container.getBoundingClientRect();
+          const taxonomyWidth = 375; // fixed taxonomy panel width
+          const dividerWidth = 12;
+          const availableWidth = rect.width - taxonomyWidth - dividerWidth;
+          const mouseX = e.clientX - rect.left;
+          // Calculate as percentage of available width (excluding taxonomy)
+          const newGridWidth = Math.max(20, Math.min(80, (mouseX / availableWidth) * 100));
+          setGridWidth(Math.round(newGridWidth));
+        };
+
+        const handleMouseUp = () => {
+          setIsDraggingDivider(false);
+        };
+
+        // Add cursor style to body during drag for consistent cursor
+        document.body.style.cursor = 'col-resize';
+        document.body.style.userSelect = 'none';
+
+        document.addEventListener('mousemove', handleMouseMove);
+        document.addEventListener('mouseup', handleMouseUp);
+        return () => {
+          document.body.style.cursor = '';
+          document.body.style.userSelect = '';
+          document.removeEventListener('mousemove', handleMouseMove);
+          document.removeEventListener('mouseup', handleMouseUp);
+        };
+      }, [isDraggingDivider]);
 
       const queueRef = useRef(queue);
       const memoryRef = useRef(memory);
+      const geminiKeyRef = useRef(geminiKey);
+      const analyzeImageRef = useRef(null);
       useEffect(() => { queueRef.current = queue; }, [queue]);
       useEffect(() => { memoryRef.current = memory; }, [memory]);
+      useEffect(() => { geminiKeyRef.current = geminiKey; }, [geminiKey]);
 
       useEffect(() => {
         window.onFilesDropped = async (files) => { await processFilesRef.current(files); };
@@ -290,7 +378,9 @@
 
       const processFilesRef = useRef(null);
       processFilesRef.current = async (files) => {
+        console.log('[DROP] Received files:', files.length, files.map(f => f.name));
         const imgs = files.filter(f => f.type.startsWith('image/'));
+        console.log('[DROP] Image files:', imgs.length);
         if (!imgs.length) return;
 
         const currentMemory = memoryRef.current;
@@ -300,6 +390,7 @@
           const filenameKws = extractFromFilename(file.name);
           const existingKws = await extractExistingMetadata(file);
 
+          console.log('[DROP] Processing:', file.name, 'hash:', hash);
           return {
             id: hash, name: file.name, file, url: URL.createObjectURL(file),
             baseName: getBaseName(file.name),
@@ -314,7 +405,20 @@
 
         const existingIds = new Set(queueRef.current.map(q => q.id));
         const uniqueItems = newItems.filter(item => !existingIds.has(item.id));
-        if (uniqueItems.length > 0) setQueue(prev => [...prev, ...uniqueItems]);
+        console.log('[DROP] New items:', newItems.length, 'Unique:', uniqueItems.length, 'Existing IDs:', existingIds.size);
+
+        if (uniqueItems.length > 0) {
+          setQueue(prev => [...prev, ...uniqueItems]);
+          // Auto-analyze pending items after a short delay to let state update
+          setTimeout(() => {
+            if (geminiKeyRef.current) {
+              console.log('[AUTO-ANALYZE] Starting analysis of', uniqueItems.length, 'items');
+              uniqueItems.filter(item => item.status === 'pending').forEach(item => {
+                analyzeImageRef.current?.(item);
+              });
+            }
+          }, 100);
+        }
       };
 
       const handleFileInput = (e) => {
@@ -477,6 +581,55 @@
         setDownloadedLarger(null);
 
         try {
+          // Check cache first
+          const cached = getCachedAnalysis(img.hash);
+          if (cached) {
+            console.log('[ANALYZE] Using cached analysis for:', img.name);
+            // Re-process cached keywords through the categorization logic
+            const rawKws = cached.rawKeywords || [];
+            const visionResult = cached.visionData || null;
+            const designerInfo = cached.designer || null;
+
+            // Process keywords (same logic as fresh analysis)
+            const processedKws = rawKws.map(kw => {
+              const path = smartCategorize(kw);
+              return { ...kw, id: kw.id || Math.random().toString(36), path, rootCategory: path[0] };
+            });
+            const allKws = deduplicateKeywords(processedKws);
+            const currentAccepted = acceptedRef.current;
+            const currentBlocked = blockedRef.current;
+
+            const auto = [], review = [];
+            allKws.forEach(kw => {
+              const key = kw.value.toLowerCase();
+              if (currentBlocked.has(key)) return;
+              const inMaster = taxInfo.allTerms.has(key);
+              // Only auto-accept if in master taxonomy
+              // All other keywords go to review for user approval
+              if (inMaster) {
+                auto.push(kw);
+              } else {
+                review.push(kw);
+              }
+            });
+
+            setQueue(q => q.map(i => i.id === img.id ? {
+              ...i, status: 'ready', keywords: auto, pending: review,
+              designer: designerInfo, visionData: visionResult
+            } : i));
+
+            if (auto.length) {
+              setAccepted(prev => {
+                const updated = [...prev];
+                auto.forEach(kw => {
+                  if (!updated.some(a => a.value.toLowerCase() === kw.value.toLowerCase())) updated.push(kw);
+                });
+                return updated;
+              });
+            }
+            return;
+          }
+
           const base64 = await new Promise((res, rej) => {
             const r = new FileReader();
             r.onload = () => res(r.result.split(',')[1]);
@@ -584,20 +737,10 @@
               return;
             }
             const inMaster = taxInfo.allTerms.has(key);
-            const inSession = currentAccepted.has(key);
-            const isDesigner = kw.type === 'designer' || kw.rootCategory === 'Creator';
-            const isBrand = kw.type === 'brand' || kw.rootCategory === 'Brand';
-            const isEra = kw.type === 'era' || kw.rootCategory === 'Era' || /^\d{4}s$/.test(kw.value);
-            const knownCountries = ['Germany', 'Italy', 'Japan', 'Denmark', 'Sweden', 'United States', 'United Kingdom', 'France', 'Switzerland', 'Finland', 'Netherlands', 'Norway', 'Austria', 'Belgium', 'Spain', 'Portugal', 'Brazil', 'Mexico', 'Canada', 'Australia', 'China', 'South Korea', 'India', 'Russia', 'Poland', 'Czech Republic', 'Hungary', 'Greece', 'Turkey', 'Israel', 'South Africa', 'Argentina', 'Chile', 'Colombia', 'Iceland', 'Ireland', 'Scotland', 'Wales', 'USA', 'UK'];
-            const isCountry = kw.type === 'country' || (kw.path && kw.path.includes('Origin')) || knownCountries.some(c => c.toLowerCase() === kw.value.toLowerCase());
-            const isModel = kw.type === 'model' || kw.rootCategory === 'Product';
-            if (inMaster || inSession || isDesigner || isBrand || isEra || isCountry || isModel) {
-              if (isCountry && (!kw.path || !kw.path.includes('Origin'))) {
-                kw.path = ['Style', 'Origin'];
-                kw.rootCategory = 'Style';
-                kw.type = 'country';
-              }
-              console.log(`[ANALYZE] Auto-accept: "${kw.value}" (master: ${inMaster}, session: ${inSession}, designer: ${isDesigner}, brand: ${isBrand}, era: ${isEra}, country: ${isCountry}, model: ${isModel})`);
+            // Only auto-accept if in master taxonomy
+            // All other keywords go to review for user approval
+            if (inMaster) {
+              console.log(`[ANALYZE] Auto-accept: "${kw.value}" (in master taxonomy)`);
               auto.push(kw);
             } else {
               review.push(kw);
@@ -605,6 +748,13 @@
           });
 
           console.log(`[ANALYZE] Result: ${auto.length} auto-accepted, ${review.length} for review`);
+
+          // Cache the raw analysis results
+          setCachedAnalysis(img.hash, {
+            rawKeywords: processedKws,
+            visionData: visionResult,
+            designer: designerInfo
+          });
 
           setQueue(q => q.map(i => i.id === img.id ? {
             ...i, status: 'ready', keywords: auto, pending: review,
@@ -625,6 +775,9 @@
           setQueue(q => q.map(i => i.id === img.id ? { ...i, status: 'error' } : i));
         }
       }, [geminiKey, visionKey, useVision, autoDownloadLarger, outputDir, taxInfo, findPath]);
+
+      // Keep ref updated for use in processFiles
+      useEffect(() => { analyzeImageRef.current = analyzeImage; }, [analyzeImage]);
 
       const selectImage = useCallback(async (id) => {
         if (isEditing && selectedImg && keywords.length > 0) {
@@ -655,7 +808,25 @@
       }, [queue, isEditing, selectedImg, keywords, designer, analyzeImage, saveImage]);
 
       const analyzeAllPending = () => {
-        filteredQueue.filter(q => q.status === 'pending').forEach(img => analyzeImage(img));
+        const pendingImgs = queue.filter(q => q.status === 'pending' && !q.hidden);
+        console.log('[ANALYZE ALL] Found', pendingImgs.length, 'pending images, geminiKey:', !!geminiKey);
+        pendingImgs.forEach(img => analyzeImage(img));
+      };
+
+      const reanalyzeSelected = () => {
+        if (!selectedImg || !geminiKey) return;
+        // Clear cache for this image
+        try {
+          const cacheKey = 'tagger_analysis_cache';
+          const cache = JSON.parse(localStorage.getItem(cacheKey) || '{}');
+          delete cache[selectedImg.hash];
+          localStorage.setItem(cacheKey, JSON.stringify(cache));
+        } catch (e) { console.error('[REANALYZE] Cache clear failed:', e); }
+        // Reset to pending and re-analyze
+        setQueue(q => q.map(i => i.id === selectedImg.id ? { ...i, status: 'pending', keywords: [], pending: [] } : i));
+        setKeywords([]);
+        setPending([]);
+        analyzeImage({ ...selectedImg, status: 'pending' });
       };
 
       const [isSavingAll, setIsSavingAll] = useState(false);
@@ -704,15 +875,30 @@
         }));
       };
 
-      const accept = (id) => {
+      const accept = async (id) => {
         const kw = pending.find(k => k.id === id);
         if (kw) {
           console.log(`[ACCEPT] Accepting keyword: "${kw.value}"`);
           setPending(p => p.filter(k => k.id !== id));
-          const newKeywords = [...keywords, kw];
+
+          // If keyword is uncategorized (Custom), try to categorize it via API
+          let categorizedKw = kw;
+          if (kw.path?.[0] === 'Custom' && geminiKey) {
+            try {
+              const results = await categorizeKeywords(geminiKey, [kw.value]);
+              if (results.length > 0 && results[0].path) {
+                categorizedKw = { ...kw, path: results[0].path, rootCategory: results[0].path[0], type: results[0].type || kw.type };
+                console.log(`[ACCEPT] Categorized "${kw.value}" as:`, results[0].path);
+              }
+            } catch (e) {
+              console.error('[ACCEPT] Categorization failed:', e);
+            }
+          }
+
+          const newKeywords = [...keywords, categorizedKw];
           setKeywords(newKeywords);
-          setAccepted(a => a.some(x => x.value.toLowerCase() === kw.value.toLowerCase()) ? a : [...a, kw]);
-          setTaxonomy(t => addToTaxonomy(t, kw));
+          setAccepted(a => a.some(x => x.value.toLowerCase() === categorizedKw.value.toLowerCase()) ? a : [...a, categorizedKw]);
+          setTaxonomy(t => addToTaxonomy(t, categorizedKw));
           setModified(true);
           setIsEditing(true);
 
@@ -723,9 +909,9 @@
               setQueue(q => q.map(img => {
                 if (similar.some(s => s.id === img.id)) {
                   const existingVals = new Set((img.keywords || []).map(k => k.value.toLowerCase()));
-                  if (!existingVals.has(kw.value.toLowerCase())) {
-                    console.log(`[ACCEPT] Syncing "${kw.value}" to "${img.name}"`);
-                    const syncedKw = { ...kw, id: `sync-${Math.random().toString(36).slice(2)}` };
+                  if (!existingVals.has(categorizedKw.value.toLowerCase())) {
+                    console.log(`[ACCEPT] Syncing "${categorizedKw.value}" to "${img.name}"`);
+                    const syncedKw = { ...categorizedKw, id: `sync-${Math.random().toString(36).slice(2)}` };
                     return { ...img, keywords: [...(img.keywords || []), syncedKw], status: img.status === 'pending' ? 'ready' : img.status };
                   }
                 }
@@ -981,6 +1167,91 @@
 
       const customCount = getCustomKeywords().length;
 
+      // Auto-run categorization when custom keywords accumulate
+      const autoCategorizeTimeoutRef = useRef(null);
+      useEffect(() => {
+        if (customCount > 0 && geminiKey && !isCategorizing) {
+          // Clear any pending timeout
+          if (autoCategorizeTimeoutRef.current) {
+            clearTimeout(autoCategorizeTimeoutRef.current);
+          }
+          // Schedule auto-categorization after 3 seconds of inactivity
+          autoCategorizeTimeoutRef.current = setTimeout(() => {
+            console.log('[AUTO-CATEGORIZE] Triggering auto-categorization for', customCount, 'custom keywords');
+            runCategorization();
+          }, 3000);
+        }
+        return () => {
+          if (autoCategorizeTimeoutRef.current) {
+            clearTimeout(autoCategorizeTimeoutRef.current);
+          }
+        };
+      }, [customCount, geminiKey, isCategorizing]);
+
+      // Auto-consolidate pending keywords to master taxonomy synonyms
+      const [isConsolidating, setIsConsolidating] = useState(false);
+      const consolidateTimeoutRef = useRef(null);
+
+      useEffect(() => {
+        if (pending.length > 0 && geminiKey && !isConsolidating && taxInfo.allTerms.size > 0) {
+          if (consolidateTimeoutRef.current) {
+            clearTimeout(consolidateTimeoutRef.current);
+          }
+          consolidateTimeoutRef.current = setTimeout(async () => {
+            setIsConsolidating(true);
+            try {
+              const reviewKws = pending.map(k => k.value);
+              const masterTerms = Array.from(taxInfo.allTerms);
+              console.log('[CONSOLIDATE] Checking', reviewKws.length, 'keywords against', masterTerms.length, 'master terms');
+
+              const matches = await consolidateKeywords(geminiKey, reviewKws, masterTerms);
+              console.log('[CONSOLIDATE] Found', matches.length, 'matches');
+
+              if (matches.length > 0) {
+                // Track which pending keywords we've processed to avoid duplicates
+                const processedIds = new Set();
+
+                // For each match, find the pending keyword and auto-accept it with the master term
+                matches.forEach(match => {
+                  const pendingKw = pending.find(k => k.value.toLowerCase() === match.review.toLowerCase() && !processedIds.has(k.id));
+                  if (pendingKw && match.confidence >= 0.8) {
+                    processedIds.add(pendingKw.id);
+                    console.log(`[CONSOLIDATE] Replacing "${pendingKw.value}" with master term "${match.master}"`);
+                    // Update the keyword value to match master taxonomy
+                    const consolidatedKw = { ...pendingKw, value: match.master, consolidated: true };
+                    const path = smartCategorize(consolidatedKw);
+                    consolidatedKw.path = path;
+                    consolidatedKw.rootCategory = path[0];
+
+                    // Auto-accept it, but check for duplicates first
+                    setPending(p => p.filter(k => k.id !== pendingKw.id));
+                    setKeywords(kws => {
+                      // Don't add if already exists
+                      if (kws.some(k => k.value.toLowerCase() === consolidatedKw.value.toLowerCase())) {
+                        return kws;
+                      }
+                      return [...kws, consolidatedKw];
+                    });
+                    setAccepted(a => a.some(x => x.value.toLowerCase() === consolidatedKw.value.toLowerCase()) ? a : [...a, consolidatedKw]);
+                    setModified(true);
+                    setIsEditing(true);
+                  }
+                });
+              }
+            } catch (e) {
+              console.error('[CONSOLIDATE] Error:', e);
+            } finally {
+              setIsConsolidating(false);
+            }
+          }, 2000);
+        }
+        return () => {
+          if (consolidateTimeoutRef.current) {
+            clearTimeout(consolidateTimeoutRef.current);
+          }
+        };
+      }, [pending, geminiKey, taxInfo.allTerms]);
+
       const tree = buildTree(accepted);
       const getColor = (r) => ROOT_COLORS[r] || '#94a3b8';
 
@@ -996,104 +1267,162 @@
       const thumbSizes = [60, 90, 130, 180];
       const currentThumbSize = thumbSizes[thumbSize];
 
-      const s = { bg: '#0a0a0a', panel: '#111', border: '#1a1a1a', text: '#888', bright: '#e5e5e5' };
+      // Unified style system
+      const s = {
+        bg: '#0a0a0a',
+        panel: '#111',
+        panelHover: '#1a1a1a',
+        border: '#222',
+        text: '#9ca3af',
+        bright: '#f3f4f6',
+        muted: '#6b7280',
+        fontSize: 14,
+        radius: 8,
+        radiusSm: 6,
+        radiusLg: 12
+      };
 
       return (
-        <div ref={containerRef} tabIndex={0} style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', font: '11px/1.4 -apple-system, sans-serif', background: s.bg, color: s.text, outline: 'none' }}>
+        <div ref={containerRef} tabIndex={0} style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', fontSize: s.fontSize, lineHeight: 1.5, background: s.bg, color: s.text, outline: 'none' }}>
           <input ref={fileRef} type="file" accept="image/*" multiple onChange={handleFileInput} style={{ display: 'none' }} />
           <input ref={folderRef} type="file" accept="image/*" multiple webkitdirectory="" onChange={handleFileInput} style={{ display: 'none' }} />
 
           {/* TOOLBAR */}
-          <div style={{ height: 40, background: s.panel, display: 'flex', alignItems: 'center', padding: '0 12px', gap: 10, borderBottom: `1px solid ${s.border}`, flexShrink: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <div style={{ width: 16, height: 16, background: 'linear-gradient(135deg, #8b5cf6, #3b82f6)', borderRadius: 3 }} />
-              <span style={{ color: s.bright, fontWeight: 600, fontSize: 12 }}>Tagger v8</span>
+          <div style={{ height: 56, background: s.panel, display: 'flex', alignItems: 'center', padding: '0 16px', gap: 12, borderBottom: `1px solid ${s.border}`, flexShrink: 0 }}>
+            {/* Left side - Import buttons */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <button onClick={() => fileRef.current?.click()} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: '#1f2937', color: s.bright, border: 'none', borderRadius: s.radius, cursor: 'pointer', fontSize: s.fontSize }}>
+                <Icon name="add_photo_alternate" size={18} /> Files
+              </button>
+              <button onClick={() => folderRef.current?.click()} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: '#1f2937', color: s.bright, border: 'none', borderRadius: s.radius, cursor: 'pointer', fontSize: s.fontSize }}>
+                <Icon name="folder_open" size={18} /> Folder
+              </button>
             </div>
-            <span style={{ color: '#333' }}>|</span>
-            <span style={{ color: '#666', fontSize: 10 }}>
+
+            <div style={{ width: 1, height: 24, background: s.border }} />
+
+            {/* Logo & Status */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ width: 20, height: 20, background: 'linear-gradient(135deg, #8b5cf6, #3b82f6)', borderRadius: 5 }} />
+              <span style={{ color: s.bright, fontWeight: 600, fontSize: s.fontSize }}>Tagger</span>
+            </div>
+
+            <span style={{ color: s.muted, fontSize: s.fontSize }}>
               {filteredQueue.length}/{totalCount}
-              {analyzingCount > 0 && <span style={{ color: '#fbbf24' }}> • {analyzingCount} ⏳</span>}
-              {readyCount > 0 && <span style={{ color: '#60a5fa' }}> • {readyCount} ready</span>}
+              {analyzingCount > 0 && <span style={{ color: '#fbbf24' }}> · {analyzingCount} analyzing</span>}
+              {readyCount > 0 && <span style={{ color: '#60a5fa' }}> · {readyCount} ready</span>}
             </span>
 
-            <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+            {/* Right side - Actions */}
+            <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10 }}>
               {pendingCount > 0 && (
-                <button onClick={analyzeAllPending} style={{ padding: '4px 10px', background: '#2563eb', color: 'white', border: 'none', borderRadius: 3, cursor: 'pointer', fontSize: 10 }}>
-                  Analyze All ({pendingCount})
+                <button onClick={analyzeAllPending} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', background: '#2563eb', color: 'white', border: 'none', borderRadius: s.radius, cursor: 'pointer', fontSize: s.fontSize, fontWeight: 500 }}>
+                  <Icon name="auto_awesome" size={18} /> Analyze All ({pendingCount})
                 </button>
               )}
               {readyToSaveCount > 0 && (
-                <button onClick={saveAll} disabled={isSavingAll} style={{ padding: '4px 10px', background: isSavingAll ? '#444' : '#4ade80', color: isSavingAll ? '#888' : '#000', border: 'none', borderRadius: 3, cursor: isSavingAll ? 'default' : 'pointer', fontSize: 10, fontWeight: 500 }}>
-                  {isSavingAll ? '⏳ Saving...' : `💾 Save All (${readyToSaveCount})`}
+                <button onClick={saveAll} disabled={isSavingAll} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', background: isSavingAll ? '#374151' : '#10b981', color: isSavingAll ? '#9ca3af' : 'white', border: 'none', borderRadius: s.radius, cursor: isSavingAll ? 'default' : 'pointer', fontSize: s.fontSize, fontWeight: 500 }}>
+                  <Icon name={isSavingAll ? "hourglass_empty" : "save"} size={18} /> {isSavingAll ? 'Saving...' : `Save All (${readyToSaveCount})`}
                 </button>
               )}
-              <button onClick={() => fileRef.current?.click()} style={{ padding: '4px 10px', background: '#222', color: s.text, border: 'none', borderRadius: 3, cursor: 'pointer', fontSize: 10 }}>+ Files</button>
-              <button onClick={() => folderRef.current?.click()} style={{ padding: '4px 10px', background: '#222', color: s.text, border: 'none', borderRadius: 3, cursor: 'pointer', fontSize: 10 }}>+ Folder</button>
-              {outputDir && <span style={{ color: '#4ade80', fontSize: 10 }}>● Auto</span>}
-              <button onClick={() => setShowSettings(true)} style={{ padding: '4px 8px', background: 'transparent', color: '#666', border: 'none', cursor: 'pointer', fontSize: 12 }}>⚙</button>
+              {outputDir && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4, color: '#10b981', fontSize: s.fontSize }}>
+                  <Icon name="check_circle" size={16} filled /> Auto-save
+                </div>
+              )}
+              <button onClick={() => setShowSettings(true)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 40, height: 40, background: 'transparent', color: s.muted, border: 'none', borderRadius: s.radius, cursor: 'pointer' }}>
+                <Icon name="settings" size={22} />
+              </button>
             </div>
           </div>
 
           {/* MAIN */}
-          <div style={{ flex: 1, display: 'flex', overflow: 'hidden', width: '100%' }}>
+          <div ref={mainPanelRef} style={{ flex: 1, display: 'flex', overflow: 'hidden', width: '100%', cursor: isDraggingDivider ? 'col-resize' : 'default' }}>
 
             {/* LEFT - GRID */}
-            <div style={{ flex: 1, minWidth: 300, background: s.panel, borderRight: `1px solid ${s.border}`, display: 'flex', flexDirection: 'column' }}>
-              <div style={{ padding: 8, borderBottom: `1px solid ${s.border}`, display: 'flex', gap: 4, alignItems: 'center', flexWrap: 'wrap' }}>
+            <div style={{ width: `${gridWidth}%`, minWidth: 250, background: s.panel, display: 'flex', flexDirection: 'column', transition: isDraggingDivider ? 'none' : 'width 0.2s ease-out' }}>
+              <div style={{ padding: '10px 12px', borderBottom: `1px solid ${s.border}`, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                 <button onClick={() => setShowPending(!showPending)}
-                  style={{ padding: '3px 8px', background: showPending ? 'rgba(251,191,36,0.15)' : '#222', color: showPending ? '#fbbf24' : '#666', border: 'none', borderRadius: 3, cursor: 'pointer', fontSize: 10 }}>
-                  ○ Pending ({pendingCount})
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: showPending ? 'rgba(251,191,36,0.15)' : '#1f2937', color: showPending ? '#fbbf24' : s.muted, border: 'none', borderRadius: s.radiusSm, cursor: 'pointer', fontSize: s.fontSize }}>
+                  <Icon name="pending" size={16} /> Pending ({pendingCount})
                 </button>
                 <button onClick={() => setShowDone(!showDone)}
-                  style={{ padding: '3px 8px', background: showDone ? 'rgba(74,222,128,0.15)' : '#222', color: showDone ? '#4ade80' : '#666', border: 'none', borderRadius: 3, cursor: 'pointer', fontSize: 10 }}>
-                  ✓ Done ({doneCount})
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: showDone ? 'rgba(74,222,128,0.15)' : '#1f2937', color: showDone ? '#4ade80' : s.muted, border: 'none', borderRadius: s.radiusSm, cursor: 'pointer', fontSize: s.fontSize }}>
+                  <Icon name="check_circle" size={16} /> Done ({doneCount})
                 </button>
                 <button onClick={() => setShowHidden(!showHidden)}
-                  style={{ padding: '3px 8px', background: showHidden ? 'rgba(248,113,113,0.15)' : '#222', color: showHidden ? '#f87171' : '#666', border: 'none', borderRadius: 3, cursor: 'pointer', fontSize: 10 }}>
-                  👁 Hidden ({hiddenCount})
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: showHidden ? 'rgba(248,113,113,0.15)' : '#1f2937', color: showHidden ? '#f87171' : s.muted, border: 'none', borderRadius: s.radiusSm, cursor: 'pointer', fontSize: s.fontSize }}>
+                  <Icon name="visibility_off" size={16} /> Hidden ({hiddenCount})
                 </button>
-                <div style={{ marginLeft: 'auto', display: 'flex', gap: 2 }}>
-                  {['S', 'M', 'L', 'XL'].map((label, i) => (
-                    <button key={label} onClick={() => setThumbSize(i)}
-                      style={{ padding: '3px 6px', background: thumbSize === i ? '#333' : '#1a1a1a', color: thumbSize === i ? '#fff' : '#666', border: 'none', borderRadius: 2, cursor: 'pointer', fontSize: 9 }}>
-                      {label}
+                <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  {selectedImg && selectedImg.status !== 'pending' && selectedImg.status !== 'analyzing' && (
+                    <button onClick={reanalyzeSelected} title="Re-analyze selected image"
+                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 32, height: 32, background: '#1f2937', color: s.muted, border: 'none', borderRadius: s.radiusSm, cursor: 'pointer' }}>
+                      <Icon name="refresh" size={18} />
                     </button>
-                  ))}
+                  )}
+                  <div style={{ display: 'flex', gap: 2, background: '#1f2937', borderRadius: s.radiusSm, padding: 2 }}>
+                    {['S', 'M', 'L', 'XL'].map((label, i) => (
+                      <button key={label} onClick={() => setThumbSize(i)}
+                        style={{ padding: '4px 10px', background: thumbSize === i ? '#374151' : 'transparent', color: thumbSize === i ? s.bright : s.muted, border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: 13, fontWeight: thumbSize === i ? 500 : 400 }}>
+                        {label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
-              <div style={{ flex: 1, overflow: 'auto', padding: 8 }}>
+              <div style={{ flex: 1, overflow: 'auto', padding: 12 }}>
                 {filteredQueue.length === 0 ? (
-                  <div style={{ padding: 40, textAlign: 'center', color: '#555' }}>
-                    <div style={{ fontSize: 48, marginBottom: 12 }}>📁</div>
-                    <div style={{ fontSize: 12 }}>Drop images here</div>
-                    <div style={{ fontSize: 10, marginTop: 8, color: '#444' }}>Use ← → arrows to navigate</div>
+                  <div style={{ padding: 60, textAlign: 'center', color: s.muted }}>
+                    <Icon name="add_photo_alternate" size={64} style={{ opacity: 0.3, display: 'block', margin: '0 auto 16px' }} />
+                    <div style={{ fontSize: s.fontSize, marginBottom: 8 }}>Drop images here</div>
+                    <div style={{ fontSize: 13, color: '#4b5563' }}>Use arrow keys to navigate</div>
                   </div>
                 ) : (
-                  <div style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(${currentThumbSize}px, 1fr))`, gap: 6 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(${currentThumbSize}px, 1fr))`, gap: 8 }}>
                     {filteredQueue.map(item => {
                       const isSelected = item.id === selectedId;
-                      const statusColor = item.status === 'done' ? '#4ade80' : item.status === 'editing' ? '#4ade80' : item.status === 'ready' ? '#60a5fa' : item.status === 'analyzing' ? '#fbbf24' : item.status === 'error' ? '#f87171' : '#666';
+                      const statusColor = item.status === 'done' ? '#4ade80' : item.status === 'editing' ? '#4ade80' : item.status === 'ready' ? '#60a5fa' : item.status === 'analyzing' ? '#fbbf24' : item.status === 'error' ? '#f87171' : '#6b7280';
                       return (
-                        <div key={item.id} onClick={() => selectImage(item.id)}
-                          style={{ position: 'relative', borderRadius: 6, overflow: 'hidden', cursor: 'pointer',
-                            border: `2px solid ${isSelected ? '#60a5fa' : statusColor}`,
-                            opacity: item.hidden ? 0.4 : item.status === 'done' ? 0.6 : 1 }}>
+                        <motion.div
+                          key={item.id}
+                          layout
+                          initial={{ opacity: 0, scale: 0.9 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          transition={{ duration: 0.2, layout: { duration: 0.15, ease: 'easeOut' } }}
+                          onClick={() => selectImage(item.id)}
+                          style={{ position: 'relative', borderRadius: s.radius, overflow: 'hidden', cursor: 'pointer',
+                            border: `2px solid ${isSelected ? '#60a5fa' : 'transparent'}`,
+                            boxShadow: isSelected ? '0 0 0 2px rgba(96,165,250,0.3)' : 'none',
+                            opacity: item.hidden ? 0.4 : item.status === 'done' ? 0.7 : 1 }}>
                           <div style={{ aspectRatio: '1', background: `url(${item.url}) center/cover` }}>
-                            <div style={{ position: 'absolute', top: 4, left: 4, width: 12, height: 12, borderRadius: 6, background: statusColor, border: '2px solid rgba(0,0,0,0.5)' }} />
+                            <div style={{ position: 'absolute', top: 6, left: 6, width: 10, height: 10, borderRadius: 5, background: statusColor, boxShadow: '0 1px 3px rgba(0,0,0,0.4)' }} />
                             {item.status === 'analyzing' && (
-                              <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                <span style={{ fontSize: 24 }}>⏳</span>
+                              <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <Icon name="hourglass_empty" size={28} style={{ color: '#fbbf24' }} />
                               </div>
                             )}
-                            {item.status === 'done' && <div style={{ position: 'absolute', top: 4, right: 4, background: '#4ade80', color: '#000', padding: '2px 5px', borderRadius: 3, fontSize: 10, fontWeight: 600 }}>✓</div>}
-                            {item.status === 'editing' && <div style={{ position: 'absolute', top: 4, right: 4, background: '#4ade80', color: '#000', padding: '2px 5px', borderRadius: 3, fontSize: 10, fontWeight: 600 }}>●</div>}
-                            {item.hidden && <div style={{ position: 'absolute', top: 4, right: 4, background: '#f87171', color: '#fff', padding: '2px 5px', borderRadius: 3, fontSize: 10 }}>H</div>}
+                            {item.status === 'done' && (
+                              <div style={{ position: 'absolute', top: 6, right: 6, background: '#4ade80', color: '#000', padding: '3px 6px', borderRadius: s.radiusSm, fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center' }}>
+                                <Icon name="check" size={14} />
+                              </div>
+                            )}
+                            {item.status === 'editing' && (
+                              <div style={{ position: 'absolute', top: 6, right: 6, background: '#60a5fa', color: '#000', padding: '3px 6px', borderRadius: s.radiusSm, fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center' }}>
+                                <Icon name="edit" size={14} />
+                              </div>
+                            )}
+                            {item.hidden && (
+                              <div style={{ position: 'absolute', top: 6, right: 6, background: '#f87171', color: '#fff', padding: '3px 6px', borderRadius: s.radiusSm, fontSize: 12, display: 'flex', alignItems: 'center' }}>
+                                <Icon name="visibility_off" size={14} />
+                              </div>
+                            )}
                           </div>
                           <button onClick={(e) => item.hidden ? unhideImage(item.id, e) : hideImage(item.id, e)} tabIndex={-1}
-                            style={{ position: 'absolute', bottom: 4, right: 4, background: 'rgba(0,0,0,0.8)', border: 'none', color: '#888', cursor: 'pointer', padding: '3px 6px', borderRadius: 3, fontSize: 10 }}>
-                            {item.hidden ? '👁' : '✕'}
+                            style={{ position: 'absolute', bottom: 6, right: 6, background: 'rgba(0,0,0,0.8)', border: 'none', color: '#9ca3af', cursor: 'pointer', padding: 4, borderRadius: s.radiusSm, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <Icon name={item.hidden ? "visibility" : "close"} size={16} />
                           </button>
-                        </div>
+                        </motion.div>
                       );
                     })}
                   </div>
@@ -1101,62 +1430,100 @@
               </div>
             </div>
 
+            {/* RESIZABLE DIVIDER */}
+            <div
+              onMouseDown={handleDividerMouseDown}
+              style={{
+                width: 12,
+                background: isDraggingDivider ? s.border : 'transparent',
+                cursor: 'col-resize',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+                transition: 'background 0.15s'
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.background = s.border}
+              onMouseLeave={(e) => !isDraggingDivider && (e.currentTarget.style.background = 'transparent')}
+            >
+              <div style={{
+                width: 4,
+                height: 40,
+                background: '#4b5563',
+                borderRadius: 2,
+                opacity: 0.6
+              }} />
+            </div>
+
             {/* CENTER - PREVIEW */}
-            <div style={{ width: 340, minWidth: 280, maxWidth: 400, flexShrink: 0, display: 'flex', flexDirection: 'column' }}>
+            <div style={{ flex: 1, minWidth: 280, display: 'flex', flexDirection: 'column', background: s.bg }}>
               {selectedImg ? (
                 <>
-                  <div style={{ height: '35%', minHeight: 120, background: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+                  <div style={{ height: '35%', minHeight: 140, background: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
                     <img src={selectedImg.url} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
-                    <div style={{ position: 'absolute', bottom: 4, left: 4, background: 'rgba(0,0,0,0.8)', padding: '2px 6px', borderRadius: 3, color: '#888', fontSize: 9, maxWidth: '80%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <div style={{ position: 'absolute', bottom: 8, left: 8, background: 'rgba(0,0,0,0.85)', padding: '4px 10px', borderRadius: s.radiusSm, color: s.text, fontSize: 13, maxWidth: '85%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {selectedImg.name}
                     </div>
-                    {modified && <div style={{ position: 'absolute', top: 4, right: 4, background: '#fbbf24', color: '#000', padding: '2px 6px', borderRadius: 3, fontSize: 9 }}>●</div>}
+                    {modified && (
+                      <div style={{ position: 'absolute', top: 8, right: 8, background: '#fbbf24', color: '#000', padding: '4px 8px', borderRadius: s.radiusSm, fontSize: 12, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <Icon name="edit" size={14} /> Unsaved
+                      </div>
+                    )}
                     {downloadedLarger && (
-                      <div style={{ position: 'absolute', top: 4, left: 4, background: '#4ade80', color: '#000', padding: '2px 6px', borderRadius: 3, fontSize: 9 }}>
-                        ⬇ {(downloadedLarger.size / 1024 / 1024).toFixed(1)}MB
+                      <div style={{ position: 'absolute', top: 8, left: 8, background: '#10b981', color: '#fff', padding: '4px 8px', borderRadius: s.radiusSm, fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <Icon name="download" size={14} /> {(downloadedLarger.size / 1024 / 1024).toFixed(1)}MB
                       </div>
                     )}
                   </div>
 
-                  <div style={{ flex: 1, overflow: 'auto', padding: 10 }}>
+                  <div style={{ flex: 1, overflow: 'auto', padding: 14 }}>
                     {selectedImg.status === 'analyzing' && (
-                      <div style={{ textAlign: 'center', padding: 20, color: '#666' }}>
-                        <div style={{ fontSize: 24, marginBottom: 6 }}>⏳</div>
-                        Analyzing...
+                      <div style={{ textAlign: 'center', padding: 40, color: s.muted }}>
+                        <Icon name="hourglass_empty" size={36} style={{ display: 'block', margin: '0 auto 12px', color: '#fbbf24' }} />
+                        <div style={{ fontSize: s.fontSize }}>Analyzing...</div>
                       </div>
                     )}
 
                     {selectedImg.status === 'error' && (
-                      <div style={{ textAlign: 'center', padding: 20, color: '#f87171' }}>
-                        <div style={{ fontSize: 20, marginBottom: 6 }}>⚠️</div>
-                        Failed
+                      <div style={{ textAlign: 'center', padding: 40, color: '#f87171' }}>
+                        <Icon name="error" size={36} style={{ display: 'block', margin: '0 auto 12px' }} />
+                        <div style={{ fontSize: s.fontSize, marginBottom: 12 }}>Analysis failed</div>
                         <button onClick={() => { setQueue(q => q.map(i => i.id === selectedImg.id ? {...i, status: 'pending'} : i)); analyzeImage({...selectedImg, status: 'pending'}); }}
-                          style={{ display: 'block', margin: '10px auto', padding: '5px 10px', background: '#2563eb', color: 'white', border: 'none', borderRadius: 3, cursor: 'pointer', fontSize: 10 }}>
-                          Retry
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px', background: '#2563eb', color: 'white', border: 'none', borderRadius: s.radius, cursor: 'pointer', fontSize: s.fontSize }}>
+                          <Icon name="refresh" size={16} /> Retry
                         </button>
                       </div>
                     )}
 
                     {(selectedImg.status === 'ready' || selectedImg.status === 'done' || selectedImg.status === 'editing' || isEditing) && (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                         {(designer?.designer || designer?.designers?.length > 0) && (
-                          <div style={{ background: 'rgba(167,139,250,0.1)', padding: 8, borderRadius: 5, border: '1px solid rgba(167,139,250,0.3)' }}>
-                            <span style={{ color: '#a78bfa', fontSize: 10 }}>🎨 {designer.designers?.length > 1 ? designer.designers.join(', ') : designer.designer}</span>
+                          <div style={{ background: 'rgba(167,139,250,0.1)', padding: '10px 12px', borderRadius: s.radius, border: '1px solid rgba(167,139,250,0.25)' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#a78bfa', fontSize: s.fontSize }}>
+                              <Icon name="brush" size={18} />
+                              {designer.designers?.length > 1 ? designer.designers.join(', ') : designer.designer}
+                            </div>
                           </div>
                         )}
 
                         {similarCount > 0 && (
-                          <div style={{ background: 'rgba(251,191,36,0.1)', padding: 8, borderRadius: 5, border: '1px solid rgba(251,191,36,0.3)' }}>
-                            <span style={{ color: '#fbbf24', fontSize: 10 }}>📎 {similarCount} similar image{similarCount > 1 ? 's' : ''} will sync</span>
+                          <div style={{ background: 'rgba(251,191,36,0.1)', padding: '10px 12px', borderRadius: s.radius, border: '1px solid rgba(251,191,36,0.25)' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#fbbf24', fontSize: s.fontSize }}>
+                              <Icon name="link" size={18} />
+                              {similarCount} similar image{similarCount > 1 ? 's' : ''} will sync
+                            </div>
                           </div>
                         )}
 
                         {visionData?.matchingImages?.length > 0 && (
-                          <div style={{ background: 'rgba(96,165,250,0.1)', padding: 8, borderRadius: 5, border: '1px solid rgba(96,165,250,0.3)' }}>
-                            <div style={{ color: '#60a5fa', fontSize: 9, marginBottom: 4 }}>🔍 {visionData.matchingImages.length} web matches</div>
-                            <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
+                          <div style={{ background: 'rgba(96,165,250,0.1)', padding: '10px 12px', borderRadius: s.radius, border: '1px solid rgba(96,165,250,0.25)' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#60a5fa', fontSize: s.fontSize, marginBottom: 8 }}>
+                              <Icon name="image_search" size={18} />
+                              {visionData.matchingImages.length} web matches
+                            </div>
+                            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                               {visionData.matchingImages.slice(0, 4).map((img, i) => (
-                                <a key={i} href={img.url} target="_blank" rel="noreferrer" style={{ color: '#60a5fa', fontSize: 8, textDecoration: 'none', padding: '1px 4px', background: 'rgba(96,165,250,0.1)', borderRadius: 2 }}>
+                                <a key={i} href={img.url} target="_blank" rel="noreferrer" style={{ color: '#60a5fa', fontSize: 12, textDecoration: 'none', padding: '4px 8px', background: 'rgba(96,165,250,0.15)', borderRadius: s.radiusSm }}>
                                   {img.type}
                                 </a>
                               ))}
@@ -1165,120 +1532,145 @@
                         )}
 
                         {keywords.length > 0 && (
-                          <div style={{ background: s.panel, borderRadius: 5, padding: 8, border: `1px solid ${s.border}` }}>
-                            <div style={{ color: '#4ade80', marginBottom: 5, fontSize: 10, fontWeight: 600 }}>
+                          <div style={{ background: s.panel, borderRadius: s.radius, padding: 12, border: `1px solid ${s.border}` }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#4ade80', marginBottom: 10, fontSize: s.fontSize, fontWeight: 500 }}>
+                              <Icon name="sell" size={18} />
                               Tagged ({keywords.length})
                             </div>
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                               {keywords.map(k => (
-                                <span key={k.id} style={{ padding: '2px 5px', background: `${getColor(k.rootCategory)}20`, color: getColor(k.rootCategory), borderRadius: 3, fontSize: 9, display: 'flex', alignItems: 'center', gap: 3 }}>
-                                  {k.source === 'vision' && <span style={{ fontSize: 7 }}>🔍</span>}
-                                  {k.source === 'filename' && <span style={{ fontSize: 7 }}>📄</span>}
+                                <motion.span
+                                  key={k.id}
+                                  initial={{ opacity: 0, scale: 0.8 }}
+                                  animate={{ opacity: 1, scale: 1 }}
+                                  style={{ padding: '5px 10px', background: `${getColor(k.rootCategory)}15`, color: getColor(k.rootCategory), borderRadius: 20, fontSize: 13, display: 'flex', alignItems: 'center', gap: 6, border: `1px solid ${getColor(k.rootCategory)}30` }}>
+                                  {k.source === 'vision' && <Icon name="image_search" size={14} />}
+                                  {k.source === 'filename' && <Icon name="description" size={14} />}
                                   {k.value}
-                                  <span onClick={() => removeKw(k.id)} style={{ cursor: 'pointer', opacity: 0.5, fontSize: 7 }}>✕</span>
-                                </span>
+                                  <span onClick={() => removeKw(k.id)} style={{ cursor: 'pointer', opacity: 0.6, marginLeft: 2, display: 'flex' }}>
+                                    <Icon name="close" size={14} />
+                                  </span>
+                                </motion.span>
                               ))}
                             </div>
                           </div>
                         )}
 
                         {pending.length > 0 && (
-                          <div style={{ background: s.panel, borderRadius: 5, padding: 8, border: `1px solid ${s.border}` }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
-                              <span style={{ color: s.bright, fontSize: 10, fontWeight: 600 }}>{pending.length} review</span>
-                              <button onClick={acceptAll} style={{ padding: '1px 5px', background: 'rgba(96,165,250,0.15)', color: '#60a5fa', border: 'none', borderRadius: 2, cursor: 'pointer', fontSize: 8 }}>All ✓</button>
+                          <div style={{ background: s.panel, borderRadius: s.radius, padding: 12, border: `1px solid ${s.border}` }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: s.bright, fontSize: s.fontSize, fontWeight: 500 }}>
+                                <Icon name="rate_review" size={18} />
+                                {pending.length} to review
+                              </div>
+                              <button onClick={acceptAll} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', background: 'rgba(96,165,250,0.15)', color: '#60a5fa', border: 'none', borderRadius: s.radiusSm, cursor: 'pointer', fontSize: 13 }}>
+                                <Icon name="done_all" size={16} /> Accept all
+                              </button>
                             </div>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                               {pending.map(k => (
-                                <div key={k.id} style={{ display: 'flex', alignItems: 'center', gap: 3, padding: '3px 4px', background: 'rgba(255,255,255,0.02)', borderRadius: 3 }}>
-                                  <button onClick={() => accept(k.id)} tabIndex={-1} style={{ padding: '1px 4px', background: 'rgba(74,222,128,0.15)', color: '#4ade80', border: 'none', borderRadius: 2, cursor: 'pointer', fontSize: 8 }}>✓</button>
-                                  <button onClick={() => ignore(k.id)} tabIndex={-1} style={{ padding: '1px 4px', background: 'rgba(251,191,36,0.15)', color: '#fbbf24', border: 'none', borderRadius: 2, cursor: 'pointer', fontSize: 8 }}>–</button>
-                                  <button onClick={() => block(k.id)} tabIndex={-1} style={{ padding: '1px 4px', background: 'rgba(248,113,113,0.15)', color: '#f87171', border: 'none', borderRadius: 2, cursor: 'pointer', fontSize: 8 }}>✕</button>
-                                  <span style={{ width: 4, height: 4, borderRadius: 2, background: getColor(k.rootCategory), flexShrink: 0 }} />
-                                  <span style={{ color: s.bright, fontSize: 9, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{k.value}</span>
-                                </div>
+                                <motion.div
+                                  key={k.id}
+                                  initial={{ opacity: 0, x: -10 }}
+                                  animate={{ opacity: 1, x: 0 }}
+                                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 8px', background: 'rgba(255,255,255,0.03)', borderRadius: s.radiusSm }}>
+                                  <button onClick={() => block(k.id)} tabIndex={-1} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, background: 'rgba(248,113,113,0.15)', color: '#f87171', border: 'none', borderRadius: s.radiusSm, cursor: 'pointer' }}>
+                                    <Icon name="block" size={16} />
+                                  </button>
+                                  <button onClick={() => accept(k.id)} tabIndex={-1} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, background: 'rgba(74,222,128,0.15)', color: '#4ade80', border: 'none', borderRadius: s.radiusSm, cursor: 'pointer' }}>
+                                    <Icon name="check" size={16} />
+                                  </button>
+                                  <span style={{ width: 6, height: 6, borderRadius: 3, background: getColor(k.rootCategory), flexShrink: 0 }} />
+                                  <span style={{ color: s.bright, fontSize: s.fontSize, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{k.value}</span>
+                                </motion.div>
                               ))}
                             </div>
                           </div>
                         )}
 
-                        {ignored.length > 0 && (
-                          <div style={{ background: s.panel, borderRadius: 5, padding: 8, border: `1px solid ${s.border}` }}>
-                            <div style={{ color: '#fbbf24', marginBottom: 4, fontSize: 9 }}>Skipped ({ignored.length})</div>
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
-                              {ignored.map(k => (
-                                <span key={k.id} style={{ padding: '2px 5px', background: 'rgba(251,191,36,0.1)', color: '#b45309', borderRadius: 3, fontSize: 9, display: 'flex', alignItems: 'center', gap: 3 }}>
-                                  {k.value}
-                                  <span onClick={() => acceptIgnored(k.id)} style={{ cursor: 'pointer', color: '#4ade80', fontSize: 7 }}>✓</span>
-                                  <span onClick={() => block(k.id)} style={{ cursor: 'pointer', color: '#f87171', fontSize: 7 }}>✕</span>
-                                </span>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
-                        <div style={{ display: 'flex', gap: 4 }}>
+                        <div style={{ display: 'flex', gap: 8 }}>
                           <input type="text" value={customInput} onChange={e => setCustomInput(e.target.value)}
                             onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addCustom(); } }}
-                            placeholder="Add..."
-                            style={{ flex: 1, padding: '5px 8px', background: s.panel, border: `1px solid ${s.border}`, borderRadius: 3, color: s.bright, font: 'inherit', outline: 'none', fontSize: 10 }} />
+                            placeholder="Add custom tag..."
+                            style={{ flex: 1, padding: '10px 14px', background: s.panel, border: `1px solid ${s.border}`, borderRadius: s.radius, color: s.bright, fontSize: s.fontSize, outline: 'none' }} />
                           <button onClick={addCustom} disabled={!customInput.trim()} tabIndex={-1}
-                            style={{ padding: '5px 10px', background: customInput.trim() ? '#f472b6' : '#222', color: customInput.trim() ? 'white' : '#444', border: 'none', borderRadius: 3, cursor: customInput.trim() ? 'pointer' : 'default', fontSize: 10 }}>+</button>
+                            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 44, background: customInput.trim() ? '#ec4899' : '#1f2937', color: customInput.trim() ? 'white' : '#4b5563', border: 'none', borderRadius: s.radius, cursor: customInput.trim() ? 'pointer' : 'default' }}>
+                            <Icon name="add" size={22} />
+                          </button>
                         </div>
 
-                        {keywords.length > 0 && (
-                          <button onClick={() => saveImage(selectedImg, keywords, designer)} tabIndex={-1} style={{ padding: '6px 12px', background: '#2563eb', color: 'white', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: 10, fontWeight: 500 }}>
-                            💾 Save{similarCount > 0 ? ` + ${similarCount} similar` : ''}
-                          </button>
-                        )}
+                        <button
+                          onClick={() => modified && keywords.length > 0 && saveImage(selectedImg, keywords, designer)}
+                          disabled={!modified || keywords.length === 0}
+                          tabIndex={-1}
+                          style={{
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '12px 20px',
+                            background: modified && keywords.length > 0 ? '#2563eb' : '#1f2937',
+                            color: modified && keywords.length > 0 ? 'white' : '#4b5563',
+                            border: 'none', borderRadius: s.radius,
+                            cursor: modified && keywords.length > 0 ? 'pointer' : 'default',
+                            fontSize: s.fontSize, fontWeight: 500,
+                            opacity: modified && keywords.length > 0 ? 1 : 0.6
+                          }}>
+                          <Icon name="save" size={20} />
+                          {modified && keywords.length > 0
+                            ? `Save${similarCount > 0 ? ` + ${similarCount} similar` : ''}`
+                            : 'Nothing to save'}
+                        </button>
                       </div>
                     )}
 
                     {selectedImg.status === 'pending' && (
-                      <div style={{ textAlign: 'center', padding: 20, color: '#666' }}>
+                      <div style={{ textAlign: 'center', padding: 40, color: s.muted }}>
                         <button onClick={() => analyzeImage(selectedImg)} tabIndex={-1}
-                          style={{ padding: '6px 14px', background: '#2563eb', color: 'white', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: 10 }}>
-                          Analyze
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '12px 24px', background: '#2563eb', color: 'white', border: 'none', borderRadius: s.radius, cursor: 'pointer', fontSize: s.fontSize, fontWeight: 500 }}>
+                          <Icon name="auto_awesome" size={20} /> Analyze
                         </button>
                       </div>
                     )}
                   </div>
                 </>
               ) : (
-                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#555' }}>
+                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: s.muted }}>
                   <div style={{ textAlign: 'center' }}>
-                    <div style={{ fontSize: 36, marginBottom: 10, opacity: 0.3 }}>🖼</div>
-                    <div style={{ fontSize: 10 }}>Select image</div>
-                    <div style={{ fontSize: 9, marginTop: 6, color: '#444' }}>← → to navigate</div>
+                    <Icon name="image" size={64} style={{ opacity: 0.2, display: 'block', margin: '0 auto 16px' }} />
+                    <div style={{ fontSize: s.fontSize }}>Select an image</div>
+                    <div style={{ fontSize: 13, marginTop: 8, color: '#4b5563' }}>Use arrow keys to navigate</div>
                   </div>
                 </div>
               )}
             </div>
 
             {/* RIGHT - TAXONOMY */}
-            <div style={{ width: 280, minWidth: 220, flexShrink: 0, background: s.panel, borderLeft: `1px solid ${s.border}`, display: 'flex', flexDirection: 'column' }}>
-              <div style={{ padding: 12, borderBottom: `1px solid ${s.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ width: 375, minWidth: 280, flexShrink: 0, background: s.panel, borderLeft: `1px solid ${s.border}`, display: 'flex', flexDirection: 'column' }}>
+              <div style={{ padding: '14px 16px', borderBottom: `1px solid ${s.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
-                  <div style={{ color: s.bright, fontSize: 12, fontWeight: 600 }}>Taxonomy</div>
-                  <div style={{ color: '#666', fontSize: 10 }}>{accepted.length} accepted • {taxInfo.allTerms.size} dictionary{customCount > 0 ? ` • ${customCount} uncategorized` : ''}</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: s.bright, fontSize: s.fontSize, fontWeight: 600 }}>
+                    <Icon name="account_tree" size={20} />
+                    Taxonomy
+                  </div>
+                  <div style={{ color: s.muted, fontSize: 13, marginTop: 4 }}>
+                    {accepted.length} accepted · {taxInfo.allTerms.size} in dictionary{customCount > 0 ? ` · ${customCount} uncategorized` : ''}
+                  </div>
                 </div>
-                <div style={{ display: 'flex', gap: 4 }}>
+                <div style={{ display: 'flex', gap: 6 }}>
                   {customCount > 0 && showMasterTaxonomy && (
                     <button onClick={runCategorization} disabled={isCategorizing || !geminiKey} tabIndex={-1}
-                      style={{ padding: '3px 6px', background: isCategorizing ? '#444' : '#f472b6', color: isCategorizing ? '#888' : 'white', border: 'none', borderRadius: 3, cursor: isCategorizing ? 'default' : 'pointer', fontSize: 9 }}>
-                      {isCategorizing ? '⏳' : '🔄'} {customCount}
+                      style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 10px', background: isCategorizing ? '#374151' : '#ec4899', color: isCategorizing ? '#9ca3af' : 'white', border: 'none', borderRadius: s.radiusSm, cursor: isCategorizing ? 'default' : 'pointer', fontSize: 13 }}>
+                      <Icon name={isCategorizing ? "hourglass_empty" : "auto_fix_high"} size={16} /> {customCount}
                     </button>
                   )}
                   <button onClick={() => setShowMasterTaxonomy(!showMasterTaxonomy)} tabIndex={-1}
-                    style={{ padding: '3px 6px', background: showMasterTaxonomy ? 'rgba(96,165,250,0.15)' : '#222', color: showMasterTaxonomy ? '#60a5fa' : '#666', border: 'none', borderRadius: 3, cursor: 'pointer', fontSize: 9 }}>
+                    style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 10px', background: showMasterTaxonomy ? 'rgba(96,165,250,0.15)' : '#1f2937', color: showMasterTaxonomy ? '#60a5fa' : s.muted, border: 'none', borderRadius: s.radiusSm, cursor: 'pointer', fontSize: 13 }}>
+                    <Icon name={showMasterTaxonomy ? "list" : "library_books"} size={16} />
                     {showMasterTaxonomy ? 'Session' : 'Master'}
                   </button>
                 </div>
               </div>
-              <div style={{ flex: 1, padding: 8, overflowY: 'auto' }}>
+              <div style={{ flex: 1, padding: 12, overflowY: 'auto' }}>
                 {showMasterTaxonomy ? (
-                  <div style={{ fontSize: 10 }}>
-                    <div style={{ color: '#666', marginBottom: 8 }}>Master dictionary ({taxInfo.allTerms.size} terms):</div>
+                  <div style={{ fontSize: 13 }}>
+                    <div style={{ color: s.muted, marginBottom: 12 }}>Master dictionary ({taxInfo.allTerms.size} terms)</div>
                     {Object.entries(taxonomy).map(([name, value]) => (
                       <MasterTaxonomyNode key={name} name={name} value={value} depth={0} expanded={expanded}
                         onToggle={p => setExpanded(e => ({ ...e, [p]: e[p] === false ? true : false }))}
@@ -1286,68 +1678,120 @@
                     ))}
                   </div>
                 ) : Object.keys(tree).length === 0 ? (
-                  <div style={{ textAlign: 'center', padding: 16, color: '#555', fontSize: 10 }}>
-                    <div style={{ marginBottom: 6 }}>Empty</div>
-                    <div style={{ fontSize: 9, color: '#444' }}>Analyze images to build</div>
+                  <div style={{ textAlign: 'center', padding: 32, color: s.muted }}>
+                    <Icon name="folder_open" size={40} style={{ opacity: 0.3, display: 'block', margin: '0 auto 12px' }} />
+                    <div style={{ fontSize: s.fontSize, marginBottom: 6 }}>Empty</div>
+                    <div style={{ fontSize: 13, color: '#4b5563' }}>Analyze images to build taxonomy</div>
                   </div>
                 ) : (
-                  Object.entries(tree).map(([name, node]) => (
-                    <TreeNode key={name} name={name} node={node} depth={0} expanded={expanded}
-                      onToggle={p => setExpanded(e => ({ ...e, [p]: e[p] === false ? true : false }))}
-                      onDeleteKeyword={deleteFromTaxonomy} />
-                  ))
+                  // Sort to put Custom/Uncategorized at top (grey), then alphabetically
+                  Object.entries(tree)
+                    .sort(([a], [b]) => {
+                      const aIsUncategorized = a === 'Custom' || a === 'Uncategorized';
+                      const bIsUncategorized = b === 'Custom' || b === 'Uncategorized';
+                      if (aIsUncategorized && !bIsUncategorized) return -1;
+                      if (!aIsUncategorized && bIsUncategorized) return 1;
+                      return a.localeCompare(b);
+                    })
+                    .map(([name, node]) => (
+                      <TreeNode key={name} name={name} node={node} depth={0} expanded={expanded}
+                        onToggle={p => setExpanded(e => ({ ...e, [p]: e[p] === false ? true : false }))}
+                        onDeleteKeyword={deleteFromTaxonomy} />
+                    ))
                 )}
               </div>
             </div>
           </div>
 
           {/* SETTINGS */}
-          {showSettings && (
-            <div onClick={() => setShowSettings(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200 }}>
-              <div onClick={e => e.stopPropagation()} style={{ background: s.panel, borderRadius: 10, width: 420, maxHeight: '80vh', overflow: 'auto', border: `1px solid ${s.border}` }}>
-                <div style={{ padding: 14, borderBottom: `1px solid ${s.border}`, color: s.bright, fontSize: 13, fontWeight: 600 }}>Settings</div>
-                <div style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  <div>
-                    <div style={{ marginBottom: 4, color: '#666', fontSize: 10 }}>Gemini API Key</div>
-                    <input type="password" value={geminiKey} onChange={e => setGeminiKey(e.target.value)}
-                      style={{ width: '100%', padding: '6px 10px', background: '#0a0a0a', border: `1px solid ${s.border}`, borderRadius: 4, color: s.bright, font: 'inherit', outline: 'none', fontSize: 10 }} />
-                    <a href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer" style={{ color: '#60a5fa', fontSize: 9 }}>Get key →</a>
+          <AnimatePresence>
+            {showSettings && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setShowSettings(false)}
+                style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200 }}>
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                  onClick={e => e.stopPropagation()}
+                  style={{ background: s.panel, borderRadius: s.radiusLg, width: 480, maxHeight: '85vh', overflow: 'auto', border: `1px solid ${s.border}`, boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)' }}>
+                  <div style={{ padding: '18px 20px', borderBottom: `1px solid ${s.border}`, display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <Icon name="settings" size={22} style={{ color: s.muted }} />
+                    <span style={{ color: s.bright, fontSize: 16, fontWeight: 600 }}>Settings</span>
                   </div>
-                  <div>
-                    <div style={{ marginBottom: 4, color: '#666', fontSize: 10 }}>Vision API Key (optional)</div>
-                    <input type="password" value={visionKey} onChange={e => setVisionKey(e.target.value)}
-                      style={{ width: '100%', padding: '6px 10px', background: '#0a0a0a', border: `1px solid ${s.border}`, borderRadius: 4, color: s.bright, font: 'inherit', outline: 'none', fontSize: 10 }} />
-                    <a href="https://console.cloud.google.com/apis/library/vision.googleapis.com" target="_blank" rel="noreferrer" style={{ color: '#60a5fa', fontSize: 9 }}>Enable Vision API →</a>
+                  <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 20 }}>
+                    <div>
+                      <div style={{ marginBottom: 8, color: s.text, fontSize: s.fontSize, fontWeight: 500 }}>Gemini API Key</div>
+                      <input type="password" value={geminiKey} onChange={e => setGeminiKey(e.target.value)}
+                        style={{ width: '100%', padding: '10px 14px', background: s.bg, border: `1px solid ${s.border}`, borderRadius: s.radius, color: s.bright, fontSize: s.fontSize, outline: 'none' }} />
+                      <a href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: '#60a5fa', fontSize: 13, marginTop: 6, textDecoration: 'none' }}>
+                        Get API key <Icon name="open_in_new" size={14} />
+                      </a>
+                    </div>
+                    <div>
+                      <div style={{ marginBottom: 8, color: s.text, fontSize: s.fontSize, fontWeight: 500 }}>Vision API Key (optional)</div>
+                      <input type="password" value={visionKey} onChange={e => setVisionKey(e.target.value)}
+                        style={{ width: '100%', padding: '10px 14px', background: s.bg, border: `1px solid ${s.border}`, borderRadius: s.radius, color: s.bright, fontSize: s.fontSize, outline: 'none' }} />
+                      <a href="https://console.cloud.google.com/apis/library/vision.googleapis.com" target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: '#60a5fa', fontSize: 13, marginTop: 6, textDecoration: 'none' }}>
+                        Enable Vision API <Icon name="open_in_new" size={14} />
+                      </a>
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', padding: '10px 14px', background: s.bg, borderRadius: s.radius }}>
+                        <input type="checkbox" checked={useVision} onChange={e => setUseVision(e.target.checked)} style={{ width: 18, height: 18, accentColor: '#60a5fa' }} />
+                        <div>
+                          <div style={{ fontSize: s.fontSize, color: s.bright }}>Use Vision API for reverse image search</div>
+                          <div style={{ fontSize: 13, color: s.muted }}>Find web matches and similar images</div>
+                        </div>
+                      </label>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', padding: '10px 14px', background: s.bg, borderRadius: s.radius }}>
+                        <input type="checkbox" checked={autoDownloadLarger} onChange={e => setAutoDownloadLarger(e.target.checked)} style={{ width: 18, height: 18, accentColor: '#60a5fa' }} />
+                        <div>
+                          <div style={{ fontSize: s.fontSize, color: s.bright }}>Auto-download larger versions</div>
+                          <div style={{ fontSize: 13, color: s.muted }}>Requires output folder to be set</div>
+                        </div>
+                      </label>
+                    </div>
+
+                    <div>
+                      <div style={{ marginBottom: 10, color: s.text, fontSize: s.fontSize, fontWeight: 500 }}>Save Mode</div>
+                      <div style={{ display: 'flex', gap: 12 }}>
+                        <label style={{ flex: 1, padding: '14px 16px', border: `2px solid ${saveMode === 'embed' ? '#60a5fa' : s.border}`, background: saveMode === 'embed' ? 'rgba(96,165,250,0.1)' : 'transparent', borderRadius: s.radius, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <input type="radio" checked={saveMode === 'embed'} onChange={() => setSaveMode('embed')} style={{ width: 18, height: 18, accentColor: '#60a5fa' }} />
+                          <div>
+                            <div style={{ fontSize: s.fontSize, color: s.bright }}>Embed XMP</div>
+                            <div style={{ fontSize: 13, color: s.muted }}>Write metadata into file</div>
+                          </div>
+                        </label>
+                        <label style={{ flex: 1, padding: '14px 16px', border: `2px solid ${saveMode === 'sidecar' ? '#60a5fa' : s.border}`, background: saveMode === 'sidecar' ? 'rgba(96,165,250,0.1)' : 'transparent', borderRadius: s.radius, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <input type="radio" checked={saveMode === 'sidecar'} onChange={() => setSaveMode('sidecar')} style={{ width: 18, height: 18, accentColor: '#60a5fa' }} />
+                          <div>
+                            <div style={{ fontSize: s.fontSize, color: s.bright }}>Sidecar .xmp</div>
+                            <div style={{ fontSize: 13, color: s.muted }}>Create separate file</div>
+                          </div>
+                        </label>
+                      </div>
+                    </div>
+
+                    <button onClick={async () => { try { setOutputDir(await window.showDirectoryPicker({ mode: 'readwrite' })); } catch {} }}
+                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '12px 16px', background: outputDir ? 'rgba(16,185,129,0.15)' : '#1f2937', color: outputDir ? '#10b981' : s.text, border: `1px solid ${outputDir ? 'rgba(16,185,129,0.3)' : s.border}`, borderRadius: s.radius, cursor: 'pointer', fontSize: s.fontSize }}>
+                      <Icon name={outputDir ? "check_circle" : "folder_open"} size={20} />
+                      {outputDir ? 'Output folder set' : 'Choose output folder'}
+                    </button>
                   </div>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
-                    <input type="checkbox" checked={useVision} onChange={e => setUseVision(e.target.checked)} />
-                    <span style={{ fontSize: 10, color: s.text }}>Use Vision API for reverse image search</span>
-                  </label>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
-                    <input type="checkbox" checked={autoDownloadLarger} onChange={e => setAutoDownloadLarger(e.target.checked)} />
-                    <span style={{ fontSize: 10, color: s.text }}>Auto-download larger versions (needs output folder)</span>
-                  </label>
-                  <div style={{ display: 'flex', gap: 10 }}>
-                    <label style={{ flex: 1, padding: 8, border: `1px solid ${saveMode === 'embed' ? '#60a5fa' : s.border}`, borderRadius: 4, cursor: 'pointer', fontSize: 10 }}>
-                      <input type="radio" checked={saveMode === 'embed'} onChange={() => setSaveMode('embed')} style={{ marginRight: 6 }} />
-                      Embed XMP
-                    </label>
-                    <label style={{ flex: 1, padding: 8, border: `1px solid ${saveMode === 'sidecar' ? '#60a5fa' : s.border}`, borderRadius: 4, cursor: 'pointer', fontSize: 10 }}>
-                      <input type="radio" checked={saveMode === 'sidecar'} onChange={() => setSaveMode('sidecar')} style={{ marginRight: 6 }} />
-                      Sidecar .xmp
-                    </label>
+                  <div style={{ padding: '16px 20px', borderTop: `1px solid ${s.border}`, display: 'flex', justifyContent: 'flex-end' }}>
+                    <button onClick={() => setShowSettings(false)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px 20px', background: '#2563eb', color: 'white', border: 'none', borderRadius: s.radius, cursor: 'pointer', fontSize: s.fontSize, fontWeight: 500 }}>
+                      Done
+                    </button>
                   </div>
-                  <button onClick={async () => { try { setOutputDir(await window.showDirectoryPicker({ mode: 'readwrite' })); } catch {} }}
-                    style={{ padding: '8px', background: outputDir ? 'rgba(74,222,128,0.15)' : '#222', color: outputDir ? '#4ade80' : '#888', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: 10 }}>
-                    {outputDir ? '✓ Output folder set' : 'Choose output folder'}
-                  </button>
-                </div>
-                <div style={{ padding: 14, borderTop: `1px solid ${s.border}`, display: 'flex', justifyContent: 'flex-end' }}>
-                  <button onClick={() => setShowSettings(false)} style={{ padding: '6px 16px', background: '#2563eb', color: 'white', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: 10 }}>Done</button>
-                </div>
-              </div>
-            </div>
-          )}
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       );
     }
