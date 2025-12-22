@@ -540,11 +540,12 @@
           const mem = currentMemory[hash];
           const filenameKws = extractFromFilename(file.name);
           const existingKws = await extractExistingMetadata(file);
+          const calculatedBaseName = getBaseName(file.name);
 
-          console.log('[DROP] Processing:', file.name, 'hash:', hash);
+          console.log('[DROP] Processing:', file.name, 'hash:', hash, 'baseName:', calculatedBaseName);
           return {
             id: hash, name: file.name, file, url: URL.createObjectURL(file),
-            baseName: getBaseName(file.name),
+            baseName: calculatedBaseName,
             status: mem?.exported ? 'done' : 'pending',
             hidden: mem?.hidden || false,
             keywords: mem?.keywords || [], pending: mem?.pending || [],
@@ -582,10 +583,16 @@
 
       // Find similar images using multi-criteria scoring
       const getSimilarImages = useCallback((img) => {
-        if (!img) return [];
+        if (!img) {
+          console.log('[SIMILAR] Called with no image');
+          return [];
+        }
+
+        console.log(`[SIMILAR] Called for "${img.name}" with baseName: "${img.baseName}" (length: ${img.baseName?.length || 0})`);
 
         // Minimum baseName length check (lowered to 3 to support IMG_XXXX patterns)
         if (!img.baseName || img.baseName.length < 3) {
+          console.log(`[SIMILAR] Rejected: baseName too short or missing`);
           return [];
         }
 
@@ -606,17 +613,17 @@
           return intersection.size / union.size; // Jaccard similarity
         };
 
-        // Score each potential match
+        // Score each potential match using OR logic: any strong signal qualifies
         const candidates = queue
           .filter(q => q.id !== img.id && q.baseName === img.baseName)
           .map(q => {
-            let score = 0;
             const reasons = [];
+            let isMatch = false;
 
             const name1 = img.name.toLowerCase().replace(/\.[^.]+$/, '');
             const name2 = q.name.toLowerCase().replace(/\.[^.]+$/, '');
 
-            // 1. Filename similarity (max 30 points)
+            // 1. Check filename similarity
             const minLen = Math.min(name1.length, name2.length);
             const maxLen = Math.max(name1.length, name2.length);
             let commonPrefixLen = 0;
@@ -624,23 +631,24 @@
               if (name1[i] === name2[i]) commonPrefixLen++;
               else break;
             }
-            const prefixScore = (commonPrefixLen / maxLen) * 30;
-            score += prefixScore;
-            if (prefixScore > 20) reasons.push(`prefix: ${Math.round(prefixScore)}`);
+            const prefixMatch = (commonPrefixLen / maxLen) >= 0.7; // 70% prefix match
+            if (prefixMatch) {
+              reasons.push(`prefix: ${Math.round((commonPrefixLen / maxLen) * 100)}%`);
+              isMatch = true;
+            }
 
-            // 2. Sequential filename numbers (20 points if sequential)
+            // 2. Check sequential filename numbers
             const seq1 = getSequenceNumber(img.name);
             const seq2 = getSequenceNumber(q.name);
             if (seq1 !== null && seq2 !== null) {
               const seqDiff = Math.abs(seq1 - seq2);
-              if (seqDiff <= 5) {
-                const seqScore = 20 - (seqDiff * 3); // Closer sequences score higher
-                score += seqScore;
-                reasons.push(`seq: ${seq1}→${seq2} (+${Math.round(seqScore)})`);
+              if (seqDiff <= 10) { // Within 10 numbers
+                reasons.push(`seq: ${seq1}→${seq2} (Δ${seqDiff})`);
+                isMatch = true;
               }
             }
 
-            // 3. File timestamp proximity (max 25 points)
+            // 3. Check file timestamp proximity
             if (img.file && q.file) {
               const time1 = img.file.lastModified || 0;
               const time2 = q.file.lastModified || 0;
@@ -649,46 +657,41 @@
               const oneDay = 24 * oneHour;
 
               if (timeDiff < oneHour) {
-                score += 25;
-                reasons.push('time: <1h (+25)');
+                reasons.push('time: <1h');
+                isMatch = true;
               } else if (timeDiff < oneDay) {
-                score += 15;
-                reasons.push('time: <1d (+15)');
-              } else if (timeDiff < oneDay * 7) {
-                score += 5;
-                reasons.push('time: <1w (+5)');
+                reasons.push('time: <1d');
               }
             }
 
-            // 4. Keyword similarity (max 25 points)
+            // 4. Check keyword similarity
             const kwSim = getKeywordSimilarity(img.keywords || [], q.keywords || []);
-            const kwScore = kwSim * 25;
-            if (kwScore > 5) {
-              score += kwScore;
-              reasons.push(`keywords: ${Math.round(kwSim * 100)}% (+${Math.round(kwScore)})`);
+            if (kwSim >= 0.5) { // 50% keyword overlap
+              reasons.push(`keywords: ${Math.round(kwSim * 100)}%`);
+              isMatch = true;
             }
 
-            return { img: q, score, reasons };
+            return { img: q, isMatch, reasons };
           });
 
-        // Debug: Log all candidates with scores
+        // Debug: Log all candidates
         if (candidates.length > 0) {
-          console.log(`[SIMILAR] Scoring candidates for "${img.name}" (baseName: "${img.baseName}"):`);
+          console.log(`[SIMILAR] Checking candidates for "${img.name}" (baseName: "${img.baseName}"):`);
           candidates.forEach(c => {
-            console.log(`  - ${c.img.name}: score=${Math.round(c.score)} [${c.reasons.join(', ')}]`);
+            const status = c.isMatch ? '✓' : '✗';
+            console.log(`  ${status} ${c.img.name}: [${c.reasons.join(', ')}]`);
           });
         }
 
-        // Filter: only include matches with score >= 40 (lowered threshold)
+        // Filter: only include matches where isMatch is true
         const similar = candidates
-          .filter(c => c.score >= 40)
-          .sort((a, b) => b.score - a.score)
+          .filter(c => c.isMatch)
           .map(c => c.img);
 
         if (similar.length > 0) {
-          console.log(`[SIMILAR] ✓ Matched ${similar.length} images (score >= 40)`);
+          console.log(`[SIMILAR] ✓ Matched ${similar.length} images using OR logic`);
         } else if (candidates.length > 0) {
-          console.log(`[SIMILAR] ✗ No matches (highest score: ${Math.round(Math.max(...candidates.map(c => c.score)))})`);
+          console.log(`[SIMILAR] ✗ No matches found`);
         }
 
         return similar;
