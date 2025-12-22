@@ -668,7 +668,7 @@
             const kwSim = getKeywordSimilarity(img.keywords || [], q.keywords || []);
             const keywordsMatch = kwSim >= 0.5;
 
-            // Match logic: Use OR but sequential numbers REQUIRE time or keyword match
+            // Match logic: Combined criteria to prevent false matches
             // IMPORTANT: Disable prefix-only matching for very short baseNames (like "img")
             // to prevent false matches across different photo sessions
             const baseNameTooShort = img.baseName.length <= 4;
@@ -682,11 +682,14 @@
               reasons.push(`seq: ${seq1}→${seq2} (Δ${seqDiff})`);
               if (keywordsMatch) reasons.push(`keywords: ${Math.round(kwSim * 100)}%`);
               isMatch = true;
-            } else if (timeMatch) {
-              // Very close time match (<1h) can stand alone
+            } else if (timeMatch && (isSequential || keywordsMatch)) {
+              // Time match MUST be combined with sequential numbers OR keywords
+              // to prevent matching all files dropped at the same time
+              if (isSequential) reasons.push(`seq: ${seq1}→${seq2} (Δ${seqDiff})`);
+              if (keywordsMatch) reasons.push(`keywords: ${Math.round(kwSim * 100)}%`);
               isMatch = true;
-            } else if (keywordsMatch) {
-              // High keyword similarity can stand alone
+            } else if (keywordsMatch && kwSim >= 0.7) {
+              // High keyword similarity (70%+) can stand alone
               reasons.push(`keywords: ${Math.round(kwSim * 100)}%`);
               isMatch = true;
             }
