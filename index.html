@@ -402,8 +402,18 @@
       }, []);
 
       const [queue, setQueue] = useState([]);
-      const [memory, setMemory] = useState(loadMemory);
+      const [memory, setMemory] = useState({});
       const [selectedId, setSelectedId] = useState(null);
+
+      // Load memory from IndexedDB on mount
+      useEffect(() => {
+        loadMemory().then(m => {
+          if (m && Object.keys(m).length > 0) {
+            setMemory(m);
+            console.log('[MEMORY] Loaded from IndexedDB:', Object.keys(m).length, 'items');
+          }
+        });
+      }, []);
 
       const [showDone, setShowDone] = useState(true);
       const [showHidden, setShowHidden] = useState(false);
@@ -523,7 +533,15 @@
         localStorage.setItem('thumb_size', thumbSize.toString());
       }, [geminiKey, visionKey, useVision, autoDownloadLarger, saveMode, thumbSize]);
 
-      useEffect(() => { saveMemory(memory); }, [memory]);
+      // Auto-save memory to IndexedDB (debounced to avoid excessive writes)
+      useEffect(() => {
+        const timeoutId = setTimeout(() => {
+          if (Object.keys(memory).length > 0) {
+            saveMemory(memory).catch(e => console.error('[MEMORY] Save failed:', e));
+          }
+        }, 1000); // Debounce 1 second
+        return () => clearTimeout(timeoutId);
+      }, [memory]);
       useEffect(() => { localStorage.setItem(TAXONOMY_KEY, JSON.stringify(taxonomy)); }, [taxonomy]);
       useEffect(() => { localStorage.setItem('grid_width', gridWidth.toString()); }, [gridWidth]);
 

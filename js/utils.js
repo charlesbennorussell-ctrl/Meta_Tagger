@@ -658,14 +658,50 @@ const getBaseName = (filename) => {
   return base;
 };
 
-const loadMemory = () => {
+// Migrate from localStorage to IndexedDB for large datasets
+const loadMemory = async () => {
   const { STORAGE_KEY } = window.TaggerData;
-  try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {}; } catch { return {}; }
+
+  // Try IndexedDB first
+  if (window.TaggerPerformance && window.TaggerPerformance.getMemory) {
+    const idbData = await window.TaggerPerformance.getMemory(STORAGE_KEY);
+    if (idbData) return idbData;
+  }
+
+  // Fallback to localStorage (for migration)
+  try {
+    const lsData = JSON.parse(localStorage.getItem(STORAGE_KEY));
+    if (lsData) {
+      // Migrate to IndexedDB
+      console.log('[MEMORY] Migrating from localStorage to IndexedDB...');
+      if (window.TaggerPerformance && window.TaggerPerformance.storeMemory) {
+        await window.TaggerPerformance.storeMemory(STORAGE_KEY, lsData);
+        // Clear from localStorage after successful migration
+        localStorage.removeItem(STORAGE_KEY);
+      }
+      return lsData;
+    }
+  } catch (e) {
+    console.error('[MEMORY] Load failed:', e);
+  }
+
+  return {};
 };
 
-const saveMemory = (m) => {
+const saveMemory = async (m) => {
   const { STORAGE_KEY } = window.TaggerData;
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(m));
+
+  // Use IndexedDB for storage (no quota issues)
+  if (window.TaggerPerformance && window.TaggerPerformance.storeMemory) {
+    await window.TaggerPerformance.storeMemory(STORAGE_KEY, m);
+  } else {
+    // Fallback to localStorage (may fail with large datasets)
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(m));
+    } catch (e) {
+      console.error('[MEMORY] localStorage quota exceeded, waiting for IndexedDB...', e);
+    }
+  }
 };
 
 // Analysis cache functions

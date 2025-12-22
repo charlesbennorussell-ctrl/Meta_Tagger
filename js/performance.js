@@ -5,9 +5,10 @@
 
 // IndexedDB for large-scale caching (replaces localStorage for images)
 const DB_NAME = 'TaggerDB';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const STORE_THUMBNAILS = 'thumbnails';
 const STORE_ANALYSIS = 'analysis';
+const STORE_MEMORY = 'memory';
 
 let dbInstance = null;
 
@@ -36,6 +37,11 @@ const initDB = async () => {
       if (!db.objectStoreNames.contains(STORE_ANALYSIS)) {
         const analysisStore = db.createObjectStore(STORE_ANALYSIS, { keyPath: 'hash' });
         analysisStore.createIndex('timestamp', 'timestamp', { unique: false });
+      }
+
+      // Memory store (for queue/working data)
+      if (!db.objectStoreNames.contains(STORE_MEMORY)) {
+        db.createObjectStore(STORE_MEMORY, { keyPath: 'key' });
       }
     };
   });
@@ -346,6 +352,46 @@ class LazyLoader {
   }
 }
 
+// Store memory in IndexedDB (replaces localStorage for large datasets)
+const storeMemory = async (key, data) => {
+  try {
+    const db = await initDB();
+    const tx = db.transaction(STORE_MEMORY, 'readwrite');
+    const store = tx.objectStore(STORE_MEMORY);
+
+    await store.put({ key, data, timestamp: Date.now() });
+    return true;
+  } catch (e) {
+    console.error('[MEMORY] Store failed:', e);
+    return false;
+  }
+};
+
+// Get memory from IndexedDB
+const getMemory = async (key) => {
+  try {
+    const db = await initDB();
+    const tx = db.transaction(STORE_MEMORY, 'readonly');
+    const store = tx.objectStore(STORE_MEMORY);
+
+    return new Promise((resolve, reject) => {
+      const request = store.get(key);
+      request.onsuccess = () => {
+        const result = request.result;
+        if (result && result.data) {
+          resolve(result.data);
+        } else {
+          resolve(null);
+        }
+      };
+      request.onerror = () => reject(request.error);
+    });
+  } catch (e) {
+    console.error('[MEMORY] Get failed:', e);
+    return null;
+  }
+};
+
 // Memory monitoring
 const getMemoryUsage = () => {
   if (performance.memory) {
@@ -365,6 +411,8 @@ window.TaggerPerformance = {
   storeAnalysis,
   getAnalysis,
   cleanOldThumbnails,
+  storeMemory,
+  getMemory,
   BatchProcessor,
   VirtualScroller,
   LazyLoader,
