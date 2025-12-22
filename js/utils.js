@@ -118,7 +118,7 @@ const smartCategorize = (kw, contextBrand = null) => {
     return ['Style', 'Origin'];
   }
 
-  // Handle Graphic Design sub-categories
+  // Handle Graphic Design sub-categories and general graphic design
   const graphicDesignCategories = {
     'Print': ['poster', 'book design', 'magazine', 'editorial', 'packaging', 'album cover', 'catalog', 'brochure', 'print design'],
     'Identity': ['logo', 'branding', 'corporate identity', 'visual identity', 'logotype', 'wordmark', 'brand identity'],
@@ -131,13 +131,17 @@ const smartCategorize = (kw, contextBrand = null) => {
       return ['Design', 'Graphic Design', subcat];
     }
   }
+  // Generic graphic design fallback
+  if (valueLower === 'graphic design' || valueLower === 'graphics') {
+    return ['Design', 'Graphic Design'];
+  }
 
   // Handle Industrial Design sub-categories
   const industrialDesignCategories = {
     'Furniture': ['chair', 'sofa', 'table', 'desk', 'shelving', 'lamp', 'bench', 'cabinet', 'stool', 'bed', 'furniture'],
-    'Audio Equipment': ['headphone', 'speaker', 'amplifier', 'turntable', 'earbud', 'dac', 'receiver', 'radio', 'soundbar', 'audio'],
-    'Consumer Electronics': ['phone', 'computer', 'camera', 'wearable', 'tablet', 'laptop', 'monitor', 'television', 'tv', 'remote', 'electronics'],
-    'Automotive': ['car', 'motorcycle', 'concept car', 'electric vehicle', 'bicycle', 'scooter', 'vehicle', 'automotive'],
+    'Audio Equipment': ['headphone', 'speaker', 'amplifier', 'turntable', 'earbud', 'dac', 'receiver', 'radio', 'soundbar', 'audio equipment'],
+    'Consumer Electronics': ['phone', 'computer', 'camera', 'wearable', 'tablet', 'laptop', 'monitor', 'television', 'tv', 'remote', 'consumer electronics'],
+    'Automotive': ['car', 'motorcycle', 'concept car', 'electric vehicle', 'bicycle', 'scooter', 'vehicle', 'wheel', 'wheel design', 'automotive'],
     'Appliances': ['kitchen', 'vacuum', 'coffee machine', 'toaster', 'blender', 'fan', 'heater', 'appliance'],
     'Tools': ['power tool', 'hand tool', 'office equipment', 'medical device', 'tool']
   };
@@ -145,6 +149,10 @@ const smartCategorize = (kw, contextBrand = null) => {
     if (terms.some(t => valueLower === t || valueLower.includes(t))) {
       return ['Design', 'Industrial Design', subcat];
     }
+  }
+  // Generic industrial design and product design fallback
+  if (valueLower === 'industrial design' || valueLower === 'product design') {
+    return ['Design', 'Industrial Design'];
   }
 
   // Handle Interior Design sub-categories
@@ -163,6 +171,10 @@ const smartCategorize = (kw, contextBrand = null) => {
     if (terms.some(t => valueLower === t || valueLower.includes(t))) {
       return ['Design', 'Fashion Design', subcat];
     }
+  }
+  // Generic fashion design fallback
+  if (valueLower === 'fashion design' || valueLower === 'fashion') {
+    return ['Design', 'Fashion Design'];
   }
 
   // Handle Photography sub-categories
@@ -236,7 +248,30 @@ const smartCategorize = (kw, contextBrand = null) => {
     }
   }
 
-  // Default to Custom
+  // Handle general design-related terms that should go to Design category
+  const generalDesignTerms = {
+    'automotive design': ['Design', 'Industrial Design', 'Automotive'],
+    'web design': ['Design', 'Graphic Design', 'Digital'],
+    'information design': ['Design', 'Graphic Design'],
+    'conceptual design': ['Design'],
+    'sustainable design': ['Design'],
+    'layout design': ['Design', 'Graphic Design'],
+    'ui design': ['Design', 'Graphic Design', 'Digital'],
+    'ux design': ['Design', 'Graphic Design', 'Digital'],
+    'engineering': ['Custom'] // Generic engineering term - needs more context
+  };
+
+  const designMatch = generalDesignTerms[valueLower];
+  if (designMatch) {
+    return designMatch;
+  }
+
+  // Catch-all for "*design" patterns not yet categorized
+  if (valueLower.endsWith(' design') || valueLower === 'design') {
+    return ['Design'];
+  }
+
+  // Default to Custom for uncategorized terms
   return ['Custom'];
 };
 
@@ -362,14 +397,22 @@ const looksLikeBrand = (text) => {
   // Third check: if it looks like a person name, return false
   if (looksLikePersonName(trimmed)) return false;
 
-  // Known brand suffixes/patterns
-  if (/\b(Engineering|Audio|Acoustics|Electronics|Design|Labs|Studio|Co\.|Inc\.|Ltd|GmbH|AG)\s*$/i.test(trimmed)) return true;
+  // Fourth check: if it's a generic design/category term, return false
+  const genericDesignTerms = /^(graphic design|industrial design|product design|interior design|fashion design|automotive design|web design|ui design|ux design|information design|conceptual design|sustainable design|layout design|wheel design|engineering|design)$/i;
+  if (genericDesignTerms.test(trimmed)) return false;
+
+  // Known brand suffixes/patterns - must have a proper company name before the suffix
+  // Match patterns like "Acme Engineering" but NOT just "Engineering"
+  if (/^[A-Z][a-z]+\s+(Engineering|Audio|Acoustics|Electronics|Labs|Studio|Systems|Works|Products|Instruments|Manufacturing|Technologies|Solutions|Motors|Industries)\s*$/i.test(trimmed)) return true;
+
+  // Company suffixes with proper format (e.g., "Apple Inc.", "Sony Co.")
+  if (/^[A-Z][a-z]+\s+(Co\.|Inc\.|Ltd\.?|GmbH|AG)\s*$/i.test(trimmed)) return true;
 
   // Single capitalized word with unusual capitalization (like "OnePlus", "PlayStation")
   if (/^[A-Z][a-z]+[A-Z]/.test(trimmed)) return true;
 
-  // All caps short name (like "BMW", "LG", "HP")
-  if (/^[A-Z]{2,5}$/.test(trimmed)) return true;
+  // All caps short name (like "BMW", "LG", "HP") - but must be 2-4 chars to avoid false matches
+  if (/^[A-Z]{2,4}$/.test(trimmed)) return true;
 
   // Two capitalized words - now we DON'T treat these as brands by default
   // since they could be person names. Only match if it has brand-like characteristics
@@ -575,6 +618,7 @@ const hashFile = async (file) => {
 };
 
 // Get base name for similarity matching (e.g., "ProductName" from "ProductName_01.jpg")
+// CONSERVATIVE approach: only strip clear sequence markers, not descriptive parts
 const getBaseName = (filename) => {
   let base = filename.replace(/\.[^.]+$/, ''); // Remove extension
 
@@ -584,11 +628,24 @@ const getBaseName = (filename) => {
     return base.toLowerCase();
   }
 
-  // For normal filenames, extract the base for sequence matching
+  // Only strip VERY specific sequence patterns to avoid false matches
+  // Match patterns like: _01, _001, -02, (1), (2), _v2, _final, _copy
+  // but ONLY if they come at the very end and are clearly sequence markers
   base = base
-    .replace(/[-_]?\s*\d{1,3}$/, '') // Remove trailing 1-3 digit numbers (sequences like _01, _1, -12)
-    .replace(/[-_]?\s*\(\d+\)$/, '') // Remove (1), (2) etc
-    .replace(/[-_](large|small|thumb|preview|hires|lowres|copy|final|edit|\d+x\d+)$/i, '') // Remove size suffixes
+    // Remove sequence numbers with clear separators: _01, _001, -02, etc (1-5 digits to handle IMG_XXXX patterns)
+    .replace(/[-_]\d{1,5}$/, '')
+    // Remove parenthetical numbers: (1), (2), etc
+    .replace(/\s*\(\d{1,2}\)$/, '')
+    // Remove version markers: _v1, _v2, _version2, etc
+    .replace(/[-_]v(?:ersion)?[-_]?\d{1,2}$/i, '')
+    // Remove edit/copy markers: _copy, _final, _edit (but only at the very end)
+    .replace(/[-_](copy|final|edit|edited)$/i, '')
+    // Remove size/quality suffixes: _large, _thumb, _preview, etc
+    .replace(/[-_](large|small|thumb|thumbnail|preview|hires|lowres|highres)$/i, '')
+    // Remove dimension suffixes only: 1920x1080, 4k, etc
+    .replace(/[-_]\d{3,4}x\d{3,4}$/i, '')
+    .replace(/[-_](4k|hd|fhd|uhd|2k|8k)$/i, '')
+    // Normalize spaces
     .replace(/\s+/g, ' ')
     .toLowerCase()
     .trim();
