@@ -30,7 +30,17 @@ Return 10-20 specific, useful keywords. Only return the JSON array.`;
   if (!response.ok) throw new Error('Gemini error');
   const text = (await response.json()).candidates?.[0]?.content?.parts?.[0]?.text || '[]';
   const match = text.match(/\[[\s\S]*\]/);
-  return match ? JSON.parse(match[0]) : [];
+  if (!match) return [];
+  // Fix common JSON issues: .9 -> 0.9, remove trailing commas
+  let jsonStr = match[0]
+    .replace(/:\s*\.(\d)/g, ': 0.$1')  // Fix .9 -> 0.9
+    .replace(/,\s*([}\]])/g, '$1');    // Remove trailing commas
+  try {
+    return JSON.parse(jsonStr);
+  } catch (e) {
+    console.error('[GEMINI] JSON parse error:', e.message, jsonStr.slice(0, 200));
+    return [];
+  }
 };
 
 const findDesigner = async (apiKey, productInfo) => {
@@ -69,20 +79,48 @@ const categorizeKeywords = async (apiKey, keywords) => {
   if (!apiKey || keywords.length === 0) return [];
 
   const categoryStructure = `
-Available categories and subcategories:
-- Design > Graphic Design > Print, Identity, Typography, Digital, Illustration
-- Design > Industrial Design > Furniture, Audio Equipment, Consumer Electronics, Automotive, Appliances, Tools
-- Design > Interior Design > Residential, Commercial, Exhibition
-- Design > Fashion Design > Apparel, Accessories, Textile
-- Architecture > Residential, Commercial, Institutional, Religious, Industrial
-- Art > Painting, Sculpture, Photography > Portrait/Landscape/Documentary/Commercial/Fine Art, Digital Art, Ceramics
-- Style > Modernism, Contemporary, Historical, Regional, Origin
-- Brand > Audio, Electronics, Camera, Automotive, Furniture, Fashion, Appliances, Watch
-- Creator > Designer > Industrial/Graphic/Fashion/Interior, Architect, Artist, Photographer, Studio
-- Product > Audio, Electronics, Automotive, Furniture, Fashion, Appliances, Watch, Camera
-- Era (decades like 1950s, 1960s, etc.)
-- Material > Natural, Metal, Synthetic, Mineral
-- Color > Neutral, Warm, Cool, Finish`;
+TAXONOMY STRUCTURE (use exact paths):
+
+1. Creator (PEOPLE who create - designers, architects, artists, photographers)
+   - Creator > Designer > Industrial (Dieter Rams, Charles Eames, Naoto Fukasawa, Jony Ive, Marc Newson)
+   - Creator > Designer > Graphic (Massimo Vignelli, Paula Scher, Paul Rand, Stefan Sagmeister)
+   - Creator > Designer > Fashion (Rei Kawakubo, Yohji Yamamoto, Virgil Abloh)
+   - Creator > Designer > Interior (Kelly Wearstler, Ilse Crawford)
+   - Creator > Architect (Zaha Hadid, Tadao Ando, Frank Gehry, Norman Foster, Bjarke Ingels)
+   - Creator > Artist > Painter, Sculptor, Ceramicist
+   - Creator > Photographer > Portrait, Fashion, Architecture, Documentary
+   - Creator > Studio > Design Studio, Architecture Firm, Creative Agency
+
+2. Brand (COMPANIES that make products)
+   - Brand > Audio (Bang & Olufsen, Bose, Sennheiser, Sony, KEF, Sonos)
+   - Brand > Electronics (Apple, Samsung, Google, Microsoft)
+   - Brand > Camera (Canon, Nikon, Leica, Hasselblad, Fujifilm)
+   - Brand > Automotive (BMW, Mercedes-Benz, Porsche, Tesla, Ferrari)
+   - Brand > Furniture (Herman Miller, Knoll, Vitra, Fritz Hansen, HAY)
+   - Brand > Fashion (Gucci, Louis Vuitton, Chanel, Nike, Adidas)
+   - Brand > Appliances (Braun, Dyson, Smeg, Balmuda, Miele)
+   - Brand > Watch (Rolex, Omega, Patek Philippe, Grand Seiko)
+
+3. Design (design disciplines and styles)
+   - Design > Graphic Design > Print, Identity, Typography, Digital, Illustration
+   - Design > Industrial Design > Furniture, Audio Equipment, Consumer Electronics, Automotive, Appliances, Tools
+   - Design > Interior Design > Residential, Commercial, Exhibition
+   - Design > Fashion Design > Apparel, Accessories, Textile
+
+4. Other categories:
+   - Product > Audio/Electronics/Automotive/Furniture/Fashion/Appliances/Watch/Camera
+   - Architecture > Residential, Commercial, Institutional, Religious, Industrial
+   - Art > Painting, Sculpture, Photography, Digital Art, Ceramics
+   - Style > Modernism, Contemporary, Historical, Regional, Origin
+   - Era > Pre-War, Mid-Century, Late Century, Contemporary (decades: 1950s, 1960s, etc.)
+   - Material > Natural, Metal, Synthetic, Mineral
+   - Color > Neutral, Warm, Cool, Finish
+
+CRITICAL RULES:
+- Person names (First Last format) are CREATORS, not brands
+- Company/corporate names are BRANDS
+- "Dieter Rams" = Creator > Designer > Industrial (person)
+- "Braun" = Brand > Appliances (company)`;
 
   try {
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
@@ -94,11 +132,15 @@ ${categoryStructure}
 
 Keywords to categorize: ${keywords.join(', ')}
 
-Return JSON array: [{"keyword": "original keyword", "path": ["Category", "Subcategory"], "type": "brand|designer|model|category|style|material|color"}]
-For brands, determine if they are Audio, Electronics, Camera, Automotive, Furniture, Fashion, Appliances, or Watch brands.
-For car-related terms (car models, car parts, automotive terms), use Brand > Automotive or Design > Industrial Design > Automotive.
+Return JSON array: [{"keyword": "original keyword", "path": ["Category", "Subcategory", "Sub-subcategory"], "type": "designer|architect|artist|photographer|brand|model|category|style|material|color|era"}]
+
+IMPORTANT:
+- Use web search to verify if a term is a person (designer/artist) or company (brand)
+- Person names go under Creator, companies go under Brand
+- Include the discipline for designers (Industrial, Graphic, Fashion, Interior)
 Only return the JSON array.` }] }],
-        generationConfig: { temperature: 0.1, maxOutputTokens: 2048 }
+        generationConfig: { temperature: 0.1, maxOutputTokens: 2048 },
+        tools: [{ googleSearch: {} }]
       })
     });
     if (!response.ok) return [];
@@ -595,26 +637,44 @@ const researchKeyword = async (apiKey, keyword) => {
 
 Term: "${keyword}"
 
-Determine:
-1. What type of thing is this? (brand, designer, product, style, material, etc.)
-2. What category does it belong in?
-3. Any relevant metadata (country of origin, time period, discipline)
+TAXONOMY PATHS:
+- Creator > Designer > Industrial/Graphic/Fashion/Interior (for PEOPLE who design)
+- Creator > Architect (for PEOPLE who design buildings)
+- Creator > Artist > Painter/Sculptor/Ceramicist
+- Creator > Photographer > Portrait/Fashion/Architecture/Documentary
+- Creator > Studio > Design Studio/Architecture Firm/Creative Agency
+- Brand > Audio/Electronics/Camera/Automotive/Furniture/Fashion/Appliances/Watch (for COMPANIES)
+- Design > Graphic Design > Print/Identity/Typography/Digital/Illustration
+- Design > Industrial Design > Furniture/Audio Equipment/Consumer Electronics/Automotive/Appliances/Tools
+- Design > Interior Design > Residential/Commercial/Exhibition
+- Design > Fashion Design > Apparel/Accessories/Textile
+- Product > Audio/Electronics/Automotive/Furniture/Fashion/Appliances/Watch/Camera
+- Architecture > Residential/Commercial/Institutional/Religious/Industrial
+- Art > Painting/Sculpture/Photography/Digital Art/Ceramics
+- Style > Modernism/Contemporary/Historical/Regional/Origin
+- Era > Pre-War/Mid-Century/Late Century/Contemporary
+- Material > Natural/Metal/Synthetic/Mineral
+- Color > Neutral/Warm/Cool/Finish
+
+CRITICAL: Distinguish PEOPLE (Creator) from COMPANIES (Brand)
+- Person names like "Dieter Rams", "Jony Ive" = Creator > Designer
+- Company names like "Apple", "Braun" = Brand
 
 Return JSON:
 {
   "keyword": "${keyword}",
-  "type": "brand|designer|architect|artist|photographer|product|style|material|color|era|category",
-  "path": ["Category", "Subcategory"],
+  "type": "designer|architect|artist|photographer|brand|product|style|material|color|era|category",
+  "path": ["Category", "Subcategory", "Sub-subcategory"],
   "confidence": 0.9,
   "metadata": {
     "origin": "Country or null",
     "era": "1960s or null",
-    "discipline": "Industrial Design, Graphic Design, etc. or null",
+    "discipline": "Industrial, Graphic, Fashion, Interior, or null",
     "description": "Brief description"
   }
 }
 
-Use web search to verify information. Only return the JSON.` }] }],
+Use web search to verify. Only return JSON.` }] }],
         generationConfig: { temperature: 0.1, maxOutputTokens: 512 },
         tools: [{ googleSearch: {} }]
       })

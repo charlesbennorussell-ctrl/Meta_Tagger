@@ -3,6 +3,26 @@
 // ============================================
 (function() {
 
+// Check if text looks like a person name (First Last pattern)
+// Defined first as it's used by smartCategorize and looksLikeBrand
+const looksLikePersonName = (text) => {
+  const trimmed = text.trim();
+  // Must be exactly two or three capitalized words (First Last or First Middle Last)
+  if (!/^[A-Z][a-z]+(\s+[A-Z][a-z]+){1,2}$/.test(trimmed)) return false;
+
+  // Common first name patterns that suggest a person
+  const commonFirstNames = /^(Adam|Alex|Alexander|Andrew|Anna|Anne|Antonio|Benjamin|Brian|Charles|Chris|Christian|Christopher|Daniel|David|Edward|Eric|Frank|George|Hans|Henry|Jack|Jacob|James|Jason|Jean|Jeff|Jennifer|Jessica|Joanna|Joe|John|Jonathan|Joseph|Joshua|Karl|Kenneth|Kevin|Louis|Ludwig|Marc|Mark|Martin|Matthew|Max|Michael|Michelle|Nathan|Nicholas|Oscar|Patricia|Patrick|Paul|Peter|Philip|Philippe|Rachel|Ray|Richard|Robert|Roger|Ronald|Ryan|Samuel|Sandra|Sarah|Scott|Sergio|Stefan|Stephen|Steven|Thomas|Tim|Timothy|Tom|Victor|Walter|William|Zaha)\b/i;
+
+  // If starts with common first name, likely a person
+  if (commonFirstNames.test(trimmed)) return true;
+
+  // Foreign/design world first names
+  const designerNames = /^(Arne|Bjarke|Dieter|Eero|Erwan|Isamu|Issey|Jasper|Jony|Kazuyo|Kengo|Konstantin|Massimo|Naoto|Neville|Paula|Rei|Renzo|Ronan|Ryue|Shiro|Tadao|Verner|Virgil|Vivienne|Yohji)\b/i;
+  if (designerNames.test(trimmed)) return true;
+
+  return false;
+};
+
 // Smart categorization function for keywords
 const smartCategorize = (kw, contextBrand = null) => {
   const { KNOWN_ARTISTS, KNOWN_ARCHITECTS, DESIGNER_DISCIPLINES, KNOWN_BRANDS, BRAND_CATEGORIES, ERA_PERIODS } = window.TaggerData;
@@ -17,18 +37,27 @@ const smartCategorize = (kw, contextBrand = null) => {
   }
 
   // Handle designers - route to Creator > Designer > [discipline]
-  if (type === 'designer' || KNOWN_ARTISTS.some(a => a.toLowerCase() === valueLower)) {
-    // Check if known architect
-    if (KNOWN_ARCHITECTS.some(a => a.toLowerCase() === valueLower)) {
+  // Check if it's explicitly marked as designer OR is a known artist/designer OR looks like a person name
+  if (type === 'designer' || type === 'architect' || type === 'artist' || type === 'photographer' ||
+      KNOWN_ARTISTS.some(a => a.toLowerCase() === valueLower) ||
+      (looksLikePersonName(value) && !KNOWN_BRANDS.some(b => b.toLowerCase() === valueLower))) {
+    // Handle specific types first
+    if (type === 'architect' || KNOWN_ARCHITECTS.some(a => a.toLowerCase() === valueLower)) {
       return ['Creator', 'Architect'];
     }
-    // Check discipline
+    if (type === 'photographer') {
+      return ['Creator', 'Photographer'];
+    }
+    if (type === 'artist') {
+      return ['Creator', 'Artist'];
+    }
+    // Check designer discipline from known list
     for (const [discipline, designers] of Object.entries(DESIGNER_DISCIPLINES)) {
       if (designers.some(d => d.toLowerCase() === valueLower)) {
         return ['Creator', 'Designer', discipline];
       }
     }
-    // Default to Industrial for unknown designers (most common)
+    // Default to Industrial for unknown designers (most common in design archives)
     return ['Creator', 'Designer', 'Industrial'];
   }
 
@@ -318,25 +347,6 @@ const getBrandPath = (brandName) => {
   return category ? ['Brand', category] : ['Brand'];
 };
 
-// Check if text looks like a person name (First Last pattern)
-const looksLikePersonName = (text) => {
-  const trimmed = text.trim();
-  // Must be exactly two or three capitalized words (First Last or First Middle Last)
-  if (!/^[A-Z][a-z]+(\s+[A-Z][a-z]+){1,2}$/.test(trimmed)) return false;
-
-  // Common first name patterns that suggest a person
-  const commonFirstNames = /^(Adam|Alex|Alexander|Andrew|Anna|Anne|Antonio|Benjamin|Brian|Charles|Chris|Christian|Christopher|Daniel|David|Edward|Eric|Frank|George|Hans|Henry|Jack|Jacob|James|Jason|Jean|Jeff|Jennifer|Jessica|Joanna|Joe|John|Jonathan|Joseph|Joshua|Karl|Kenneth|Kevin|Louis|Ludwig|Marc|Mark|Martin|Matthew|Max|Michael|Michelle|Nathan|Nicholas|Oscar|Patricia|Patrick|Paul|Peter|Philip|Philippe|Rachel|Ray|Richard|Robert|Roger|Ronald|Ryan|Samuel|Sandra|Sarah|Scott|Sergio|Stefan|Stephen|Steven|Thomas|Tim|Timothy|Tom|Victor|Walter|William|Zaha)\b/i;
-
-  // If starts with common first name, likely a person
-  if (commonFirstNames.test(trimmed)) return true;
-
-  // Foreign/design world first names
-  const designerNames = /^(Arne|Bjarke|Dieter|Eero|Erwan|Isamu|Issey|Jasper|Jony|Kazuyo|Kengo|Konstantin|Massimo|Naoto|Neville|Paula|Rei|Renzo|Ronan|Ryue|Shiro|Tadao|Verner|Virgil|Vivienne|Yohji)\b/i;
-  if (designerNames.test(trimmed)) return true;
-
-  return false;
-};
-
 // Check if text looks like a brand name (pattern-based detection)
 const looksLikeBrand = (text) => {
   const { KNOWN_ARTISTS, KNOWN_ARCHITECTS, KNOWN_BRANDS } = window.TaggerData;
@@ -566,15 +576,28 @@ const hashFile = async (file) => {
 
 // Get base name for similarity matching (e.g., "ProductName" from "ProductName_01.jpg")
 const getBaseName = (filename) => {
-  let base = filename
-    .replace(/\.[^.]+$/, '')  // Remove extension
-    .replace(/[-_]?\s*\d+$/, '') // Remove trailing numbers (with optional space)
+  let base = filename.replace(/\.[^.]+$/, ''); // Remove extension
+
+  // If filename looks like a hash (32 hex chars), don't try to extract base - use full hash
+  // This prevents false matches on hash-based filenames
+  if (/^[a-f0-9]{32}$/i.test(base)) {
+    return base.toLowerCase();
+  }
+
+  // For normal filenames, extract the base for sequence matching
+  base = base
+    .replace(/[-_]?\s*\d{1,3}$/, '') // Remove trailing 1-3 digit numbers (sequences like _01, _1, -12)
     .replace(/[-_]?\s*\(\d+\)$/, '') // Remove (1), (2) etc
     .replace(/[-_](large|small|thumb|preview|hires|lowres|copy|final|edit|\d+x\d+)$/i, '') // Remove size suffixes
     .replace(/\s+/g, ' ')
     .toLowerCase()
     .trim();
-  console.log(`[BASE] "${filename}" -> "${base}"`);
+
+  // If the result is too short or empty, use the original (minus extension)
+  if (base.length < 3) {
+    base = filename.replace(/\.[^.]+$/, '').toLowerCase();
+  }
+
   return base;
 };
 
@@ -596,13 +619,29 @@ const loadAnalysisCache = () => {
 
 const saveAnalysisCache = (cache) => {
   const { ANALYSIS_CACHE_KEY } = window.TaggerData;
-  // Limit cache size to prevent localStorage overflow (keep last 500 entries)
+  // Limit cache size to prevent localStorage overflow (keep last 200 entries)
   const entries = Object.entries(cache);
-  if (entries.length > 500) {
+  if (entries.length > 200) {
     const sorted = entries.sort((a, b) => (b[1].timestamp || 0) - (a[1].timestamp || 0));
-    cache = Object.fromEntries(sorted.slice(0, 500));
+    cache = Object.fromEntries(sorted.slice(0, 200));
   }
-  localStorage.setItem(ANALYSIS_CACHE_KEY, JSON.stringify(cache));
+  try {
+    localStorage.setItem(ANALYSIS_CACHE_KEY, JSON.stringify(cache));
+  } catch (e) {
+    // If quota exceeded, clear oldest half of cache and retry
+    if (e.name === 'QuotaExceededError') {
+      console.warn('[CACHE] Quota exceeded, trimming cache...');
+      const sorted = Object.entries(cache).sort((a, b) => (b[1].timestamp || 0) - (a[1].timestamp || 0));
+      cache = Object.fromEntries(sorted.slice(0, 100));
+      try {
+        localStorage.setItem(ANALYSIS_CACHE_KEY, JSON.stringify(cache));
+      } catch (e2) {
+        // If still failing, clear cache entirely
+        console.warn('[CACHE] Still failing, clearing cache');
+        localStorage.removeItem(ANALYSIS_CACHE_KEY);
+      }
+    }
+  }
 };
 
 const getCachedAnalysis = (hash) => {

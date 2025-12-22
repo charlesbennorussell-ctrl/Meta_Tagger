@@ -113,6 +113,46 @@
       >{name}</span>
     );
 
+    // Claude-style Toggle Switch component
+    const Toggle = ({ checked, onChange, label, disabled = false }) => (
+      <div
+        onClick={() => !disabled && onChange(!checked)}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+          cursor: disabled ? 'not-allowed' : 'pointer',
+          opacity: disabled ? 0.5 : 1,
+          padding: '6px 12px',
+          background: checked ? 'rgba(96,165,250,0.15)' : '#1f2937',
+          borderRadius: 8,
+          transition: 'all 0.2s ease'
+        }}
+      >
+        <div style={{
+          width: 36,
+          height: 20,
+          borderRadius: 10,
+          background: checked ? '#3b82f6' : '#374151',
+          position: 'relative',
+          transition: 'background 0.2s ease'
+        }}>
+          <div style={{
+            width: 16,
+            height: 16,
+            borderRadius: 8,
+            background: '#fff',
+            position: 'absolute',
+            top: 2,
+            left: checked ? 18 : 2,
+            transition: 'left 0.2s ease',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.3)'
+          }} />
+        </div>
+        {label && <span style={{ fontSize: 13, color: checked ? '#60a5fa' : '#9ca3af' }}>{label}</span>}
+      </div>
+    );
+
     // Import from modules
     const { DEFAULT_TAXONOMY, ROOT_COLORS, STORAGE_KEY, TAXONOMY_KEY } = window.TaggerData;
     const {
@@ -264,6 +304,7 @@
       const [organizeProgress, setOrganizeProgress] = useState(null);
       const [gridWidth, setGridWidth] = useState(() => parseInt(localStorage.getItem('grid_width')) || 50); // percentage
       const [isDraggingDivider, setIsDraggingDivider] = useState(false);
+      const [autoScan, setAutoScan] = useState(false); // Auto-scan toggle (default: paused)
 
       const fileRef = useRef(null);
       const folderRef = useRef(null);
@@ -389,6 +430,7 @@
       const queueRef = useRef(queue);
       const memoryRef = useRef(memory);
       const geminiKeyRef = useRef(geminiKey);
+      const autoScanRef = useRef(autoScan);
       const analyzeImageRef = useRef(null);
       const saveImageRef = useRef(null);
       const selectedImgRef = useRef(null);
@@ -397,6 +439,7 @@
       useEffect(() => { queueRef.current = queue; }, [queue]);
       useEffect(() => { memoryRef.current = memory; }, [memory]);
       useEffect(() => { geminiKeyRef.current = geminiKey; }, [geminiKey]);
+      useEffect(() => { autoScanRef.current = autoScan; }, [autoScan]);
       useEffect(() => { keywordsRef.current = keywords; }, [keywords]);
       useEffect(() => { designerRef.current = designer; }, [designer]);
 
@@ -504,7 +547,7 @@
             baseName: getBaseName(file.name),
             status: mem?.exported ? 'done' : 'pending',
             hidden: mem?.hidden || false,
-            keywords: mem?.keywords || [], pending: [],
+            keywords: mem?.keywords || [], pending: mem?.pending || [],
             filenameKeywords: filenameKws,
             existingKeywords: existingKws,
             creator: mem?.creator || null, hash
@@ -517,13 +560,16 @@
 
         if (uniqueItems.length > 0) {
           setQueue(prev => [...prev, ...uniqueItems]);
-          // Auto-analyze pending items after a short delay to let state update
+          // Only auto-analyze if autoScan is enabled, and skip hidden items
           setTimeout(() => {
-            if (geminiKeyRef.current) {
-              console.log('[AUTO-ANALYZE] Starting analysis of', uniqueItems.length, 'items');
-              uniqueItems.filter(item => item.status === 'pending').forEach(item => {
+            if (geminiKeyRef.current && autoScanRef.current) {
+              const toAnalyze = uniqueItems.filter(item => item.status === 'pending' && !item.hidden);
+              console.log('[AUTO-ANALYZE] Auto-scan ON - analyzing', toAnalyze.length, 'non-hidden items');
+              toAnalyze.forEach(item => {
                 analyzeImageRef.current?.(item);
               });
+            } else if (!autoScanRef.current) {
+              console.log('[AUTO-ANALYZE] Auto-scan OFF - skipping analysis');
             }
           }, 100);
         }
@@ -672,8 +718,10 @@
             console.log('[SAVE] Copied raw file:', img.name);
           }
 
-          setQueue(q => q.map(i => i.id === img.id ? { ...i, status: 'done', keywords: kws } : i));
-          setMemory(prev => ({ ...prev, [img.hash]: { exported: true, keywords: kws, creator, hidden: img.hidden } }));
+          // Preserve pending keywords so they show when re-selecting done images
+          const currentPending = pending.length > 0 ? pending : (img.pending || []);
+          setQueue(q => q.map(i => i.id === img.id ? { ...i, status: 'done', keywords: kws, pending: currentPending } : i));
+          setMemory(prev => ({ ...prev, [img.hash]: { exported: true, keywords: kws, pending: currentPending, creator, hidden: img.hidden } }));
           setModified(false);
           setIsEditing(false);
 
@@ -942,6 +990,17 @@
         pendingImgs.forEach(img => analyzeImage(img));
       };
 
+      // When autoScan is toggled ON, start analyzing pending non-hidden images
+      useEffect(() => {
+        if (autoScan && geminiKey) {
+          const pendingImgs = queue.filter(q => q.status === 'pending' && !q.hidden);
+          if (pendingImgs.length > 0) {
+            console.log('[AUTO-SCAN] Toggled ON - starting analysis of', pendingImgs.length, 'pending items');
+            pendingImgs.forEach(img => analyzeImage(img));
+          }
+        }
+      }, [autoScan]); // Only trigger when autoScan changes
+
       const reanalyzeSelected = () => {
         if (!selectedImg || !geminiKey) return;
         // Clear cache for this image
@@ -1130,6 +1189,12 @@
       };
 
       const removeKw = (id) => {
+        // Find the keyword being removed
+        const kw = keywords.find(k => k.id === id);
+        if (kw) {
+          // Move it back to pending (recommendations) instead of deleting
+          setPending(p => [...p, kw]);
+        }
         setKeywords(c => c.filter(k => k.id !== id));
         setModified(true);
         setIsEditing(true);
@@ -1458,11 +1523,12 @@
 
             {/* Right side - Actions */}
             <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10 }}>
-              {pendingCount > 0 && (
-                <button onClick={analyzeAllPending} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', background: '#2563eb', color: 'white', border: 'none', borderRadius: s.radius, cursor: 'pointer', fontSize: s.fontSize, fontWeight: 500 }}>
-                  <Icon name="auto_awesome" size={18} /> Analyze All ({pendingCount})
-                </button>
-              )}
+              <Toggle
+                checked={autoScan}
+                onChange={setAutoScan}
+                label={`Auto Scan${pendingCount > 0 ? ` (${pendingCount})` : ''}`}
+                disabled={!geminiKey}
+              />
               {readyToSaveCount > 0 && (
                 <button onClick={saveAll} disabled={isSavingAll} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', background: isSavingAll ? '#374151' : '#10b981', color: isSavingAll ? '#9ca3af' : 'white', border: 'none', borderRadius: s.radius, cursor: isSavingAll ? 'default' : 'pointer', fontSize: s.fontSize, fontWeight: 500 }}>
                   <Icon name={isSavingAll ? "hourglass_empty" : "save"} size={18} /> {isSavingAll ? 'Saving...' : `Save All (${readyToSaveCount})`}
