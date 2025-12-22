@@ -100,10 +100,14 @@
   <script src="js/data.js"></script>
   <script src="js/utils.js"></script>
   <script src="js/api.js"></script>
+  <script src="js/performance.js"></script>
 
   <script type="text/babel">
-    const { useState, useRef, useEffect, useMemo, useCallback } = React;
+    const { useState, useRef, useEffect, useMemo, useCallback, memo } = React;
     const { motion, AnimatePresence } = window.Motion;
+
+    // Import performance utilities
+    const { generateThumbnail, storeThumbnail, getThumbnail, storeAnalysis, getAnalysis, BatchProcessor, LazyLoader, throttle, debounce, getMemoryUsage } = window.TaggerPerformance;
 
     // Icon component for Material Symbols
     const Icon = ({ name, size = 20, filled = false, style = {} }) => (
@@ -152,6 +156,126 @@
         {label && <span style={{ fontSize: 13, color: checked ? '#60a5fa' : '#9ca3af' }}>{label}</span>}
       </div>
     );
+
+    // Optimized thumbnail component with lazy loading
+    const ThumbnailImage = memo(({ item, isSelected, onSelect, onHide, onUnhide, thumbSize }) => {
+      const [thumbUrl, setThumbUrl] = useState(null);
+      const [isLoading, setIsLoading] = useState(true);
+      const imgRef = useRef(null);
+
+      useEffect(() => {
+        let mounted = true;
+        let objectUrl = null;
+
+        const loadThumbnail = async () => {
+          try {
+            // Try to get cached thumbnail first
+            const cachedThumb = await getThumbnail(item.hash);
+            if (cachedThumb && mounted) {
+              objectUrl = URL.createObjectURL(cachedThumb);
+              setThumbUrl(objectUrl);
+              setIsLoading(false);
+              return;
+            }
+
+            // Generate and cache thumbnail
+            const thumb = await generateThumbnail(item.file, thumbSize * 2); // 2x for retina
+            if (thumb && mounted) {
+              await storeThumbnail(item.hash, thumb);
+              objectUrl = URL.createObjectURL(thumb);
+              setThumbUrl(objectUrl);
+              setIsLoading(false);
+            }
+          } catch (e) {
+            console.error('[THUMB] Load failed:', e);
+            // Fallback to original URL
+            if (mounted) {
+              setThumbUrl(item.url);
+              setIsLoading(false);
+            }
+          }
+        };
+
+        // Use IntersectionObserver for lazy loading
+        const observer = new IntersectionObserver(
+          (entries) => {
+            if (entries[0].isIntersecting) {
+              loadThumbnail();
+              observer.disconnect();
+            }
+          },
+          { rootMargin: '400px' }
+        );
+
+        if (imgRef.current) {
+          observer.observe(imgRef.current);
+        }
+
+        return () => {
+          mounted = false;
+          if (objectUrl) URL.revokeObjectURL(objectUrl);
+          observer.disconnect();
+        };
+      }, [item.hash, item.file, thumbSize]);
+
+      const statusColor = item.status === 'done' ? '#4ade80' : item.status === 'editing' ? '#4ade80' : item.status === 'ready' ? '#60a5fa' : item.status === 'analyzing' ? '#fbbf24' : item.status === 'error' ? '#f87171' : '#6b7280';
+
+      return (
+        <motion.div
+          ref={imgRef}
+          layout
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.15, layout: { duration: 0.1, ease: 'easeOut' } }}
+          onClick={() => onSelect(item.id)}
+          title={item.status === 'error' ? item.errorMessage || 'Analysis failed - click to retry' : ''}
+          style={{
+            position: 'relative', borderRadius: 8, overflow: 'hidden', cursor: 'pointer',
+            border: `2px solid ${isSelected ? '#60a5fa' : 'transparent'}`,
+            boxShadow: isSelected ? '0 0 0 2px rgba(96,165,250,0.3)' : 'none',
+            opacity: item.hidden ? 0.4 : item.status === 'done' ? 0.7 : 1,
+            backgroundColor: '#1a1a1a'
+          }}
+        >
+          <div style={{ aspectRatio: '1', background: thumbUrl && !isLoading ? `url(${thumbUrl}) center/cover` : '#1a1a1a', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            {isLoading && <Icon name="image" size={24} style={{ color: '#4b5563' }} />}
+            <div style={{ position: 'absolute', top: 6, left: 6, width: 10, height: 10, borderRadius: 5, background: statusColor, boxShadow: '0 1px 3px rgba(0,0,0,0.4)' }} />
+            {item.status === 'analyzing' && (
+              <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Icon name="hourglass_empty" size={28} style={{ color: '#fbbf24' }} />
+              </div>
+            )}
+            {item.status === 'error' && (
+              <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Icon name="error" size={28} style={{ color: '#f87171' }} />
+              </div>
+            )}
+            {item.status === 'done' && (
+              <div style={{ position: 'absolute', top: 6, right: 6, background: '#4ade80', color: '#000', padding: '3px 6px', borderRadius: 6, fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center' }}>
+                <Icon name="check" size={14} />
+              </div>
+            )}
+            {item.status === 'editing' && (
+              <div style={{ position: 'absolute', top: 6, right: 6, background: '#60a5fa', color: '#000', padding: '3px 6px', borderRadius: 6, fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center' }}>
+                <Icon name="edit" size={14} />
+              </div>
+            )}
+            {item.hidden && (
+              <div style={{ position: 'absolute', top: 6, right: 6, background: '#f87171', color: '#fff', padding: '3px 6px', borderRadius: 6, fontSize: 12, display: 'flex', alignItems: 'center' }}>
+                <Icon name="visibility_off" size={14} />
+              </div>
+            )}
+          </div>
+          <button
+            onClick={(e) => item.hidden ? onUnhide(item.id, e) : onHide(item.id, e)}
+            tabIndex={-1}
+            style={{ position: 'absolute', bottom: 6, right: 6, background: 'rgba(0,0,0,0.8)', border: 'none', color: '#9ca3af', cursor: 'pointer', padding: 4, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          >
+            <Icon name={item.hidden ? "visibility" : "close"} size={16} />
+          </button>
+        </motion.div>
+      );
+    });
 
     // Import from modules
     const { DEFAULT_TAXONOMY, ROOT_COLORS, STORAGE_KEY, TAXONOMY_KEY } = window.TaggerData;
@@ -284,6 +408,7 @@
       const [showDone, setShowDone] = useState(true);
       const [showHidden, setShowHidden] = useState(false);
       const [showPending, setShowPending] = useState(true);
+      const [showAnalyzing, setShowAnalyzing] = useState(true);
       const [showMasterTaxonomy, setShowMasterTaxonomy] = useState(false);
 
       const [pending, setPending] = useState([]);
@@ -305,6 +430,7 @@
       const [gridWidth, setGridWidth] = useState(() => parseInt(localStorage.getItem('grid_width')) || 50); // percentage
       const [isDraggingDivider, setIsDraggingDivider] = useState(false);
       const [autoScan, setAutoScan] = useState(false); // Auto-scan toggle (default: paused)
+      const [batchProgress, setBatchProgress] = useState(null); // Batch processing progress
 
       const fileRef = useRef(null);
       const folderRef = useRef(null);
@@ -312,6 +438,19 @@
       const blockedRef = useRef(new Set());
       const containerRef = useRef(null);
       const mainPanelRef = useRef(null);
+
+      // Batch processor for analysis
+      const analysisBatchRef = useRef(null);
+      useEffect(() => {
+        if (!analysisBatchRef.current) {
+          analysisBatchRef.current = new BatchProcessor(
+            async (img) => {
+              await analyzeImageRef.current?.(img);
+            },
+            { batchSize: 3, delayMs: 500 } // Process 3 images at a time with 500ms delay
+          );
+        }
+      }, []);
 
       useEffect(() => { acceptedRef.current = new Set(accepted.map(k => k.value.toLowerCase())); }, [accepted]);
       useEffect(() => { blockedRef.current = new Set(blocked.map(k => k.value.toLowerCase())); }, [blocked]);
@@ -324,10 +463,11 @@
           if (q.hidden) return showHidden;
           // Non-hidden items filter by status
           if (q.status === 'done') return showDone;
-          // Ready filter controls: pending, analyzing, ready, editing statuses
+          if (q.status === 'analyzing') return showAnalyzing;
+          // Ready filter controls: pending, ready, editing statuses
           return showPending;
         });
-      }, [queue, showDone, showHidden, showPending]);
+      }, [queue, showDone, showHidden, showPending, showAnalyzing]);
 
       const findPath = useCallback((kwValue, kwType = 'keyword') => {
         const key = kwValue.toLowerCase().trim();
@@ -565,10 +705,30 @@
           setTimeout(() => {
             if (geminiKeyRef.current && autoScanRef.current) {
               const toAnalyze = uniqueItems.filter(item => item.status === 'pending' && !item.hidden);
-              console.log('[AUTO-ANALYZE] Auto-scan ON - analyzing', toAnalyze.length, 'non-hidden items');
-              toAnalyze.forEach(item => {
-                analyzeImageRef.current?.(item);
-              });
+              console.log('[AUTO-ANALYZE] Auto-scan ON - batch analyzing', toAnalyze.length, 'non-hidden items');
+
+              // Use batch processor for large sets
+              if (toAnalyze.length > 10) {
+                setBatchProgress({ current: 0, total: toAnalyze.length });
+                analysisBatchRef.current.addBatch(toAnalyze);
+
+                // Monitor batch progress
+                const checkProgress = setInterval(() => {
+                  const pending = analysisBatchRef.current.pending;
+                  const processed = toAnalyze.length - pending;
+                  setBatchProgress({ current: processed, total: toAnalyze.length });
+
+                  if (pending === 0) {
+                    clearInterval(checkProgress);
+                    setTimeout(() => setBatchProgress(null), 2000);
+                  }
+                }, 500);
+              } else {
+                // Small batch, process directly
+                toAnalyze.forEach(item => {
+                  analyzeImageRef.current?.(item);
+                });
+              }
             } else if (!autoScanRef.current) {
               console.log('[AUTO-ANALYZE] Auto-scan OFF - skipping analysis');
             }
@@ -864,10 +1024,10 @@
         setDownloadedLarger(null);
 
         try {
-          // Check cache first
-          const cached = getCachedAnalysis(img.hash);
+          // Check IndexedDB cache first
+          const cached = await getAnalysis(img.hash);
           if (cached) {
-            console.log('[ANALYZE] Using cached analysis for:', img.name);
+            console.log('[ANALYZE] Using cached analysis from IndexedDB for:', img.name);
             // Re-process cached keywords through the categorization logic
             const rawKws = cached.rawKeywords || [];
             const visionResult = cached.visionData || null;
@@ -1055,8 +1215,8 @@
 
           console.log(`[ANALYZE] ${auto.length} auto-accepted, ${review.length} for review`);
 
-          // Cache the raw analysis results
-          setCachedAnalysis(img.hash, {
+          // Cache the raw analysis results in IndexedDB
+          await storeAnalysis(img.hash, {
             rawKeywords: processedKws,
             visionData: visionResult,
             designer: designerInfo
@@ -1077,8 +1237,12 @@
             });
           }
         } catch (err) {
-          console.error('[ANALYZE] Failed:', err);
-          setQueue(q => q.map(i => i.id === img.id ? { ...i, status: 'error' } : i));
+          console.error('[ANALYZE] Failed:', err.message || err);
+          setQueue(q => q.map(i => i.id === img.id ? {
+            ...i,
+            status: 'error',
+            errorMessage: err.message || 'Analysis failed'
+          } : i));
         }
       }, [geminiKey, visionKey, useVision, autoDownloadLarger, outputDir, taxInfo, masterTerms, findPath]);
 
@@ -1601,7 +1765,18 @@
       const analyzingCount = queue.filter(q => q.status === 'analyzing').length;
       const pendingCount = queue.filter(q => q.status === 'pending' && !q.hidden).length;
       const editingCount = queue.filter(q => q.status === 'editing' && !q.hidden).length;
+      const errorCount = queue.filter(q => q.status === 'error').length;
       const similarCount = selectedImg ? getSimilarImages(selectedImg).length : 0;
+
+      // Retry failed analyses
+      const retryFailed = useCallback(() => {
+        const failed = queue.filter(q => q.status === 'error');
+        console.log('[RETRY] Retrying', failed.length, 'failed analyses');
+        failed.forEach(img => {
+          setQueue(q => q.map(i => i.id === img.id ? { ...i, status: 'pending' } : i));
+          setTimeout(() => analyzeImage({ ...img, status: 'pending' }), 100);
+        });
+      }, [queue, analyzeImage]);
 
       const thumbSizes = [60, 90, 130, 180];
       const currentThumbSize = thumbSizes[thumbSize];
@@ -1641,6 +1816,11 @@
                   <Icon name="refresh" size={20} />
                 </button>
               )}
+              {errorCount > 0 && (
+                <button onClick={retryFailed} title={`Retry ${errorCount} failed analyses`} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px', background: '#1f2937', color: '#f87171', border: 'none', borderRadius: s.radius, cursor: 'pointer', fontSize: s.fontSize }}>
+                  <Icon name="refresh" size={18} /> Retry ({errorCount})
+                </button>
+              )}
               <button
                 onClick={handleOrganizeTaxonomy}
                 disabled={!geminiKey || isOrganizing}
@@ -1670,6 +1850,13 @@
               {filteredQueue.length}/{totalCount}
               {analyzingCount > 0 && <span style={{ color: '#fbbf24' }}> · {analyzingCount} analyzing</span>}
               {readyCount > 0 && <span style={{ color: '#60a5fa' }}> · {readyCount} ready</span>}
+              {(() => {
+                const mem = getMemoryUsage();
+                if (mem && parseInt(mem.percent) > 80) {
+                  return <span style={{ color: '#f87171' }}> · Mem: {mem.percent}%</span>;
+                }
+                return null;
+              })()}
             </span>
 
             {/* Right side - Actions */}
@@ -1706,6 +1893,10 @@
                   style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: showPending ? 'rgba(96,165,250,0.15)' : '#1f2937', color: showPending ? '#60a5fa' : s.muted, border: 'none', borderRadius: s.radiusSm, cursor: 'pointer', fontSize: s.fontSize }}>
                   <Icon name="rate_review" size={16} /> Ready ({readyCount})
                 </button>
+                <button onClick={() => setShowAnalyzing(!showAnalyzing)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: showAnalyzing ? 'rgba(251,191,36,0.15)' : '#1f2937', color: showAnalyzing ? '#fbbf24' : s.muted, border: 'none', borderRadius: s.radiusSm, cursor: 'pointer', fontSize: s.fontSize }}>
+                  <Icon name="hourglass_empty" size={16} /> Analyzing ({analyzingCount})
+                </button>
                 <button onClick={() => setShowDone(!showDone)}
                   style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: showDone ? 'rgba(74,222,128,0.15)' : '#1f2937', color: showDone ? '#4ade80' : s.muted, border: 'none', borderRadius: s.radiusSm, cursor: 'pointer', fontSize: s.fontSize }}>
                   <Icon name="check_circle" size={16} /> Done ({doneCount})
@@ -1739,53 +1930,37 @@
                     <div style={{ fontSize: 13, color: '#4b5563' }}>Use arrow keys to navigate</div>
                   </div>
                 ) : (
-                  <div style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(${currentThumbSize}px, 1fr))`, gap: 8 }}>
-                    {filteredQueue.map(item => {
-                      const isSelected = item.id === selectedId;
-                      const statusColor = item.status === 'done' ? '#4ade80' : item.status === 'editing' ? '#4ade80' : item.status === 'ready' ? '#60a5fa' : item.status === 'analyzing' ? '#fbbf24' : item.status === 'error' ? '#f87171' : '#6b7280';
-                      return (
-                        <motion.div
+                  <>
+                    {batchProgress && (
+                      <div style={{ marginBottom: 12, background: '#1f2937', padding: 12, borderRadius: s.radius }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                          <span style={{ fontSize: 13, color: s.text }}>
+                            <Icon name="hourglass_empty" size={16} style={{ marginRight: 6, verticalAlign: 'middle' }} />
+                            Processing batch {batchProgress.current}/{batchProgress.total}
+                          </span>
+                          <span style={{ fontSize: 13, color: '#fbbf24' }}>
+                            {Math.round((batchProgress.current / batchProgress.total) * 100)}%
+                          </span>
+                        </div>
+                        <div style={{ height: 4, background: '#374151', borderRadius: 2, overflow: 'hidden' }}>
+                          <div style={{ height: '100%', background: '#fbbf24', width: `${(batchProgress.current / batchProgress.total) * 100}%`, transition: 'width 0.3s ease' }} />
+                        </div>
+                      </div>
+                    )}
+                    <div style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(${currentThumbSize}px, 1fr))`, gap: 8 }}>
+                      {filteredQueue.map(item => (
+                        <ThumbnailImage
                           key={item.id}
-                          layout
-                          initial={{ opacity: 0, scale: 0.9 }}
-                          animate={{ opacity: 1, scale: 1 }}
-                          transition={{ duration: 0.2, layout: { duration: 0.15, ease: 'easeOut' } }}
-                          onClick={() => selectImage(item.id)}
-                          style={{ position: 'relative', borderRadius: s.radius, overflow: 'hidden', cursor: 'pointer',
-                            border: `2px solid ${isSelected ? '#60a5fa' : 'transparent'}`,
-                            boxShadow: isSelected ? '0 0 0 2px rgba(96,165,250,0.3)' : 'none',
-                            opacity: item.hidden ? 0.4 : item.status === 'done' ? 0.7 : 1 }}>
-                          <div style={{ aspectRatio: '1', background: `url(${item.url}) center/cover` }}>
-                            <div style={{ position: 'absolute', top: 6, left: 6, width: 10, height: 10, borderRadius: 5, background: statusColor, boxShadow: '0 1px 3px rgba(0,0,0,0.4)' }} />
-                            {item.status === 'analyzing' && (
-                              <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                <Icon name="hourglass_empty" size={28} style={{ color: '#fbbf24' }} />
-                              </div>
-                            )}
-                            {item.status === 'done' && (
-                              <div style={{ position: 'absolute', top: 6, right: 6, background: '#4ade80', color: '#000', padding: '3px 6px', borderRadius: s.radiusSm, fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center' }}>
-                                <Icon name="check" size={14} />
-                              </div>
-                            )}
-                            {item.status === 'editing' && (
-                              <div style={{ position: 'absolute', top: 6, right: 6, background: '#60a5fa', color: '#000', padding: '3px 6px', borderRadius: s.radiusSm, fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center' }}>
-                                <Icon name="edit" size={14} />
-                              </div>
-                            )}
-                            {item.hidden && (
-                              <div style={{ position: 'absolute', top: 6, right: 6, background: '#f87171', color: '#fff', padding: '3px 6px', borderRadius: s.radiusSm, fontSize: 12, display: 'flex', alignItems: 'center' }}>
-                                <Icon name="visibility_off" size={14} />
-                              </div>
-                            )}
-                          </div>
-                          <button onClick={(e) => item.hidden ? unhideImage(item.id, e) : hideImage(item.id, e)} tabIndex={-1}
-                            style={{ position: 'absolute', bottom: 6, right: 6, background: 'rgba(0,0,0,0.8)', border: 'none', color: '#9ca3af', cursor: 'pointer', padding: 4, borderRadius: s.radiusSm, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            <Icon name={item.hidden ? "visibility" : "close"} size={16} />
-                          </button>
-                        </motion.div>
-                      );
-                    })}
-                  </div>
+                          item={item}
+                          isSelected={item.id === selectedId}
+                          onSelect={selectImage}
+                          onHide={hideImage}
+                          onUnhide={unhideImage}
+                          thumbSize={currentThumbSize}
+                        />
+                      ))}
+                    </div>
+                  </>
                 )}
               </div>
             </div>

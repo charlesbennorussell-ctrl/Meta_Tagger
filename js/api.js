@@ -3,6 +3,28 @@
 // ============================================
 (function() {
 
+// Retry helper with exponential backoff
+const retryWithBackoff = async (fn, maxRetries = 3, baseDelay = 1000) => {
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      const isLastAttempt = attempt === maxRetries - 1;
+      const isNetworkError = error.message.includes('network') ||
+                            error.message.includes('fetch') ||
+                            error.message.includes('CONNECTION');
+
+      if (isLastAttempt || !isNetworkError) {
+        throw error;
+      }
+
+      const delay = baseDelay * Math.pow(2, attempt);
+      console.log(`[RETRY] Attempt ${attempt + 1}/${maxRetries} failed, retrying in ${delay}ms...`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+};
+
 const analyzeWithGemini = async (apiKey, imageBase64, mimeType, existingContext = '') => {
   const prompt = `Analyze this image for a design reference library. ${existingContext}
 IMPORTANT RULES:
@@ -19,28 +41,30 @@ REQUIRED: Always include at least one Era keyword with the decade when this was 
 
 Return 10-20 specific, useful keywords. Only return the JSON array.`;
 
-  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }, { inline_data: { mime_type: mimeType, data: imageBase64 } }] }],
-      generationConfig: { temperature: 0.1, maxOutputTokens: 2048 }
-    })
-  });
-  if (!response.ok) throw new Error('Gemini error');
-  const text = (await response.json()).candidates?.[0]?.content?.parts?.[0]?.text || '[]';
-  const match = text.match(/\[[\s\S]*\]/);
-  if (!match) return [];
-  // Fix common JSON issues: .9 -> 0.9, remove trailing commas
-  let jsonStr = match[0]
-    .replace(/:\s*\.(\d)/g, ': 0.$1')  // Fix .9 -> 0.9
-    .replace(/,\s*([}\]])/g, '$1');    // Remove trailing commas
-  try {
-    return JSON.parse(jsonStr);
-  } catch (e) {
-    console.error('[GEMINI] JSON parse error:', e.message, jsonStr.slice(0, 200));
-    return [];
-  }
+  return retryWithBackoff(async () => {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }, { inline_data: { mime_type: mimeType, data: imageBase64 } }] }],
+        generationConfig: { temperature: 0.1, maxOutputTokens: 2048 }
+      })
+    });
+    if (!response.ok) throw new Error(`Gemini error: ${response.status}`);
+    const text = (await response.json()).candidates?.[0]?.content?.parts?.[0]?.text || '[]';
+    const match = text.match(/\[[\s\S]*\]/);
+    if (!match) return [];
+    // Fix common JSON issues: .9 -> 0.9, remove trailing commas
+    let jsonStr = match[0]
+      .replace(/:\s*\.(\d)/g, ': 0.$1')  // Fix .9 -> 0.9
+      .replace(/,\s*([}\]])/g, '$1');    // Remove trailing commas
+    try {
+      return JSON.parse(jsonStr);
+    } catch (e) {
+      console.error('[GEMINI] JSON parse error:', e.message, jsonStr.slice(0, 200));
+      return [];
+    }
+  }, 3, 2000); // 3 retries, starting with 2s delay
 };
 
 const findDesigner = async (apiKey, productInfo) => {
