@@ -669,7 +669,12 @@
             const keywordsMatch = kwSim >= 0.5;
 
             // Match logic: Use OR but sequential numbers REQUIRE time or keyword match
-            if (prefixMatch) {
+            // IMPORTANT: Disable prefix-only matching for very short baseNames (like "img")
+            // to prevent false matches across different photo sessions
+            const baseNameTooShort = img.baseName.length <= 4;
+
+            if (prefixMatch && !baseNameTooShort) {
+              // Prefix match only works for longer baseNames
               reasons.push(`prefix: ${Math.round((commonPrefixLen / maxLen) * 100)}%`);
               isMatch = true;
             } else if (isSequential && (timeWithinTwoDays || keywordsMatch)) {
