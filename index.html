@@ -580,16 +580,117 @@
         e.target.value = '';
       };
 
-      // Find similar images by base name
+      // Find similar images using multi-criteria scoring
       const getSimilarImages = useCallback((img) => {
         if (!img) return [];
-        const similar = queue.filter(q =>
-          q.id !== img.id &&
-          q.baseName === img.baseName
-        );
-        if (similar.length > 0) {
-          console.log(`[SIMILAR] Found ${similar.length} similar to "${img.name}" (baseName: "${img.baseName}"):`, similar.map(s => s.name));
+
+        // Minimum baseName length check (lowered to 3 to support IMG_XXXX patterns)
+        if (!img.baseName || img.baseName.length < 3) {
+          return [];
         }
+
+        // Helper: Extract sequence number from filename
+        const getSequenceNumber = (filename) => {
+          const noExt = filename.replace(/\.[^.]+$/, '');
+          const match = noExt.match(/[-_](\d{1,3})$/);
+          return match ? parseInt(match[1], 10) : null;
+        };
+
+        // Helper: Calculate keyword similarity (0-1)
+        const getKeywordSimilarity = (kw1, kw2) => {
+          if (!kw1 || !kw2 || kw1.length === 0 || kw2.length === 0) return 0;
+          const set1 = new Set(kw1.map(k => k.value.toLowerCase()));
+          const set2 = new Set(kw2.map(k => k.value.toLowerCase()));
+          const intersection = new Set([...set1].filter(k => set2.has(k)));
+          const union = new Set([...set1, ...set2]);
+          return intersection.size / union.size; // Jaccard similarity
+        };
+
+        // Score each potential match
+        const candidates = queue
+          .filter(q => q.id !== img.id && q.baseName === img.baseName)
+          .map(q => {
+            let score = 0;
+            const reasons = [];
+
+            const name1 = img.name.toLowerCase().replace(/\.[^.]+$/, '');
+            const name2 = q.name.toLowerCase().replace(/\.[^.]+$/, '');
+
+            // 1. Filename similarity (max 30 points)
+            const minLen = Math.min(name1.length, name2.length);
+            const maxLen = Math.max(name1.length, name2.length);
+            let commonPrefixLen = 0;
+            for (let i = 0; i < minLen; i++) {
+              if (name1[i] === name2[i]) commonPrefixLen++;
+              else break;
+            }
+            const prefixScore = (commonPrefixLen / maxLen) * 30;
+            score += prefixScore;
+            if (prefixScore > 20) reasons.push(`prefix: ${Math.round(prefixScore)}`);
+
+            // 2. Sequential filename numbers (20 points if sequential)
+            const seq1 = getSequenceNumber(img.name);
+            const seq2 = getSequenceNumber(q.name);
+            if (seq1 !== null && seq2 !== null) {
+              const seqDiff = Math.abs(seq1 - seq2);
+              if (seqDiff <= 5) {
+                const seqScore = 20 - (seqDiff * 3); // Closer sequences score higher
+                score += seqScore;
+                reasons.push(`seq: ${seq1}→${seq2} (+${Math.round(seqScore)})`);
+              }
+            }
+
+            // 3. File timestamp proximity (max 25 points)
+            if (img.file && q.file) {
+              const time1 = img.file.lastModified || 0;
+              const time2 = q.file.lastModified || 0;
+              const timeDiff = Math.abs(time1 - time2);
+              const oneHour = 60 * 60 * 1000;
+              const oneDay = 24 * oneHour;
+
+              if (timeDiff < oneHour) {
+                score += 25;
+                reasons.push('time: <1h (+25)');
+              } else if (timeDiff < oneDay) {
+                score += 15;
+                reasons.push('time: <1d (+15)');
+              } else if (timeDiff < oneDay * 7) {
+                score += 5;
+                reasons.push('time: <1w (+5)');
+              }
+            }
+
+            // 4. Keyword similarity (max 25 points)
+            const kwSim = getKeywordSimilarity(img.keywords || [], q.keywords || []);
+            const kwScore = kwSim * 25;
+            if (kwScore > 5) {
+              score += kwScore;
+              reasons.push(`keywords: ${Math.round(kwSim * 100)}% (+${Math.round(kwScore)})`);
+            }
+
+            return { img: q, score, reasons };
+          });
+
+        // Debug: Log all candidates with scores
+        if (candidates.length > 0) {
+          console.log(`[SIMILAR] Scoring candidates for "${img.name}" (baseName: "${img.baseName}"):`);
+          candidates.forEach(c => {
+            console.log(`  - ${c.img.name}: score=${Math.round(c.score)} [${c.reasons.join(', ')}]`);
+          });
+        }
+
+        // Filter: only include matches with score >= 40 (lowered threshold)
+        const similar = candidates
+          .filter(c => c.score >= 40)
+          .sort((a, b) => b.score - a.score)
+          .map(c => c.img);
+
+        if (similar.length > 0) {
+          console.log(`[SIMILAR] ✓ Matched ${similar.length} images (score >= 40)`);
+        } else if (candidates.length > 0) {
+          console.log(`[SIMILAR] ✗ No matches (highest score: ${Math.round(Math.max(...candidates.map(c => c.score)))})`);
+        }
+
         return similar;
       }, [queue]);
 
@@ -857,10 +958,15 @@
 
           rawKws.forEach(k => {
             splitBrandModel(k.value).forEach(part => {
+              // Always use smartCategorize for better accuracy, unless it's an explicitly known brand/model with good path
               let path = part.path;
-              if (part.path[0] === 'Custom' || part.type === 'keyword') {
+              const needsRecategorization = part.path[0] === 'Custom' || part.type === 'keyword' ||
+                (part.path.length === 1 && part.path[0] === 'Brand' && part.type !== 'brand');
+
+              if (needsRecategorization) {
                 path = findPath(part.value, part.type);
               }
+
               const kw = {
                 id: `${img.id}-${Math.random().toString(36).slice(2)}`,
                 value: part.value, confidence: k.confidence || 0.8,
@@ -1093,19 +1199,24 @@
           if (selectedImg) {
             const similar = getSimilarImages(selectedImg);
             console.log(`[ACCEPT] Similar images for sync:`, similar.length);
-            if (similar.length > 0) {
-              setQueue(q => q.map(img => {
-                if (similar.some(s => s.id === img.id)) {
-                  const existingVals = new Set((img.keywords || []).map(k => k.value.toLowerCase()));
-                  if (!existingVals.has(categorizedKw.value.toLowerCase())) {
-                    console.log(`[ACCEPT] Syncing "${categorizedKw.value}" to "${img.name}"`);
-                    const syncedKw = { ...categorizedKw, id: `sync-${Math.random().toString(36).slice(2)}` };
-                    return { ...img, keywords: [...(img.keywords || []), syncedKw], status: img.status === 'pending' ? 'ready' : img.status };
-                  }
+
+            // Update both the selected image AND similar images in the queue
+            setQueue(q => q.map(img => {
+              // Update the current selected image
+              if (img.id === selectedImg.id) {
+                return { ...img, keywords: newKeywords, pending: pending.filter(k => k.id !== id) };
+              }
+              // Update similar images
+              if (similar.some(s => s.id === img.id)) {
+                const existingVals = new Set((img.keywords || []).map(k => k.value.toLowerCase()));
+                if (!existingVals.has(categorizedKw.value.toLowerCase())) {
+                  console.log(`[ACCEPT] Syncing "${categorizedKw.value}" to "${img.name}"`);
+                  const syncedKw = { ...categorizedKw, id: `sync-${Math.random().toString(36).slice(2)}` };
+                  return { ...img, keywords: [...(img.keywords || []), syncedKw], status: img.status === 'pending' ? 'ready' : img.status };
                 }
-                return img;
-              }));
-            }
+              }
+              return img;
+            }));
           }
         }
       };
@@ -1143,18 +1254,23 @@
 
           if (selectedImg) {
             const similar = getSimilarImages(selectedImg);
-            if (similar.length > 0) {
-              setQueue(q => q.map(img => {
-                if (similar.some(s => s.id === img.id)) {
-                  const existingVals = new Set((img.keywords || []).map(k => k.value.toLowerCase()));
-                  if (!existingVals.has(kw.value.toLowerCase())) {
-                    const syncedKw = { ...kw, id: `sync-${Math.random().toString(36).slice(2)}` };
-                    return { ...img, keywords: [...(img.keywords || []), syncedKw], status: img.status === 'pending' ? 'ready' : img.status };
-                  }
+
+            // Update both the selected image AND similar images in the queue
+            setQueue(q => q.map(img => {
+              // Update the current selected image
+              if (img.id === selectedImg.id) {
+                return { ...img, keywords: newKeywords };
+              }
+              // Update similar images
+              if (similar.some(s => s.id === img.id)) {
+                const existingVals = new Set((img.keywords || []).map(k => k.value.toLowerCase()));
+                if (!existingVals.has(kw.value.toLowerCase())) {
+                  const syncedKw = { ...kw, id: `sync-${Math.random().toString(36).slice(2)}` };
+                  return { ...img, keywords: [...(img.keywords || []), syncedKw], status: img.status === 'pending' ? 'ready' : img.status };
                 }
-                return img;
-              }));
-            }
+              }
+              return img;
+            }));
           }
         }
       };
@@ -1171,20 +1287,25 @@
 
         if (selectedImg) {
           const similar = getSimilarImages(selectedImg);
-          if (similar.length > 0) {
-            setQueue(q => q.map(img => {
-              if (similar.some(s => s.id === img.id)) {
-                const existingVals = new Set((img.keywords || []).map(k => k.value.toLowerCase()));
-                const newKws = pending
-                  .filter(kw => !existingVals.has(kw.value.toLowerCase()))
-                  .map(kw => ({ ...kw, id: `sync-${Math.random().toString(36).slice(2)}` }));
-                if (newKws.length > 0) {
-                  return { ...img, keywords: [...(img.keywords || []), ...newKws], status: img.status === 'pending' ? 'ready' : img.status };
-                }
+
+          // Update both the selected image AND similar images in the queue
+          setQueue(q => q.map(img => {
+            // Update the current selected image
+            if (img.id === selectedImg.id) {
+              return { ...img, keywords: newKeywords, pending: [] };
+            }
+            // Update similar images
+            if (similar.some(s => s.id === img.id)) {
+              const existingVals = new Set((img.keywords || []).map(k => k.value.toLowerCase()));
+              const newKws = pending
+                .filter(kw => !existingVals.has(kw.value.toLowerCase()))
+                .map(kw => ({ ...kw, id: `sync-${Math.random().toString(36).slice(2)}` }));
+              if (newKws.length > 0) {
+                return { ...img, keywords: [...(img.keywords || []), ...newKws], status: img.status === 'pending' ? 'ready' : img.status };
               }
-              return img;
-            }));
-          }
+            }
+            return img;
+          }));
         }
       };
 
@@ -1193,7 +1314,11 @@
         const kw = keywords.find(k => k.id === id);
         if (kw) {
           // Move it back to pending (recommendations) instead of deleting
-          setPending(p => [...p, kw]);
+          // Check if it already exists in pending to avoid duplicates
+          setPending(p => {
+            const exists = p.some(existing => existing.value.toLowerCase() === kw.value.toLowerCase());
+            return exists ? p : [...p, kw];
+          });
         }
         setKeywords(c => c.filter(k => k.id !== id));
         setModified(true);
