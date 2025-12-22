@@ -613,7 +613,7 @@
           return intersection.size / union.size; // Jaccard similarity
         };
 
-        // Score each potential match using OR logic: any strong signal qualifies
+        // Score each potential match using combined criteria
         const candidates = queue
           .filter(q => q.id !== img.id && q.baseName === img.baseName)
           .map(q => {
@@ -623,7 +623,8 @@
             const name1 = img.name.toLowerCase().replace(/\.[^.]+$/, '');
             const name2 = q.name.toLowerCase().replace(/\.[^.]+$/, '');
 
-            // 1. Check filename similarity
+            // Calculate all match criteria
+            // 1. Filename prefix similarity
             const minLen = Math.min(name1.length, name2.length);
             const maxLen = Math.max(name1.length, name2.length);
             let commonPrefixLen = 0;
@@ -631,42 +632,56 @@
               if (name1[i] === name2[i]) commonPrefixLen++;
               else break;
             }
-            const prefixMatch = (commonPrefixLen / maxLen) >= 0.7; // 70% prefix match
-            if (prefixMatch) {
-              reasons.push(`prefix: ${Math.round((commonPrefixLen / maxLen) * 100)}%`);
-              isMatch = true;
-            }
+            const prefixMatch = (commonPrefixLen / maxLen) >= 0.7;
 
-            // 2. Check sequential filename numbers
+            // 2. Sequential filename numbers
             const seq1 = getSequenceNumber(img.name);
             const seq2 = getSequenceNumber(q.name);
-            if (seq1 !== null && seq2 !== null) {
-              const seqDiff = Math.abs(seq1 - seq2);
-              if (seqDiff <= 10) { // Within 10 numbers
-                reasons.push(`seq: ${seq1}→${seq2} (Δ${seqDiff})`);
-                isMatch = true;
-              }
-            }
+            const seqDiff = (seq1 !== null && seq2 !== null) ? Math.abs(seq1 - seq2) : Infinity;
+            const isSequential = seqDiff <= 10;
 
-            // 3. Check file timestamp proximity
+            // 3. File timestamp proximity
+            let timeMatch = false;
+            let timeWithinTwoDays = false;
             if (img.file && q.file) {
               const time1 = img.file.lastModified || 0;
               const time2 = q.file.lastModified || 0;
               const timeDiff = Math.abs(time1 - time2);
               const oneHour = 60 * 60 * 1000;
               const oneDay = 24 * oneHour;
+              const twoDays = 2 * oneDay;
 
               if (timeDiff < oneHour) {
                 reasons.push('time: <1h');
-                isMatch = true;
+                timeMatch = true;
+                timeWithinTwoDays = true;
               } else if (timeDiff < oneDay) {
                 reasons.push('time: <1d');
+                timeWithinTwoDays = true;
+              } else if (timeDiff < twoDays) {
+                reasons.push('time: <2d');
+                timeWithinTwoDays = true;
               }
             }
 
-            // 4. Check keyword similarity
+            // 4. Keyword similarity
             const kwSim = getKeywordSimilarity(img.keywords || [], q.keywords || []);
-            if (kwSim >= 0.5) { // 50% keyword overlap
+            const keywordsMatch = kwSim >= 0.5;
+
+            // Match logic: Use OR but sequential numbers REQUIRE time or keyword match
+            if (prefixMatch) {
+              reasons.push(`prefix: ${Math.round((commonPrefixLen / maxLen) * 100)}%`);
+              isMatch = true;
+            } else if (isSequential && (timeWithinTwoDays || keywordsMatch)) {
+              // Sequential numbers + time proximity OR keyword match
+              reasons.push(`seq: ${seq1}→${seq2} (Δ${seqDiff})`);
+              if (keywordsMatch) reasons.push(`keywords: ${Math.round(kwSim * 100)}%`);
+              isMatch = true;
+            } else if (timeMatch) {
+              // Very close time match (<1h) can stand alone
+              isMatch = true;
+            } else if (keywordsMatch) {
+              // High keyword similarity can stand alone
               reasons.push(`keywords: ${Math.round(kwSim * 100)}%`);
               isMatch = true;
             }
