@@ -227,7 +227,7 @@
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.15, layout: { duration: 0.1, ease: 'easeOut' } }}
-          onClick={() => onSelect(item.id)}
+          onClick={(e) => onSelect(item.id, e)}
           title={item.status === 'error' ? item.errorMessage || 'Analysis failed - click to retry' : ''}
           style={{
             position: 'relative', borderRadius: 8, overflow: 'hidden', cursor: 'pointer',
@@ -404,6 +404,8 @@
       const [queue, setQueue] = useState([]);
       const [memory, setMemory] = useState({});
       const [selectedId, setSelectedId] = useState(null);
+      const [selectedIds, setSelectedIds] = useState([]); // Multi-select support
+      const [lastClickedId, setLastClickedId] = useState(null); // For shift-click range selection
 
       // Load memory from IndexedDB on mount
       useEffect(() => {
@@ -466,6 +468,8 @@
       useEffect(() => { blockedRef.current = new Set(blocked.map(k => k.value.toLowerCase())); }, [blocked]);
 
       const selectedImg = queue.find(q => q.id === selectedId);
+      const selectedImgs = queue.filter(q => selectedIds.includes(q.id));
+      const isMultiSelect = selectedIds.length > 1;
 
       const filteredQueue = useMemo(() => {
         return queue.filter(q => {
@@ -490,14 +494,32 @@
         const handleKeyDown = async (e) => {
           if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
 
-          // Enter key - save current image
+          // Enter key - save current image(s)
           if (e.key === 'Enter') {
             e.preventDefault();
             const img = selectedImgRef.current;
             const kws = keywordsRef.current;
+            const currentSelectedIds = selectedIdsRef.current;
+
             if (img && kws.length > 0 && saveImageRef.current) {
-              console.log('[KEYBOARD] Enter pressed - saving:', img.name);
-              await saveImageRef.current(img, kws, designerRef.current);
+              // Check if multi-select is active
+              if (currentSelectedIds.length > 1) {
+                console.log('[KEYBOARD] Enter pressed - saving', currentSelectedIds.length, 'selected images');
+                // Save all selected images (skip sync to avoid cascade)
+                const selectedImages = queueRef.current.filter(q => currentSelectedIds.includes(q.id));
+                for (const selectedImg of selectedImages) {
+                  // Use existing keywords for each image, or apply primary image's keywords
+                  const imgKeywords = selectedImg.id === img.id ? kws : (selectedImg.keywords || []);
+                  if (imgKeywords.length > 0) {
+                    console.log('[KEYBOARD] Saving:', selectedImg.name);
+                    await saveImageRef.current(selectedImg, imgKeywords, selectedImg.designer || designerRef.current, true); // skipSync=true
+                  }
+                }
+              } else {
+                // Single selection - original behavior (with sync)
+                console.log('[KEYBOARD] Enter pressed - saving:', img.name);
+                await saveImageRef.current(img, kws, designerRef.current, false); // skipSync=false
+              }
             }
             return;
           }
@@ -592,6 +614,7 @@
       const analyzeImageRef = useRef(null);
       const saveImageRef = useRef(null);
       const selectedImgRef = useRef(null);
+      const selectedIdsRef = useRef([]);
       const keywordsRef = useRef([]);
       const designerRef = useRef(null);
       useEffect(() => { queueRef.current = queue; }, [queue]);
@@ -1017,11 +1040,19 @@
       }, [queue, outputDir, saveMode, getSimilarImages]);
 
       // Save image - defined before selectImage to avoid stale reference
-      const saveImage = useCallback(async (img, kws, des) => {
+      const saveImage = useCallback(async (img, kws, des, skipSync = false) => {
         if (!img || !kws || kws.length === 0) {
           console.log('[SAVE] Skipped - no image or keywords');
           return;
         }
+
+        // Require output directory to be set for batch operations
+        if (!outputDir && skipSync) {
+          console.error('[SAVE] Cannot batch save without output directory set. Please select an output folder in settings.');
+          alert('Please select an output folder in settings before saving multiple files.');
+          return;
+        }
+
         console.log('[SAVE] Saving:', img.name, 'with', kws.length, 'keywords');
         try {
           let blob, filename = img.name;
@@ -1095,7 +1126,10 @@
             }
           }, 100);
 
-          await syncToSimilarAndSave(img, kws, des);
+          // Only sync to similar images if not explicitly skipped (to avoid cascades in multi-select)
+          if (!skipSync) {
+            await syncToSimilarAndSave(img, kws, des);
+          }
         } catch (e) { console.error('[SAVE] Failed:', e); }
       }, [saveMode, outputDir, syncToSimilarAndSave, showHidden, showDone, showAnalyzing, showPending, selectedId]);
 
@@ -1333,6 +1367,9 @@
       useEffect(() => { analyzeImageRef.current = analyzeImage; }, [analyzeImage]);
       useEffect(() => { saveImageRef.current = saveImage; }, [saveImage]);
       useEffect(() => { selectedImgRef.current = selectedImg; }, [selectedImg]);
+      useEffect(() => { selectedIdsRef.current = selectedIds; }, [selectedIds]);
+      useEffect(() => { keywordsRef.current = keywords; }, [keywords]);
+      useEffect(() => { designerRef.current = designer; }, [designer]);
 
       const selectImage = useCallback(async (id) => {
         // Only auto-save if actually modified
@@ -1362,6 +1399,52 @@
           setKeywords([]); setPending([]); setDesigner(null); setVisionData(null); setIgnored([]); setModified(false);
         }
       }, [queue, isEditing, modified, selectedImg, keywords, designer, analyzeImage, saveImage]);
+
+      // Multi-select handler with Ctrl-click and Shift-click support
+      const handleThumbnailClick = useCallback((id, event) => {
+        const isCtrlClick = event?.ctrlKey || event?.metaKey; // Ctrl on Windows/Linux, Cmd on Mac
+        const isShiftClick = event?.shiftKey;
+
+        if (isCtrlClick) {
+          // Ctrl-click: Toggle individual selection
+          if (selectedIds.includes(id)) {
+            // Deselect
+            const newSelection = selectedIds.filter(sid => sid !== id);
+            setSelectedIds(newSelection);
+            if (newSelection.length === 0) {
+              setSelectedId(null);
+            } else if (selectedId === id) {
+              // If we deselected the primary, make the first remaining selection primary
+              setSelectedId(newSelection[0]);
+            }
+          } else {
+            // Add to selection
+            setSelectedIds(prev => [...prev, id]);
+            setSelectedId(id); // This becomes the new primary selection
+          }
+          setLastClickedId(id);
+        } else if (isShiftClick && lastClickedId) {
+          // Shift-click: Select range between last clicked and current
+          const currentIndex = filteredQueue.findIndex(q => q.id === id);
+          const lastIndex = filteredQueue.findIndex(q => q.id === lastClickedId);
+
+          if (currentIndex !== -1 && lastIndex !== -1) {
+            const start = Math.min(currentIndex, lastIndex);
+            const end = Math.max(currentIndex, lastIndex);
+            const rangeIds = filteredQueue.slice(start, end + 1).map(q => q.id);
+
+            // Merge with existing selection
+            const newSelection = Array.from(new Set([...selectedIds, ...rangeIds]));
+            setSelectedIds(newSelection);
+            setSelectedId(id); // This becomes the new primary selection
+          }
+        } else {
+          // Normal click: Single selection (calls existing selectImage)
+          setSelectedIds([id]);
+          setLastClickedId(id);
+          selectImage(id);
+        }
+      }, [selectedIds, selectedId, lastClickedId, filteredQueue, selectImage]);
 
       const analyzeAllPending = () => {
         const pendingImgs = queue.filter(q => q.status === 'pending' && !q.hidden);
@@ -1407,7 +1490,8 @@
 
         for (const img of toSave) {
           try {
-            await saveImage(img, img.keywords, img.designer);
+            // Skip sync when batch saving to avoid cascade
+            await saveImage(img, img.keywords, img.designer, true);
           } catch (e) {
             console.error(`[SAVE ALL] Failed to save ${img.name}:`, e);
           }
@@ -1448,48 +1532,78 @@
           console.log(`[ACCEPT] Accepting keyword: "${kw.value}"`);
           setPending(p => p.filter(k => k.id !== id));
 
-          // If keyword is uncategorized (Custom), try to categorize it via API
-          let categorizedKw = kw;
-          if (kw.path?.[0] === 'Custom' && geminiKey) {
-            try {
-              const results = await categorizeKeywords(geminiKey, [kw.value]);
-              if (results.length > 0 && results[0].path) {
-                categorizedKw = { ...kw, path: results[0].path, rootCategory: results[0].path[0], type: results[0].type || kw.type };
-                console.log(`[ACCEPT] Categorized "${kw.value}" as:`, results[0].path);
-              }
-            } catch (e) {
-              console.error('[ACCEPT] Categorization failed:', e);
-            }
-          }
-
-          const newKeywords = [...keywords, categorizedKw];
+          // Accept immediately with current categorization (non-blocking)
+          const newKeywords = [...keywords, kw];
           setKeywords(newKeywords);
-          setAccepted(a => a.some(x => x.value.toLowerCase() === categorizedKw.value.toLowerCase()) ? a : [...a, categorizedKw]);
-          setTaxonomy(t => addToTaxonomy(t, categorizedKw));
+          setAccepted(a => a.some(x => x.value.toLowerCase() === kw.value.toLowerCase()) ? a : [...a, kw]);
+          setTaxonomy(t => addToTaxonomy(t, kw));
           setModified(true);
           setIsEditing(true);
 
-          if (selectedImg) {
-            const similar = getSimilarImages(selectedImg);
-            console.log(`[ACCEPT] Similar images for sync:`, similar.length);
+          // Apply to all selected images (multi-select support) - optimized for performance
+          const targetImgs = isMultiSelect ? selectedImgs : [selectedImg];
+          console.log(`[ACCEPT] Applying to ${targetImgs.length} selected image(s)`);
 
-            // Update both the selected image AND similar images in the queue
-            setQueue(q => q.map(img => {
-              // Update the current selected image
-              if (img.id === selectedImg.id) {
-                return { ...img, keywords: newKeywords, pending: pending.filter(k => k.id !== id) };
-              }
-              // Update similar images
-              if (similar.some(s => s.id === img.id)) {
+          // Build a Set of target IDs for O(1) lookups
+          const targetIds = new Set(targetImgs.filter(t => t).map(t => t.id));
+
+          // Get similar images once
+          const similarIds = selectedImg ? new Set(getSimilarImages(selectedImg).map(s => s.id)) : new Set();
+
+          setQueue(q => {
+            // Only update if we have targets
+            if (targetIds.size === 0 && similarIds.size === 0) return q;
+
+            return q.map(img => {
+              const isTarget = targetIds.has(img.id);
+              const isSimilar = similarIds.has(img.id);
+
+              if (isTarget) {
                 const existingVals = new Set((img.keywords || []).map(k => k.value.toLowerCase()));
-                if (!existingVals.has(categorizedKw.value.toLowerCase())) {
-                  console.log(`[ACCEPT] Syncing "${categorizedKw.value}" to "${img.name}"`);
-                  const syncedKw = { ...categorizedKw, id: `sync-${Math.random().toString(36).slice(2)}` };
+                if (!existingVals.has(kw.value.toLowerCase())) {
+                  const syncedKw = img.id === selectedImg?.id ? kw : { ...kw, id: `sync-${Math.random().toString(36).slice(2)}` };
+                  return {
+                    ...img,
+                    keywords: [...(img.keywords || []), syncedKw],
+                    pending: img.id === selectedImg?.id ? pending.filter(k => k.id !== id) : img.pending,
+                    status: img.status === 'pending' ? 'ready' : (img.id === selectedImg?.id ? 'editing' : img.status)
+                  };
+                } else if (img.id === selectedImg?.id) {
+                  return { ...img, pending: pending.filter(k => k.id !== id) };
+                }
+              } else if (isSimilar) {
+                const existingVals = new Set((img.keywords || []).map(k => k.value.toLowerCase()));
+                if (!existingVals.has(kw.value.toLowerCase())) {
+                  const syncedKw = { ...kw, id: `sync-${Math.random().toString(36).slice(2)}` };
                   return { ...img, keywords: [...(img.keywords || []), syncedKw], status: img.status === 'pending' ? 'ready' : img.status };
                 }
               }
               return img;
-            }));
+            });
+          });
+
+          // Background categorization for Custom keywords (non-blocking)
+          if (kw.path?.[0] === 'Custom' && geminiKey) {
+            setTimeout(async () => {
+              try {
+                const results = await categorizeKeywords(geminiKey, [kw.value]);
+                if (results.length > 0 && results[0].path) {
+                  const categorizedPath = results[0].path;
+                  const categorizedType = results[0].type || kw.type;
+                  console.log(`[ACCEPT] Background categorized "${kw.value}" as:`, categorizedPath);
+
+                  // Update the keyword with better categorization
+                  setKeywords(current => current.map(k =>
+                    k.id === kw.id ? { ...k, path: categorizedPath, rootCategory: categorizedPath[0], type: categorizedType } : k
+                  ));
+                  setAccepted(current => current.map(k =>
+                    k.id === kw.id ? { ...k, path: categorizedPath, rootCategory: categorizedPath[0], type: categorizedType } : k
+                  ));
+                }
+              } catch (e) {
+                console.error('[ACCEPT] Background categorization failed:', e);
+              }
+            }, 100);
           }
         }
       };
@@ -1550,25 +1664,51 @@
 
       const acceptAll = () => {
         const newKeywords = [...keywords, ...pending];
-        pending.forEach(kw => {
-          setAccepted(a => a.some(x => x.value.toLowerCase() === kw.value.toLowerCase()) ? a : [...a, kw]);
+
+        // Batch update accepted keywords once
+        setAccepted(a => {
+          const existing = new Set(a.map(x => x.value.toLowerCase()));
+          const toAdd = pending.filter(kw => !existing.has(kw.value.toLowerCase()));
+          return [...a, ...toAdd];
         });
+
         setKeywords(newKeywords);
         setPending([]);
         setModified(true);
         setIsEditing(true);
 
-        if (selectedImg) {
-          const similar = getSimilarImages(selectedImg);
+        // Apply to all selected images (multi-select support) - optimized for performance
+        const targetImgs = isMultiSelect ? selectedImgs : [selectedImg];
+        console.log(`[ACCEPT ALL] Applying to ${targetImgs.length} selected image(s)`);
 
-          // Update both the selected image AND similar images in the queue
-          setQueue(q => q.map(img => {
-            // Update the current selected image
-            if (img.id === selectedImg.id) {
-              return { ...img, keywords: newKeywords, pending: [] };
-            }
-            // Update similar images
-            if (similar.some(s => s.id === img.id)) {
+        // Build a Set of target IDs for O(1) lookups
+        const targetIds = new Set(targetImgs.filter(t => t).map(t => t.id));
+
+        // Get similar images once
+        const similarIds = selectedImg ? new Set(getSimilarImages(selectedImg).map(s => s.id)) : new Set();
+
+        setQueue(q => {
+          // Only update if we have targets
+          if (targetIds.size === 0 && similarIds.size === 0) return q;
+
+          return q.map(img => {
+            const isTarget = targetIds.has(img.id);
+            const isSimilar = similarIds.has(img.id);
+
+            if (isTarget) {
+              const existingVals = new Set((img.keywords || []).map(k => k.value.toLowerCase()));
+              const newKws = pending
+                .filter(kw => !existingVals.has(kw.value.toLowerCase()))
+                .map(kw => img.id === selectedImg?.id ? kw : { ...kw, id: `sync-${Math.random().toString(36).slice(2)}` });
+              if (newKws.length > 0 || img.id === selectedImg?.id) {
+                return {
+                  ...img,
+                  keywords: img.id === selectedImg?.id ? newKeywords : [...(img.keywords || []), ...newKws],
+                  pending: img.id === selectedImg?.id ? [] : img.pending,
+                  status: img.status === 'pending' ? 'ready' : (img.id === selectedImg?.id ? 'editing' : img.status)
+                };
+              }
+            } else if (isSimilar) {
               const existingVals = new Set((img.keywords || []).map(k => k.value.toLowerCase()));
               const newKws = pending
                 .filter(kw => !existingVals.has(kw.value.toLowerCase()))
@@ -1578,8 +1718,8 @@
               }
             }
             return img;
-          }));
-        }
+          });
+        });
       };
 
       const removeKw = (id) => {
@@ -1628,39 +1768,70 @@
         const newKws = [];
         const uncategorizedKws = [];
 
+        // Build all keywords first (non-blocking)
         splitBrandModel(val).forEach(part => {
           const path = part.path[0] === 'Custom' ? findPath(part.value, part.type) : part.path;
           const kw = { id: `custom-${Date.now()}-${Math.random().toString(36).slice(2)}`, value: part.value, confidence: 1, type: part.type, path, rootCategory: path[0] };
           newKws.push(kw);
-          setKeywords(c => [...c, kw]);
-          setAccepted(a => a.some(x => x.value.toLowerCase() === kw.value.toLowerCase()) ? a : [...a, kw]);
-          setTaxonomy(t => addToTaxonomy(t, kw));
 
           // Track uncategorized keywords for background research
           if (path[0] === 'Custom' && geminiKey) {
             uncategorizedKws.push(kw);
           }
         });
+
+        // Batch update state once (much faster than multiple updates)
+        setKeywords(c => [...c, ...newKws]);
+        setAccepted(a => {
+          const existing = new Set(a.map(x => x.value.toLowerCase()));
+          const toAdd = newKws.filter(kw => !existing.has(kw.value.toLowerCase()));
+          return [...a, ...toAdd];
+        });
+        setTaxonomy(t => {
+          let updatedTax = t;
+          newKws.forEach(kw => {
+            updatedTax = addToTaxonomy(updatedTax, kw);
+          });
+          return updatedTax;
+        });
+
         setCustomInput('');
         setModified(true);
         setIsEditing(true);
 
-        if (selectedImg && newKws.length > 0) {
-          const similar = getSimilarImages(selectedImg);
-          if (similar.length > 0) {
-            setQueue(q => q.map(img => {
-              if (similar.some(s => s.id === img.id)) {
+        // Apply to all selected images (multi-select support) - optimized for performance
+        if (newKws.length > 0) {
+          const targetImgs = isMultiSelect ? selectedImgs : [selectedImg];
+          console.log(`[ADD CUSTOM] Applying to ${targetImgs.length} selected image(s)`);
+
+          // Build a Set of target IDs for O(1) lookups
+          const targetIds = new Set(targetImgs.filter(t => t).map(t => t.id));
+
+          // Get similar images once
+          const similarIds = selectedImg ? new Set(getSimilarImages(selectedImg).map(s => s.id)) : new Set();
+
+          setQueue(q => {
+            // Only update if we have targets
+            if (targetIds.size === 0 && similarIds.size === 0) return q;
+
+            return q.map(img => {
+              const isTarget = targetIds.has(img.id);
+              const isSimilar = similarIds.has(img.id);
+              const isPrimary = img.id === selectedImg?.id;
+
+              if (isTarget || isSimilar) {
                 const existingVals = new Set((img.keywords || []).map(k => k.value.toLowerCase()));
                 const syncKws = newKws
                   .filter(kw => !existingVals.has(kw.value.toLowerCase()))
-                  .map(kw => ({ ...kw, id: `sync-${Math.random().toString(36).slice(2)}` }));
+                  .map(kw => isPrimary ? kw : { ...kw, id: `sync-${Math.random().toString(36).slice(2)}` });
+
                 if (syncKws.length > 0) {
                   return { ...img, keywords: [...(img.keywords || []), ...syncKws], status: img.status === 'pending' ? 'ready' : img.status };
                 }
               }
               return img;
-            }));
-          }
+            });
+          });
         }
 
         // Background research for uncategorized keywords
@@ -2020,8 +2191,8 @@
                         <ThumbnailImage
                           key={item.id}
                           item={item}
-                          isSelected={item.id === selectedId}
-                          onSelect={selectImage}
+                          isSelected={selectedIds.includes(item.id)}
+                          onSelect={handleThumbnailClick}
                           onHide={hideImage}
                           onUnhide={unhideImage}
                           thumbSize={currentThumbSize}
@@ -2067,6 +2238,11 @@
                     <div style={{ position: 'absolute', bottom: 8, left: 8, background: 'rgba(0,0,0,0.85)', padding: '4px 10px', borderRadius: s.radiusSm, color: s.text, fontSize: 13, maxWidth: '85%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {selectedImg.name}
                     </div>
+                    {isMultiSelect && (
+                      <div style={{ position: 'absolute', bottom: 8, right: 8, background: 'rgba(96,165,250,0.9)', color: '#000', padding: '6px 10px', borderRadius: s.radiusSm, fontSize: 13, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <Icon name="select_all" size={16} /> {selectedIds.length} selected
+                      </div>
+                    )}
                     {modified && (
                       <div style={{ position: 'absolute', top: 8, right: 8, background: '#fbbf24', color: '#000', padding: '4px 8px', borderRadius: s.radiusSm, fontSize: 12, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 4 }}>
                         <Icon name="edit" size={14} /> Unsaved
