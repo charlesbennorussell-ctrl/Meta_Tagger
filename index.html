@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Image Tagger Pro v8</title>
+  <title>MegaTagger</title>
   <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -700,13 +700,34 @@
           const existingKws = await extractExistingMetadata(file);
           const calculatedBaseName = getBaseName(file.name);
 
-          console.log('[DROP] Processing:', file.name, 'hash:', hash, 'baseName:', calculatedBaseName);
+          // Check if we have cached analysis in IndexedDB
+          const cachedAnalysis = await getAnalysis(hash);
+
+          // Determine status: done if exported, pending if needs analysis
+          let status = 'pending';
+          let keywords = [];
+          let pending = [];
+
+          if (mem?.exported) {
+            status = 'done';
+            keywords = mem.keywords || [];
+            pending = mem.pending || [];
+          } else if (mem?.keywords && mem.keywords.length > 0) {
+            // Has keywords in memory but not exported - mark as ready
+            status = 'ready';
+            keywords = mem.keywords || [];
+            pending = mem.pending || [];
+          }
+          // If cachedAnalysis exists but no keywords in memory, leave as pending
+          // and let analyzeImage process the cache to set it to ready
+
+          console.log('[DROP] Processing:', file.name, 'hash:', hash, 'baseName:', calculatedBaseName, 'status:', status, 'cachedAnalysis:', !!cachedAnalysis);
           return {
             id: hash, name: file.name, file, url: URL.createObjectURL(file),
             baseName: calculatedBaseName,
-            status: mem?.exported ? 'done' : 'pending',
+            status,
             hidden: mem?.hidden || false,
-            keywords: mem?.keywords || [], pending: mem?.pending || [],
+            keywords, pending,
             filenameKeywords: filenameKws,
             existingKeywords: existingKws,
             creator: mem?.creator || null, hash
@@ -719,36 +740,58 @@
 
         if (uniqueItems.length > 0) {
           setQueue(prev => [...prev, ...uniqueItems]);
-          // Only auto-analyze if autoScan is enabled, and skip hidden items
-          setTimeout(() => {
-            if (geminiKeyRef.current && autoScanRef.current) {
-              const toAnalyze = uniqueItems.filter(item => item.status === 'pending' && !item.hidden);
-              console.log('[AUTO-ANALYZE] Auto-scan ON - batch analyzing', toAnalyze.length, 'non-hidden items');
 
-              // Use batch processor for large sets
-              if (toAnalyze.length > 10) {
-                setBatchProgress({ current: 0, total: toAnalyze.length });
-                analysisBatchRef.current.addBatch(toAnalyze);
-
-                // Monitor batch progress
-                const checkProgress = setInterval(() => {
-                  const pending = analysisBatchRef.current.pending;
-                  const processed = toAnalyze.length - pending;
-                  setBatchProgress({ current: processed, total: toAnalyze.length });
-
-                  if (pending === 0) {
-                    clearInterval(checkProgress);
-                    setTimeout(() => setBatchProgress(null), 2000);
+          setTimeout(async () => {
+            if (geminiKeyRef.current) {
+              // First, check for items with cached analysis that need processing
+              const cachedItems = [];
+              for (const item of uniqueItems) {
+                if (item.status === 'pending' && !item.hidden) {
+                  const cached = await getAnalysis(item.hash);
+                  if (cached) {
+                    cachedItems.push(item);
                   }
-                }, 500);
-              } else {
-                // Small batch, process directly
-                toAnalyze.forEach(item => {
+                }
+              }
+
+              // Always process cached items (they're instant)
+              if (cachedItems.length > 0) {
+                console.log('[AUTO-ANALYZE] Processing', cachedItems.length, 'cached items');
+                cachedItems.forEach(item => {
                   analyzeImageRef.current?.(item);
                 });
               }
-            } else if (!autoScanRef.current) {
-              console.log('[AUTO-ANALYZE] Auto-scan OFF - skipping analysis');
+
+              // Only auto-analyze NEW items if autoScan is enabled
+              if (autoScanRef.current) {
+                const toAnalyze = uniqueItems.filter(item => item.status === 'pending' && !item.hidden && !cachedItems.includes(item));
+                console.log('[AUTO-ANALYZE] Auto-scan ON - batch analyzing', toAnalyze.length, 'new items');
+
+                // Use batch processor for large sets
+                if (toAnalyze.length > 10) {
+                  setBatchProgress({ current: 0, total: toAnalyze.length });
+                  analysisBatchRef.current.addBatch(toAnalyze);
+
+                  // Monitor batch progress
+                  const checkProgress = setInterval(() => {
+                    const pending = analysisBatchRef.current.pending;
+                    const processed = toAnalyze.length - pending;
+                    setBatchProgress({ current: processed, total: toAnalyze.length });
+
+                    if (pending === 0) {
+                      clearInterval(checkProgress);
+                      setTimeout(() => setBatchProgress(null), 2000);
+                    }
+                  }, 500);
+                } else {
+                  // Small batch, process directly
+                  toAnalyze.forEach(item => {
+                    analyzeImageRef.current?.(item);
+                  });
+                }
+              } else if (cachedItems.length === 0) {
+                console.log('[AUTO-ANALYZE] Auto-scan OFF - skipping new analysis');
+              }
             }
           }, 100);
         }
@@ -1030,9 +1073,31 @@
           setModified(false);
           setIsEditing(false);
 
+          // Auto-select next image if current becomes filtered out
+          setTimeout(() => {
+            const currentQueue = queueRef.current;
+            const currentFiltered = currentQueue.filter(q => {
+              if (q.hidden) return showHidden;
+              if (q.status === 'done') return showDone;
+              if (q.status === 'analyzing') return showAnalyzing;
+              return showPending;
+            });
+
+            // If current image is no longer visible in filtered view, select next
+            if (!currentFiltered.find(q => q.id === img.id)) {
+              const currentIndex = currentFiltered.findIndex(q => q.id === selectedId);
+              if (currentFiltered.length > 0) {
+                const nextIndex = currentIndex >= 0 && currentIndex < currentFiltered.length ? currentIndex : 0;
+                selectImage(currentFiltered[nextIndex].id);
+              } else {
+                setSelectedId(null);
+              }
+            }
+          }, 100);
+
           await syncToSimilarAndSave(img, kws, des);
         } catch (e) { console.error('[SAVE] Failed:', e); }
-      }, [saveMode, outputDir, syncToSimilarAndSave]);
+      }, [saveMode, outputDir, syncToSimilarAndSave, showHidden, showDone, showAnalyzing, showPending, selectedId]);
 
       // Analysis
       const analyzeImage = useCallback(async (img) => {
@@ -1839,21 +1904,6 @@
                   <Icon name="refresh" size={18} /> Retry ({errorCount})
                 </button>
               )}
-              <button
-                onClick={handleOrganizeTaxonomy}
-                disabled={!geminiKey || isOrganizing}
-                title="Organize taxonomy - research and categorize custom keywords"
-                style={{
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                  padding: '8px 12px', background: isOrganizing ? '#374151' : '#1f2937',
-                  color: isOrganizing ? '#fbbf24' : '#a855f7', border: 'none',
-                  borderRadius: s.radius, cursor: isOrganizing ? 'default' : 'pointer',
-                  fontSize: s.fontSize, opacity: geminiKey ? 1 : 0.5
-                }}
-              >
-                <Icon name={isOrganizing ? "hourglass_empty" : "auto_fix_high"} size={18} />
-                {isOrganizing ? (organizeProgress?.message || 'Starting...') : 'Organize'}
-              </button>
             </div>
 
             <div style={{ width: 1, height: 24, background: s.border }} />
@@ -1861,7 +1911,7 @@
             {/* Logo & Status */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <div style={{ width: 20, height: 20, background: 'linear-gradient(135deg, #8b5cf6, #3b82f6)', borderRadius: 5 }} />
-              <span style={{ color: s.bright, fontWeight: 600, fontSize: s.fontSize }}>Tagger</span>
+              <span style={{ color: s.bright, fontWeight: 600, fontSize: s.fontSize }}>MegaTagger</span>
             </div>
 
             <span style={{ color: s.muted, fontSize: s.fontSize }}>
@@ -1879,12 +1929,6 @@
 
             {/* Right side - Actions */}
             <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10 }}>
-              <Toggle
-                checked={autoScan}
-                onChange={setAutoScan}
-                label={`Auto Scan${pendingCount > 0 ? ` (${pendingCount})` : ''}`}
-                disabled={!geminiKey}
-              />
               {readyToSaveCount > 0 && (
                 <button onClick={saveAll} disabled={isSavingAll} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', background: isSavingAll ? '#374151' : '#10b981', color: isSavingAll ? '#9ca3af' : 'white', border: 'none', borderRadius: s.radius, cursor: isSavingAll ? 'default' : 'pointer', fontSize: s.fontSize, fontWeight: 500 }}>
                   <Icon name={isSavingAll ? "hourglass_empty" : "save"} size={18} /> {isSavingAll ? 'Saving...' : `Save All (${readyToSaveCount})`}
@@ -1930,6 +1974,12 @@
                       <Icon name="refresh" size={18} />
                     </button>
                   )}
+                  <Toggle
+                    checked={autoScan}
+                    onChange={setAutoScan}
+                    label={`Auto${pendingCount > 0 ? ` (${pendingCount})` : ''}`}
+                    disabled={!geminiKey}
+                  />
                   <div style={{ display: 'flex', gap: 2, background: '#1f2937', borderRadius: s.radiusSm, padding: 2 }}>
                     {['S', 'M', 'L', 'XL'].map((label, i) => (
                       <button key={label} onClick={() => setThumbSize(i)}
@@ -2210,6 +2260,22 @@
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: 6 }}>
+                  <button
+                    onClick={handleOrganizeTaxonomy}
+                    disabled={!geminiKey || isOrganizing}
+                    title="Organize taxonomy - research and categorize custom keywords"
+                    tabIndex={-1}
+                    style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
+                      padding: '6px 10px', background: isOrganizing ? '#374151' : '#1f2937',
+                      color: isOrganizing ? '#fbbf24' : '#a855f7', border: 'none',
+                      borderRadius: s.radiusSm, cursor: isOrganizing ? 'default' : 'pointer',
+                      fontSize: 13, opacity: geminiKey ? 1 : 0.5
+                    }}
+                  >
+                    <Icon name={isOrganizing ? "hourglass_empty" : "auto_fix_high"} size={16} />
+                    {isOrganizing ? 'Organizing...' : 'Organize'}
+                  </button>
                   {customCount > 0 && showMasterTaxonomy && (
                     <button onClick={runCategorization} disabled={isCategorizing || !geminiKey} tabIndex={-1}
                       style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 10px', background: isCategorizing ? '#374151' : '#ec4899', color: isCategorizing ? '#9ca3af' : 'white', border: 'none', borderRadius: s.radiusSm, cursor: isCategorizing ? 'default' : 'pointer', fontSize: 13 }}>

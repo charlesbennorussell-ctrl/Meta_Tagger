@@ -32,12 +32,17 @@ IMPORTANT RULES:
 2. ALWAYS include an Era/decade (e.g., "1960s", "1970s") - estimate based on design language, materials, styling cues
 3. For nationality, use country names not adjectives: "Germany" not "German design", "Italy" not "Italian"
 4. Include country of origin for the design/product under Style > Origin
+5. GRAPHIC DESIGN DETECTION:
+   - If image shows posters, logos, typography, layouts, branding, print design, book covers, packaging, or editorial design → ALWAYS tag "Graphic Design"
+   - If it's 2D visual communication designed for reproduction → it's Graphic Design
+   - Common graphic design artifacts: posters, album covers, magazine layouts, corporate identity, signage, book jackets, packaging
 
 Return JSON array: [{"value": "keyword", "confidence": 0.9, "type": "brand|model|era|country|category|style|material|color", "path": ["RootCategory", "SubCategory"]}]
 
 Categories: Design, Architecture, Art, Style (including Origin for countries), Brand, Creator, Product, Era (decades like "1960s"), Material, Color.
 
 REQUIRED: Always include at least one Era keyword with the decade when this was likely designed/produced.
+REQUIRED: If this is graphic design work (posters, logos, typography, layouts, etc.), include "Graphic Design" with path ["Design", "Graphic Design"].
 
 Return 10-20 specific, useful keywords. Only return the JSON array.`;
 
@@ -126,7 +131,15 @@ TAXONOMY STRUCTURE (use exact paths):
    - Brand > Watch (Rolex, Omega, Patek Philippe, Grand Seiko)
 
 3. Design (design disciplines and styles)
-   - Design > Graphic Design > Print, Identity, Typography, Digital, Illustration
+   - Design > Graphic Design (IMPORTANT: 2D visual communication for reproduction)
+     - Design > Graphic Design > Print (posters, flyers, brochures, editorial, magazines, newspapers)
+     - Design > Graphic Design > Identity (logos, branding, corporate identity, visual identity systems)
+     - Design > Graphic Design > Typography (type design, lettering, typographic layouts, font design)
+     - Design > Graphic Design > Digital (web design, UI/UX, app design, digital interfaces)
+     - Design > Graphic Design > Illustration (illustrated posters, editorial illustration, graphic illustration)
+     - Design > Graphic Design > Packaging (product packaging, labels, boxes, wrappers)
+     - Design > Graphic Design > Signage (wayfinding, environmental graphics, signs)
+     - Design > Graphic Design > Book Design (book covers, book jackets, editorial layouts)
    - Design > Industrial Design > Furniture, Audio Equipment, Consumer Electronics, Automotive, Appliances, Tools
    - Design > Interior Design > Residential, Commercial, Exhibition
    - Design > Fashion Design > Apparel, Accessories, Textile
@@ -668,7 +681,15 @@ TAXONOMY PATHS:
 - Creator > Photographer > Portrait/Fashion/Architecture/Documentary
 - Creator > Studio > Design Studio/Architecture Firm/Creative Agency
 - Brand > Audio/Electronics/Camera/Automotive/Furniture/Fashion/Appliances/Watch (for COMPANIES)
-- Design > Graphic Design > Print/Identity/Typography/Digital/Illustration
+- Design > Graphic Design (2D visual communication - posters, logos, typography, layouts, etc.)
+  - Design > Graphic Design > Print (posters, editorial, magazines)
+  - Design > Graphic Design > Identity (logos, branding, corporate identity)
+  - Design > Graphic Design > Typography (type design, lettering, typographic layouts)
+  - Design > Graphic Design > Digital (web design, UI/UX, app design)
+  - Design > Graphic Design > Illustration (illustrated posters, editorial illustration)
+  - Design > Graphic Design > Packaging (product packaging, labels)
+  - Design > Graphic Design > Signage (wayfinding, environmental graphics)
+  - Design > Graphic Design > Book Design (book covers, editorial layouts)
 - Design > Industrial Design > Furniture/Audio Equipment/Consumer Electronics/Automotive/Appliances/Tools
 - Design > Interior Design > Residential/Commercial/Exhibition
 - Design > Fashion Design > Apparel/Accessories/Textile

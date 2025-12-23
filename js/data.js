@@ -6,11 +6,14 @@
 const DEFAULT_TAXONOMY = {
   "Design": {
     "Graphic Design": {
-      "Print": ["Poster", "Book Design", "Magazine", "Editorial", "Packaging", "Album Cover", "Catalog", "Brochure"],
-      "Identity": ["Logo", "Branding", "Corporate Identity", "Visual Identity", "Logotype", "Wordmark"],
-      "Typography": ["Typeface", "Font", "Lettering", "Calligraphy", "Type Specimen"],
-      "Digital": ["UI Design", "Web Design", "App Design", "Interface", "UX Design", "Icon Design"],
-      "Illustration": ["Vector", "Digital Art", "Infographic", "Technical Illustration"]
+      "_items": ["Graphic Design"],
+      "Print": ["Poster", "Book Design", "Magazine", "Editorial", "Packaging", "Album Cover", "Catalog", "Brochure", "Flyer", "Leaflet", "Annual Report", "Newspaper", "Book Cover", "Book Jacket"],
+      "Identity": ["Logo", "Branding", "Corporate Identity", "Visual Identity", "Logotype", "Wordmark", "Brand Identity", "Identity System", "Brand Guidelines"],
+      "Typography": ["Typeface", "Font", "Lettering", "Calligraphy", "Type Specimen", "Type Design", "Typographic Poster", "Typographic Layout", "Hand Lettering"],
+      "Digital": ["UI Design", "Web Design", "App Design", "Interface", "UX Design", "Icon Design", "Digital Interface", "Website", "Mobile UI"],
+      "Illustration": ["Vector", "Digital Art", "Infographic", "Technical Illustration", "Editorial Illustration", "Illustrated Poster"],
+      "Signage": ["Wayfinding", "Environmental Graphics", "Sign Design", "Directional Signage"],
+      "Packaging": ["Product Packaging", "Label Design", "Box Design", "Package Design"]
     },
     "Industrial Design": {
       "Furniture": ["Chair", "Sofa", "Table", "Desk", "Shelving", "Lighting", "Lamp", "Bench", "Cabinet", "Stool", "Bed"],
