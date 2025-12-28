@@ -1534,32 +1534,75 @@
           const selectedImages = queue.filter(q => selectedIds.includes(q.id));
           console.log('[MULTI-SELECT] Aggregating tags from', selectedImages.length, 'images');
 
-          // Aggregate accepted keywords (intersection: only show keywords common to ALL selected images)
-          const keywordSets = selectedImages.map(img =>
-            new Set((img.keywords || []).map(k => k.value.toLowerCase()))
-          );
-
-          const commonKeywords = selectedImages.length > 0 && selectedImages[0].keywords
-            ? selectedImages[0].keywords.filter(kw =>
-                keywordSets.every(set => set.has(kw.value.toLowerCase()))
-              )
-            : [];
-
-          // Aggregate pending keywords (union: show ALL pending from any selected image)
-          const pendingMap = new Map();
-          selectedImages.forEach(img => {
-            (img.pending || []).forEach(kw => {
+          // Build keyword occurrence map for accepted keywords
+          const keywordOccurrences = new Map(); // Map<lowercaseValue, { keyword, count }>
+          selectedImages.forEach((img, idx) => {
+            console.log(`[MULTI-SELECT] Image ${idx + 1}/${selectedImages.length} (${img.name}) has ${(img.keywords || []).length} keywords:`, (img.keywords || []).map(k => k.value).join(', '));
+            (img.keywords || []).forEach(kw => {
               const key = kw.value.toLowerCase();
-              if (!pendingMap.has(key)) {
-                pendingMap.set(key, kw);
+              if (keywordOccurrences.has(key)) {
+                keywordOccurrences.get(key).count++;
+              } else {
+                keywordOccurrences.set(key, { keyword: kw, count: 1 });
               }
             });
           });
-          const aggregatedPending = Array.from(pendingMap.values());
 
-          console.log('[MULTI-SELECT] Common keywords:', commonKeywords.length, 'Pending (union):', aggregatedPending.length);
-          setKeywords(commonKeywords);
-          setPending(aggregatedPending);
+          console.log('[MULTI-SELECT] Keyword occurrences:', Array.from(keywordOccurrences.entries()).map(([key, {count}]) => `${key}: ${count}/${selectedImages.length}`));
+
+          // Separate into "all" (in every image) and "some" (in some images)
+          const allKeywords = [];
+          const someKeywords = [];
+          keywordOccurrences.forEach(({ keyword, count }) => {
+            console.log(`[MULTI-SELECT] Keyword "${keyword.value}": count=${count}, totalImages=${selectedImages.length}, isAll=${count === selectedImages.length}`);
+            if (count === selectedImages.length) {
+              allKeywords.push(keyword);
+            } else {
+              someKeywords.push({ ...keyword, partialCount: count });
+            }
+          });
+
+          // Build pending occurrence map
+          const pendingOccurrences = new Map();
+          selectedImages.forEach((img, idx) => {
+            console.log(`[MULTI-SELECT] Image ${idx + 1}/${selectedImages.length} (${img.name}) has ${(img.pending || []).length} pending:`, (img.pending || []).map(k => k.value).join(', '));
+            (img.pending || []).forEach(kw => {
+              const key = kw.value.toLowerCase();
+              if (pendingOccurrences.has(key)) {
+                pendingOccurrences.get(key).count++;
+              } else {
+                pendingOccurrences.set(key, { keyword: kw, count: 1 });
+              }
+            });
+          });
+
+          console.log('[MULTI-SELECT] Pending occurrences:', Array.from(pendingOccurrences.entries()).map(([key, {count}]) => `${key}: ${count}/${selectedImages.length}`));
+
+          // Separate pending into "all" and "some"
+          const allPending = [];
+          const somePending = [];
+          pendingOccurrences.forEach(({ keyword, count }) => {
+            console.log(`[MULTI-SELECT] Pending "${keyword.value}": count=${count}, totalImages=${selectedImages.length}, isAll=${count === selectedImages.length}`);
+            if (count === selectedImages.length) {
+              allPending.push(keyword);
+            } else {
+              somePending.push({ ...keyword, partialCount: count });
+            }
+          });
+
+          console.log('[MULTI-SELECT] All:', allKeywords.length, 'Some:', someKeywords.length, 'Pending All:', allPending.length, 'Pending Some:', somePending.length);
+          console.log('[MULTI-SELECT] Some keywords:', someKeywords.map(k => `${k.value} (${k.partialCount}/${selectedImages.length})`));
+          console.log('[MULTI-SELECT] Some pending:', somePending.map(k => `${k.value} (${k.partialCount}/${selectedImages.length})`));
+
+          // Verify partialCount is set correctly
+          const combinedKeywords = [...allKeywords, ...someKeywords];
+          const combinedPending = [...allPending, ...somePending];
+          console.log('[MULTI-SELECT] Combined keywords with partialCount:', combinedKeywords.filter(k => k.partialCount).map(k => `${k.value} (${k.partialCount})`));
+          console.log('[MULTI-SELECT] Combined pending with partialCount:', combinedPending.filter(k => k.partialCount).map(k => `${k.value} (${k.partialCount})`));
+
+          // Store aggregated keywords - combine all and some for now, UI will display separately
+          setKeywords(combinedKeywords);
+          setPending(combinedPending);
           setModified(false);
           setIsEditing(false);
         }
@@ -2494,22 +2537,88 @@
                               <Icon name="sell" size={18} />
                               Tagged ({keywords.length})
                             </div>
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                              {keywords.map(k => (
-                                <motion.span
-                                  key={k.id}
-                                  initial={{ opacity: 0, scale: 0.8 }}
-                                  animate={{ opacity: 1, scale: 1 }}
-                                  style={{ padding: '5px 10px', background: `${getColor(k.rootCategory)}15`, color: getColor(k.rootCategory), borderRadius: 20, fontSize: 13, display: 'flex', alignItems: 'center', gap: 6, border: `1px solid ${getColor(k.rootCategory)}30` }}>
-                                  {k.source === 'vision' && <Icon name="image_search" size={14} />}
-                                  {k.source === 'filename' && <Icon name="description" size={14} />}
-                                  {k.value}
-                                  <span onClick={() => removeKw(k.id)} style={{ cursor: 'pointer', opacity: 0.6, marginLeft: 2, display: 'flex' }}>
-                                    <Icon name="close" size={14} />
-                                  </span>
-                                </motion.span>
-                              ))}
-                            </div>
+
+                            {/* Show "Applied to All" and "Applied to Some" sections in multi-select mode */}
+                            {isMultiSelect ? (
+                              <>
+                                {/* DEBUG: Show what we have */}
+                                {(() => {
+                                  const withPartial = keywords.filter(k => k.partialCount);
+                                  const withoutPartial = keywords.filter(k => !k.partialCount);
+                                  console.log('[UI-RENDER] Keywords with partialCount:', withPartial.length, withPartial.map(k => k.value));
+                                  console.log('[UI-RENDER] Keywords without partialCount:', withoutPartial.length, withoutPartial.map(k => k.value));
+                                  return null;
+                                })()}
+
+                                {keywords.filter(k => !k.partialCount).length > 0 && (
+                                  <div style={{ marginBottom: 12 }}>
+                                    <div style={{ fontSize: 13, color: '#4ade80', marginBottom: 8, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                      <Icon name="done_all" size={16} />
+                                      Applied to All ({keywords.filter(k => !k.partialCount).length})
+                                    </div>
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                                      {keywords.filter(k => !k.partialCount).map(k => (
+                                        <motion.span
+                                          key={k.id}
+                                          initial={{ opacity: 0, scale: 0.8 }}
+                                          animate={{ opacity: 1, scale: 1 }}
+                                          style={{ padding: '5px 10px', background: `${getColor(k.rootCategory)}15`, color: getColor(k.rootCategory), borderRadius: 20, fontSize: 13, display: 'flex', alignItems: 'center', gap: 6, border: `1px solid ${getColor(k.rootCategory)}30` }}>
+                                          {k.source === 'vision' && <Icon name="image_search" size={14} />}
+                                          {k.source === 'filename' && <Icon name="description" size={14} />}
+                                          {k.value}
+                                          <span onClick={() => removeKw(k.id)} style={{ cursor: 'pointer', opacity: 0.6, marginLeft: 2, display: 'flex' }}>
+                                            <Icon name="close" size={14} />
+                                          </span>
+                                        </motion.span>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {keywords.filter(k => k.partialCount).length > 0 && (
+                                  <div>
+                                    <div style={{ fontSize: 13, color: '#fbbf24', marginBottom: 8, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                      <Icon name="content_copy" size={16} />
+                                      Applied to Some ({keywords.filter(k => k.partialCount).length})
+                                    </div>
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                                      {keywords.filter(k => k.partialCount).map(k => (
+                                        <motion.span
+                                          key={k.id}
+                                          initial={{ opacity: 0, scale: 0.8 }}
+                                          animate={{ opacity: 1, scale: 1 }}
+                                          style={{ padding: '5px 10px', background: `${getColor(k.rootCategory)}15`, color: getColor(k.rootCategory), borderRadius: 20, fontSize: 13, display: 'flex', alignItems: 'center', gap: 6, border: `1px solid ${getColor(k.rootCategory)}30`, opacity: 0.7 }}>
+                                          {k.source === 'vision' && <Icon name="image_search" size={14} />}
+                                          {k.source === 'filename' && <Icon name="description" size={14} />}
+                                          {k.value}
+                                          <span style={{ fontSize: 11, opacity: 0.6, marginLeft: 2 }}>({k.partialCount}/{selectedIds.length})</span>
+                                          <span onClick={() => removeKw(k.id)} style={{ cursor: 'pointer', opacity: 0.6, marginLeft: 2, display: 'flex' }}>
+                                            <Icon name="close" size={14} />
+                                          </span>
+                                        </motion.span>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                              </>
+                            ) : (
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                                {keywords.map(k => (
+                                  <motion.span
+                                    key={k.id}
+                                    initial={{ opacity: 0, scale: 0.8 }}
+                                    animate={{ opacity: 1, scale: 1 }}
+                                    style={{ padding: '5px 10px', background: `${getColor(k.rootCategory)}15`, color: getColor(k.rootCategory), borderRadius: 20, fontSize: 13, display: 'flex', alignItems: 'center', gap: 6, border: `1px solid ${getColor(k.rootCategory)}30` }}>
+                                    {k.source === 'vision' && <Icon name="image_search" size={14} />}
+                                    {k.source === 'filename' && <Icon name="description" size={14} />}
+                                    {k.value}
+                                    <span onClick={() => removeKw(k.id)} style={{ cursor: 'pointer', opacity: 0.6, marginLeft: 2, display: 'flex' }}>
+                                      <Icon name="close" size={14} />
+                                    </span>
+                                  </motion.span>
+                                ))}
+                              </div>
+                            )}
                           </div>
                         )}
 
@@ -2524,24 +2633,85 @@
                                 <Icon name="done_all" size={16} /> Accept all
                               </button>
                             </div>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                              {pending.map(k => (
-                                <motion.div
-                                  key={k.id}
-                                  initial={{ opacity: 0, x: -10 }}
-                                  animate={{ opacity: 1, x: 0 }}
-                                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 8px', background: 'rgba(255,255,255,0.03)', borderRadius: s.radiusSm }}>
-                                  <button onClick={() => block(k.id)} tabIndex={-1} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, background: 'rgba(248,113,113,0.15)', color: '#f87171', border: 'none', borderRadius: s.radiusSm, cursor: 'pointer' }}>
-                                    <Icon name="block" size={16} />
-                                  </button>
-                                  <button onClick={() => accept(k.id)} tabIndex={-1} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, background: 'rgba(74,222,128,0.15)', color: '#4ade80', border: 'none', borderRadius: s.radiusSm, cursor: 'pointer' }}>
-                                    <Icon name="check" size={16} />
-                                  </button>
-                                  <span style={{ width: 6, height: 6, borderRadius: 3, background: getColor(k.rootCategory), flexShrink: 0 }} />
-                                  <span style={{ color: s.bright, fontSize: s.fontSize, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{k.value}</span>
-                                </motion.div>
-                              ))}
-                            </div>
+
+                            {/* Show "Recommended to All" and "Recommended to Some" sections in multi-select mode */}
+                            {isMultiSelect ? (
+                              <>
+                                {pending.filter(k => !k.partialCount).length > 0 && (
+                                  <div style={{ marginBottom: 12 }}>
+                                    <div style={{ fontSize: 13, color: '#60a5fa', marginBottom: 8, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                      <Icon name="recommend" size={16} />
+                                      Recommended to All ({pending.filter(k => !k.partialCount).length})
+                                    </div>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                      {pending.filter(k => !k.partialCount).map(k => (
+                                        <motion.div
+                                          key={k.id}
+                                          initial={{ opacity: 0, x: -10 }}
+                                          animate={{ opacity: 1, x: 0 }}
+                                          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 8px', background: 'rgba(255,255,255,0.03)', borderRadius: s.radiusSm }}>
+                                          <button onClick={() => block(k.id)} tabIndex={-1} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, background: 'rgba(248,113,113,0.15)', color: '#f87171', border: 'none', borderRadius: s.radiusSm, cursor: 'pointer' }}>
+                                            <Icon name="block" size={16} />
+                                          </button>
+                                          <button onClick={() => accept(k.id)} tabIndex={-1} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, background: 'rgba(74,222,128,0.15)', color: '#4ade80', border: 'none', borderRadius: s.radiusSm, cursor: 'pointer' }}>
+                                            <Icon name="check" size={16} />
+                                          </button>
+                                          <span style={{ width: 6, height: 6, borderRadius: 3, background: getColor(k.rootCategory), flexShrink: 0 }} />
+                                          <span style={{ color: s.bright, fontSize: s.fontSize, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{k.value}</span>
+                                        </motion.div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {pending.filter(k => k.partialCount).length > 0 && (
+                                  <div>
+                                    <div style={{ fontSize: 13, color: '#a78bfa', marginBottom: 8, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                      <Icon name="exposure" size={16} />
+                                      Recommended to Some ({pending.filter(k => k.partialCount).length})
+                                    </div>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                      {pending.filter(k => k.partialCount).map(k => (
+                                        <motion.div
+                                          key={k.id}
+                                          initial={{ opacity: 0, x: -10 }}
+                                          animate={{ opacity: 1, x: 0 }}
+                                          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 8px', background: 'rgba(255,255,255,0.03)', borderRadius: s.radiusSm, opacity: 0.7 }}>
+                                          <button onClick={() => block(k.id)} tabIndex={-1} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, background: 'rgba(248,113,113,0.15)', color: '#f87171', border: 'none', borderRadius: s.radiusSm, cursor: 'pointer' }}>
+                                            <Icon name="block" size={16} />
+                                          </button>
+                                          <button onClick={() => accept(k.id)} tabIndex={-1} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, background: 'rgba(74,222,128,0.15)', color: '#4ade80', border: 'none', borderRadius: s.radiusSm, cursor: 'pointer' }}>
+                                            <Icon name="check" size={16} />
+                                          </button>
+                                          <span style={{ width: 6, height: 6, borderRadius: 3, background: getColor(k.rootCategory), flexShrink: 0 }} />
+                                          <span style={{ color: s.bright, fontSize: s.fontSize, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{k.value}</span>
+                                          <span style={{ fontSize: 11, opacity: 0.6, color: s.text }}>({k.partialCount}/{selectedIds.length})</span>
+                                        </motion.div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                              </>
+                            ) : (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                {pending.map(k => (
+                                  <motion.div
+                                    key={k.id}
+                                    initial={{ opacity: 0, x: -10 }}
+                                    animate={{ opacity: 1, x: 0 }}
+                                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 8px', background: 'rgba(255,255,255,0.03)', borderRadius: s.radiusSm }}>
+                                    <button onClick={() => block(k.id)} tabIndex={-1} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, background: 'rgba(248,113,113,0.15)', color: '#f87171', border: 'none', borderRadius: s.radiusSm, cursor: 'pointer' }}>
+                                      <Icon name="block" size={16} />
+                                    </button>
+                                    <button onClick={() => accept(k.id)} tabIndex={-1} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, background: 'rgba(74,222,128,0.15)', color: '#4ade80', border: 'none', borderRadius: s.radiusSm, cursor: 'pointer' }}>
+                                      <Icon name="check" size={16} />
+                                    </button>
+                                    <span style={{ width: 6, height: 6, borderRadius: 3, background: getColor(k.rootCategory), flexShrink: 0 }} />
+                                    <span style={{ color: s.bright, fontSize: s.fontSize, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{k.value}</span>
+                                  </motion.div>
+                                ))}
+                              </div>
+                            )}
                           </div>
                         )}
 
