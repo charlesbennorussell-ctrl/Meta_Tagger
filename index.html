@@ -505,7 +505,31 @@
         const handleKeyDown = async (e) => {
           if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
 
-          // Enter key - save current image(s)
+          // X key - hide current image and advance to next
+          if (e.key === 'x' || e.key === 'X') {
+            e.preventDefault();
+            const img = selectedImgRef.current;
+            if (img) {
+              console.log('[KEYBOARD] X pressed - hiding:', img.name);
+              // Hide the image
+              setQueue(q => q.map(i => i.id === img.id ? { ...i, hidden: true } : i));
+              setMemory(prev => ({ ...prev, [img.hash]: { ...prev[img.hash], hidden: true } }));
+
+              // Advance to next image
+              const currentIndex = filteredQueue.findIndex(q => q.id === img.id);
+              const nextFiltered = filteredQueue.filter(q => q.id !== img.id); // Re-filter without hidden
+              if (nextFiltered.length > 0) {
+                const nextIndex = currentIndex < nextFiltered.length ? currentIndex : 0;
+                const nextId = nextFiltered[nextIndex].id;
+                setSelectedIds([nextId]);
+                setLastClickedId(nextId);
+                selectImage(nextId);
+              }
+            }
+            return;
+          }
+
+          // Enter key - save current image(s) and advance to next
           if (e.key === 'Enter') {
             e.preventDefault();
             const img = selectedImgRef.current;
@@ -516,20 +540,36 @@
               // Check if multi-select is active
               if (currentSelectedIds.length > 1) {
                 console.log('[KEYBOARD] Enter pressed - saving', currentSelectedIds.length, 'selected images');
-                // Save all selected images (skip sync to avoid cascade)
+                // Save all selected images with the CURRENT keywords from the primary selection (skip sync to avoid cascade)
                 const selectedImages = queueRef.current.filter(q => currentSelectedIds.includes(q.id));
                 for (const selectedImg of selectedImages) {
-                  // Use existing keywords for each image, or apply primary image's keywords
-                  const imgKeywords = selectedImg.id === img.id ? kws : (selectedImg.keywords || []);
-                  if (imgKeywords.length > 0) {
-                    console.log('[KEYBOARD] Saving:', selectedImg.name);
-                    await saveImageRef.current(selectedImg, imgKeywords, selectedImg.designer || designerRef.current, true); // skipSync=true
-                  }
+                  // Apply current keywords to ALL selected images
+                  console.log('[KEYBOARD] Saving:', selectedImg.name, 'with', kws.length, 'keywords');
+                  await saveImageRef.current(selectedImg, kws, designerRef.current, true); // skipSync=true
+                }
+
+                // Clear multi-select and advance to next
+                const nextFiltered = filteredQueue.filter(q => !currentSelectedIds.includes(q.id));
+                if (nextFiltered.length > 0) {
+                  const nextId = nextFiltered[0].id;
+                  setSelectedIds([nextId]);
+                  setLastClickedId(nextId);
+                  selectImage(nextId);
                 }
               } else {
-                // Single selection - original behavior (with sync)
+                // Single selection - save with sync
                 console.log('[KEYBOARD] Enter pressed - saving:', img.name);
                 await saveImageRef.current(img, kws, designerRef.current, false); // skipSync=false
+
+                // Advance to next image
+                const currentIndex = filteredQueue.findIndex(q => q.id === img.id);
+                if (currentIndex !== -1 && filteredQueue.length > 1) {
+                  const nextIndex = currentIndex < filteredQueue.length - 1 ? currentIndex + 1 : 0;
+                  const nextId = filteredQueue[nextIndex].id;
+                  setSelectedIds([nextId]);
+                  setLastClickedId(nextId);
+                  selectImage(nextId);
+                }
               }
             }
             return;
@@ -547,7 +587,10 @@
             }
 
             if (filteredQueue[newIndex]) {
-              selectImage(filteredQueue[newIndex].id);
+              const newId = filteredQueue[newIndex].id;
+              setSelectedIds([newId]); // Update blue outline to follow arrow navigation
+              setLastClickedId(newId);
+              selectImage(newId);
             }
           }
         };
@@ -2397,21 +2440,33 @@
                         </div>
 
                         <button
-                          onClick={() => modified && keywords.length > 0 && saveImage(selectedImg, keywords, designer)}
-                          disabled={!modified || keywords.length === 0}
+                          onClick={async () => {
+                            if (keywords.length === 0) return;
+                            // Handle multi-select
+                            if (selectedIds.length > 1) {
+                              console.log('[SAVE BUTTON] Saving', selectedIds.length, 'selected images');
+                              const selectedImages = queue.filter(q => selectedIds.includes(q.id));
+                              for (const img of selectedImages) {
+                                await saveImage(img, keywords, designer, true); // skipSync=true for batch
+                              }
+                            } else {
+                              await saveImage(selectedImg, keywords, designer);
+                            }
+                          }}
+                          disabled={keywords.length === 0}
                           tabIndex={-1}
                           style={{
                             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '12px 20px',
-                            background: modified && keywords.length > 0 ? '#2563eb' : '#1f2937',
-                            color: modified && keywords.length > 0 ? 'white' : '#4b5563',
+                            background: keywords.length > 0 ? '#2563eb' : '#1f2937',
+                            color: keywords.length > 0 ? 'white' : '#4b5563',
                             border: 'none', borderRadius: s.radius,
-                            cursor: modified && keywords.length > 0 ? 'pointer' : 'default',
+                            cursor: keywords.length > 0 ? 'pointer' : 'default',
                             fontSize: s.fontSize, fontWeight: 500,
-                            opacity: modified && keywords.length > 0 ? 1 : 0.6
+                            opacity: keywords.length > 0 ? 1 : 0.6
                           }}>
                           <Icon name="save" size={20} />
-                          {modified && keywords.length > 0
-                            ? `Save${similarCount > 0 ? ` + ${similarCount} similar` : ''}`
+                          {keywords.length > 0
+                            ? `Save${selectedIds.length > 1 ? ` (${selectedIds.length} images)` : similarCount > 0 ? ` + ${similarCount} similar` : ''}`
                             : 'Nothing to save'}
                         </button>
                       </div>
