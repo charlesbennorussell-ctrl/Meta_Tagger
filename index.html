@@ -107,7 +107,7 @@
     const { motion, AnimatePresence } = window.Motion;
 
     // Import performance utilities
-    const { generateThumbnail, storeThumbnail, getThumbnail, storeAnalysis, getAnalysis, BatchProcessor, LazyLoader, throttle, debounce, getMemoryUsage } = window.TaggerPerformance;
+    const { generateThumbnail, storeThumbnail, getThumbnail, storeAnalysis, getAnalysis, BatchProcessor, LazyLoader, throttle, debounce, getMemoryUsage, saveOutputDirectory, loadOutputDirectory } = window.TaggerPerformance;
 
     // Icon component for Material Symbols
     const Icon = ({ name, size = 20, filled = false, style = {} }) => (
@@ -415,6 +415,17 @@
             console.log('[MEMORY] Loaded from IndexedDB:', Object.keys(m).length, 'items');
           }
         });
+
+        // Load saved output directory on mount
+        loadOutputDirectory().then(handle => {
+          if (handle) {
+            setOutputDir(handle);
+            setOutputDirName(handle.name);
+            console.log('[INIT] Restored output directory:', handle.name);
+          }
+        }).catch(e => {
+          console.error('[INIT] Failed to restore output directory:', e);
+        });
       }, []);
 
       const [showDone, setShowDone] = useState(true);
@@ -637,11 +648,15 @@
         }
       }, []);
 
-      // Save output dir name when it changes
+      // Save output dir to IndexedDB when it changes
       useEffect(() => {
         if (outputDir) {
-          localStorage.setItem('output_dir_name', outputDir.name);
+          localStorage.setItem('output_dir_name', outputDir.name); // Keep for backward compatibility
           setOutputDirName(outputDir.name);
+          // Save the actual handle to IndexedDB for persistence
+          saveOutputDirectory(outputDir).catch(e => {
+            console.error('[SETTINGS] Failed to save output directory:', e);
+          });
         }
       }, [outputDir]);
 
@@ -1119,7 +1134,7 @@
               const currentIndex = currentFiltered.findIndex(q => q.id === selectedId);
               if (currentFiltered.length > 0) {
                 const nextIndex = currentIndex >= 0 && currentIndex < currentFiltered.length ? currentIndex : 0;
-                selectImage(currentFiltered[nextIndex].id);
+                selectImage(currentFiltered[nextIndex].id, true); // Skip auto-save to prevent cascade
               } else {
                 setSelectedId(null);
               }
@@ -1371,9 +1386,9 @@
       useEffect(() => { keywordsRef.current = keywords; }, [keywords]);
       useEffect(() => { designerRef.current = designer; }, [designer]);
 
-      const selectImage = useCallback(async (id) => {
-        // Only auto-save if actually modified
-        if (isEditing && modified && selectedImg && keywords.length > 0) {
+      const selectImage = useCallback(async (id, skipAutoSave = false) => {
+        // Only auto-save if actually modified and not skipped
+        if (!skipAutoSave && isEditing && modified && selectedImg && keywords.length > 0) {
           console.log('[NAV] Auto-saving before navigation:', selectedImg.name);
           await saveImage(selectedImg, keywords, designer);
         }

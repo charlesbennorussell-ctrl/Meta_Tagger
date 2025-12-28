@@ -5,10 +5,11 @@
 
 // IndexedDB for large-scale caching (replaces localStorage for images)
 const DB_NAME = 'TaggerDB';
-const DB_VERSION = 2;
+const DB_VERSION = 3; // Incremented for new settings store
 const STORE_THUMBNAILS = 'thumbnails';
 const STORE_ANALYSIS = 'analysis';
 const STORE_MEMORY = 'memory';
+const STORE_SETTINGS = 'settings';
 
 let dbInstance = null;
 
@@ -42,6 +43,11 @@ const initDB = async () => {
       // Memory store (for queue/working data)
       if (!db.objectStoreNames.contains(STORE_MEMORY)) {
         db.createObjectStore(STORE_MEMORY, { keyPath: 'key' });
+      }
+
+      // Settings store (for persistent settings like directory handles)
+      if (!db.objectStoreNames.contains(STORE_SETTINGS)) {
+        db.createObjectStore(STORE_SETTINGS, { keyPath: 'key' });
       }
     };
   });
@@ -402,6 +408,74 @@ const getMemoryUsage = () => {
   return null;
 };
 
+// ============================================
+// DIRECTORY HANDLE PERSISTENCE
+// ============================================
+
+// Save directory handle to IndexedDB
+const saveOutputDirectory = async (directoryHandle) => {
+  try {
+    const db = await initDB();
+    const tx = db.transaction(STORE_SETTINGS, 'readwrite');
+    const store = tx.objectStore(STORE_SETTINGS);
+
+    await store.put({
+      key: 'output_directory',
+      handle: directoryHandle,
+      name: directoryHandle.name,
+      timestamp: Date.now()
+    });
+
+    await tx.complete;
+    console.log('[SETTINGS] Saved output directory:', directoryHandle.name);
+    return true;
+  } catch (e) {
+    console.error('[SETTINGS] Failed to save directory:', e);
+    return false;
+  }
+};
+
+// Load directory handle from IndexedDB with permission verification
+const loadOutputDirectory = async () => {
+  try {
+    const db = await initDB();
+    const tx = db.transaction(STORE_SETTINGS, 'readonly');
+    const store = tx.objectStore(STORE_SETTINGS);
+
+    const result = await new Promise((resolve, reject) => {
+      const request = store.get('output_directory');
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+
+    if (!result || !result.handle) {
+      console.log('[SETTINGS] No saved output directory');
+      return null;
+    }
+
+    // Verify we still have permission to access the directory
+    const permission = await result.handle.queryPermission({ mode: 'readwrite' });
+
+    if (permission === 'granted') {
+      console.log('[SETTINGS] Restored output directory:', result.name);
+      return result.handle;
+    } else {
+      // Try to request permission
+      const requestedPermission = await result.handle.requestPermission({ mode: 'readwrite' });
+      if (requestedPermission === 'granted') {
+        console.log('[SETTINGS] Re-granted permission for output directory:', result.name);
+        return result.handle;
+      } else {
+        console.log('[SETTINGS] Permission denied for saved directory, user must re-select');
+        return null;
+      }
+    }
+  } catch (e) {
+    console.error('[SETTINGS] Failed to load directory:', e);
+    return null;
+  }
+};
+
 // Export for use in other modules
 window.TaggerPerformance = {
   initDB,
@@ -418,7 +492,9 @@ window.TaggerPerformance = {
   LazyLoader,
   debounce,
   throttle,
-  getMemoryUsage
+  getMemoryUsage,
+  saveOutputDirectory,
+  loadOutputDirectory
 };
 
 // Initialize DB on load
