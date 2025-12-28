@@ -278,14 +278,15 @@
     });
 
     // Import from modules
-    const { DEFAULT_TAXONOMY, ROOT_COLORS, STORAGE_KEY, TAXONOMY_KEY } = window.TaggerData;
+    const { DEFAULT_TAXONOMY, ROOT_COLORS, STORAGE_KEY, TAXONOMY_KEY, REQUIRED_CATEGORIES } = window.TaggerData;
     const {
       smartCategorize, addToTaxonomy, removeFromTaxonomy, flattenTaxonomy,
       getBrandPath, looksLikeBrand, parseEra, splitBrandModel, deduplicateKeywords,
       buildTree, countKeywords, hashFile, getBaseName, loadMemory, saveMemory,
       getCachedAnalysis, setCachedAnalysis,
       extractFromFilename, extractFromUrls, extractExistingMetadata, generateXMP,
-      embedXMP, embedXMPinPNG, convertToJPEG, isRawFormat, supportsEmbedding
+      embedXMP, embedXMPinPNG, convertToJPEG, isRawFormat, supportsEmbedding,
+      autoAssignRequiredCategory
     } = window.TaggerUtils;
     const { analyzeWithGemini, findDesigner, categorizeKeywords, analyzeWithVision, extractCreatorsFromWebMatches, downloadLargerVersion, organizeTaxonomy, researchKeyword } = window.TaggerAPI;
 
@@ -537,6 +538,13 @@
             const currentSelectedIds = selectedIdsRef.current;
 
             if (img && kws.length > 0 && saveImageRef.current) {
+              // Check for required category
+              const hasRequiredCategory = kws.some(k => REQUIRED_CATEGORIES.includes(k.value));
+              if (!hasRequiredCategory) {
+                alert('Please select at least one primary category (Industrial Design, Graphic Design, Art, Photography, or Architecture) before saving.');
+                return;
+              }
+
               // Check if multi-select is active
               if (currentSelectedIds.length > 1) {
                 console.log('[KEYBOARD] Enter pressed - saving', currentSelectedIds.length, 'selected images');
@@ -1237,15 +1245,18 @@
             });
             console.log(`[CACHE] ${auto.length} auto-accepted, ${review.length} for review`);
 
+            // Auto-assign required category if not present
+            const autoWithRequired = autoAssignRequiredCategory(auto);
+
             setQueue(q => q.map(i => i.id === img.id ? {
-              ...i, status: 'ready', keywords: auto, pending: review,
+              ...i, status: 'ready', keywords: autoWithRequired, pending: review,
               designer: designerInfo, visionData: visionResult
             } : i));
 
-            if (auto.length) {
+            if (autoWithRequired.length) {
               setAccepted(prev => {
                 const updated = [...prev];
-                auto.forEach(kw => {
+                autoWithRequired.forEach(kw => {
                   if (!updated.some(a => a.value.toLowerCase() === kw.value.toLowerCase())) updated.push(kw);
                 });
                 return updated;
@@ -1390,6 +1401,9 @@
 
           console.log(`[ANALYZE] ${auto.length} auto-accepted, ${review.length} for review`);
 
+          // Auto-assign required category if not present
+          const autoWithRequired = autoAssignRequiredCategory(auto);
+
           // Cache the raw analysis results in IndexedDB
           await storeAnalysis(img.hash, {
             rawKeywords: processedKws,
@@ -1398,14 +1412,14 @@
           });
 
           setQueue(q => q.map(i => i.id === img.id ? {
-            ...i, status: 'ready', keywords: auto, pending: review,
+            ...i, status: 'ready', keywords: autoWithRequired, pending: review,
             designer: designerInfo, visionData: visionResult
           } : i));
 
-          if (auto.length) {
+          if (autoWithRequired.length) {
             setAccepted(prev => {
               const updated = [...prev];
-              auto.forEach(kw => {
+              autoWithRequired.forEach(kw => {
                 if (!updated.some(a => a.value.toLowerCase() === kw.value.toLowerCase())) updated.push(kw);
               });
               return updated;
@@ -2418,6 +2432,62 @@
                           </div>
                         )}
 
+                        {/* REQUIRED CATEGORIES */}
+                        <div style={{ background: s.panel, borderRadius: s.radius, padding: 12, border: `1px solid ${s.border}` }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#ec4899', marginBottom: 10, fontSize: s.fontSize, fontWeight: 500 }}>
+                            <Icon name="category" size={18} />
+                            Primary Category (Required)
+                          </div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                            {REQUIRED_CATEGORIES.map(cat => {
+                              const hasCategory = keywords.some(k => k.value === cat);
+                              return (
+                                <button
+                                  key={cat}
+                                  onClick={() => {
+                                    if (hasCategory) {
+                                      // Remove the category
+                                      const catKeyword = keywords.find(k => k.value === cat);
+                                      if (catKeyword) removeKw(catKeyword.id);
+                                    } else {
+                                      // Add the category
+                                      const path = smartCategorize({ value: cat, type: 'keyword' });
+                                      const newKw = {
+                                        id: Math.random().toString(36).slice(2),
+                                        value: cat,
+                                        confidence: 1.0,
+                                        type: 'keyword',
+                                        path: path,
+                                        rootCategory: path[0],
+                                        source: 'manual'
+                                      };
+                                      setKeywords([...keywords, newKw]);
+                                      setModified(true);
+                                      setIsEditing(true);
+                                    }
+                                  }}
+                                  style={{
+                                    padding: '8px 12px',
+                                    background: hasCategory ? '#ec489920' : 'rgba(255,255,255,0.03)',
+                                    color: hasCategory ? '#ec4899' : '#9ca3af',
+                                    border: hasCategory ? '1px solid #ec489950' : '1px solid #374151',
+                                    borderRadius: s.radiusSm,
+                                    cursor: 'pointer',
+                                    fontSize: 13,
+                                    fontWeight: hasCategory ? 500 : 400,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 8,
+                                    transition: 'all 0.15s ease'
+                                  }}>
+                                  <Icon name={hasCategory ? "check_circle" : "radio_button_unchecked"} size={16} />
+                                  {cat}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+
                         {keywords.length > 0 && (
                           <div style={{ background: s.panel, borderRadius: s.radius, padding: 12, border: `1px solid ${s.border}` }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#4ade80', marginBottom: 10, fontSize: s.fontSize, fontWeight: 500 }}>
@@ -2488,6 +2558,12 @@
 
                         <button
                           onClick={async () => {
+                            // Check for required category
+                            const hasRequiredCategory = keywords.some(k => REQUIRED_CATEGORIES.includes(k.value));
+                            if (!hasRequiredCategory) {
+                              alert('Please select at least one primary category (Industrial Design, Graphic Design, Art, Photography, or Architecture) before saving.');
+                              return;
+                            }
                             if (keywords.length === 0) return;
                             // Handle multi-select
                             if (selectedIds.length > 1) {
@@ -2500,21 +2576,21 @@
                               await saveImage(selectedImg, keywords, designer);
                             }
                           }}
-                          disabled={keywords.length === 0}
+                          disabled={keywords.length === 0 || !keywords.some(k => REQUIRED_CATEGORIES.includes(k.value))}
                           tabIndex={-1}
                           style={{
                             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '12px 20px',
-                            background: keywords.length > 0 ? '#2563eb' : '#1f2937',
-                            color: keywords.length > 0 ? 'white' : '#4b5563',
+                            background: keywords.length > 0 && keywords.some(k => REQUIRED_CATEGORIES.includes(k.value)) ? '#2563eb' : '#1f2937',
+                            color: keywords.length > 0 && keywords.some(k => REQUIRED_CATEGORIES.includes(k.value)) ? 'white' : '#4b5563',
                             border: 'none', borderRadius: s.radius,
-                            cursor: keywords.length > 0 ? 'pointer' : 'default',
+                            cursor: keywords.length > 0 && keywords.some(k => REQUIRED_CATEGORIES.includes(k.value)) ? 'pointer' : 'default',
                             fontSize: s.fontSize, fontWeight: 500,
-                            opacity: keywords.length > 0 ? 1 : 0.6
+                            opacity: keywords.length > 0 && keywords.some(k => REQUIRED_CATEGORIES.includes(k.value)) ? 1 : 0.6
                           }}>
                           <Icon name="save" size={20} />
-                          {keywords.length > 0
+                          {keywords.length > 0 && keywords.some(k => REQUIRED_CATEGORIES.includes(k.value))
                             ? `Save${selectedIds.length > 1 ? ` (${selectedIds.length} images)` : similarCount > 0 ? ` + ${similarCount} similar` : ''}`
-                            : 'Nothing to save'}
+                            : keywords.length === 0 ? 'Nothing to save' : 'Select primary category'}
                         </button>
                       </div>
                     )}

@@ -314,6 +314,15 @@ const STORAGE_KEY = 'tagger_memory';
 const TAXONOMY_KEY = 'tagger_taxonomy';
 const ANALYSIS_CACHE_KEY = 'tagger_analysis_cache';
 
+// Required top-level categories - every image MUST have at least one
+const REQUIRED_CATEGORIES = [
+  'Industrial Design',
+  'Graphic Design',
+  'Art',
+  'Photography',
+  'Architecture'
+];
+
 // Export for use in other modules
 window.TaggerData = {
   DEFAULT_TAXONOMY,
@@ -328,7 +337,8 @@ window.TaggerData = {
   ROOT_COLORS,
   STORAGE_KEY,
   TAXONOMY_KEY,
-  ANALYSIS_CACHE_KEY
+  ANALYSIS_CACHE_KEY,
+  REQUIRED_CATEGORIES
 };
 
 })();

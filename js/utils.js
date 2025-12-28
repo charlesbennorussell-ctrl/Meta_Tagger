@@ -1172,6 +1172,112 @@ const supportsEmbedding = (file) => {
   return file.type.includes('jpeg') || file.type.includes('png');
 };
 
+// Auto-assign required category based on existing keywords
+const autoAssignRequiredCategory = (keywords) => {
+  const { REQUIRED_CATEGORIES } = window.TaggerData;
+
+  // Check if already has a required category
+  const hasRequiredCategory = keywords.some(k => REQUIRED_CATEGORIES.includes(k.value));
+  if (hasRequiredCategory) return keywords;
+
+  // Map keyword paths to required categories
+  const categoryScores = {
+    'Industrial Design': 0,
+    'Graphic Design': 0,
+    'Art': 0,
+    'Photography': 0,
+    'Architecture': 0
+  };
+
+  keywords.forEach(kw => {
+    const path = kw.path || [];
+    const pathStr = path.join('>');
+
+    // Check path for category indicators
+    if (path.includes('Industrial Design') || path.includes('Furniture') ||
+        path.includes('Audio Equipment') || path.includes('Consumer Electronics') ||
+        path.includes('Automotive') || path.includes('Appliances') || path.includes('Tools')) {
+      categoryScores['Industrial Design'] += 2;
+    }
+
+    if (path.includes('Graphic Design') || path.includes('Print') || path.includes('Identity') ||
+        path.includes('Typography') || path.includes('Digital') || path.includes('Signage') ||
+        pathStr.includes('Logo') || pathStr.includes('Poster') || pathStr.includes('Branding')) {
+      categoryScores['Graphic Design'] += 2;
+    }
+
+    if (path.includes('Photography')) {
+      categoryScores['Photography'] += 3;
+    }
+
+    if (path.includes('Architecture') || pathStr.includes('Building') || pathStr.includes('House') ||
+        pathStr.includes('Museum') || pathStr.includes('Church') || pathStr.includes('Tower')) {
+      categoryScores['Architecture'] += 2;
+    }
+
+    if (path.includes('Art') || path.includes('Painting') || path.includes('Sculpture') ||
+        path.includes('Ceramics') || path.includes('Digital Art')) {
+      categoryScores['Art'] += 2;
+    }
+
+    // Special handling for Interior Design and Fashion Design (not in required categories)
+    if (path.includes('Interior Design')) {
+      categoryScores['Architecture'] += 1; // Interior design often relates to architecture
+    }
+    if (path.includes('Fashion Design')) {
+      categoryScores['Art'] += 1; // Fashion can be considered art
+    }
+  });
+
+  // Find category with highest score
+  let bestCategory = null;
+  let bestScore = 0;
+  Object.entries(categoryScores).forEach(([cat, score]) => {
+    if (score > bestScore) {
+      bestScore = score;
+      bestCategory = cat;
+    }
+  });
+
+  // If no clear match, try to infer from keyword values
+  if (bestScore === 0) {
+    const allValues = keywords.map(k => k.value.toLowerCase()).join(' ');
+
+    if (/chair|table|sofa|lamp|furniture|headphone|speaker|phone|computer|car|product/.test(allValues)) {
+      bestCategory = 'Industrial Design';
+    } else if (/logo|poster|branding|identity|typeface|font|graphic/.test(allValues)) {
+      bestCategory = 'Graphic Design';
+    } else if (/photo|portrait|landscape|street|documentary/.test(allValues)) {
+      bestCategory = 'Photography';
+    } else if (/building|house|museum|church|tower|architecture/.test(allValues)) {
+      bestCategory = 'Architecture';
+    } else if (/painting|sculpture|ceramic|art|installation/.test(allValues)) {
+      bestCategory = 'Art';
+    }
+  }
+
+  // If still no match, default to Industrial Design (most common in design context)
+  if (!bestCategory) {
+    bestCategory = 'Industrial Design';
+  }
+
+  console.log('[AUTO-ASSIGN] Adding required category:', bestCategory, 'based on scores:', categoryScores);
+
+  // Add the required category keyword
+  const path = smartCategorize({ value: bestCategory, type: 'keyword' });
+  const newKw = {
+    id: `auto-${Math.random().toString(36).slice(2)}`,
+    value: bestCategory,
+    confidence: 0.9,
+    type: 'keyword',
+    path: path,
+    rootCategory: path[0],
+    source: 'auto'
+  };
+
+  return [newKw, ...keywords];
+};
+
 // Export for use in other modules
 window.TaggerUtils = {
   smartCategorize,
@@ -1200,7 +1306,8 @@ window.TaggerUtils = {
   embedXMPinPNG,
   convertToJPEG,
   isRawFormat,
-  supportsEmbedding
+  supportsEmbedding,
+  autoAssignRequiredCategory
 };
 
 })();
