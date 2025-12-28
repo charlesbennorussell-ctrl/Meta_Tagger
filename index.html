@@ -1467,18 +1467,22 @@
         setDownloadedLarger(null);
         setIsEditing(false);
 
-        if (img.status === 'ready' || img.status === 'done' || img.status === 'editing') {
-          setKeywords(img.keywords || []);
-          setPending(img.pending || []);
-          setDesigner(img.designer || null);
-          setVisionData(img.visionData || null);
-          setIgnored([]);
-          setModified(false);
-        } else if (img.status === 'pending') {
-          setKeywords([]); setPending([]); setDesigner(null); setVisionData(null); setIgnored([]); setModified(false);
-          analyzeImage(img);
-        } else {
-          setKeywords([]); setPending([]); setDesigner(null); setVisionData(null); setIgnored([]); setModified(false);
+        // Only update keywords/pending if NOT in multi-select mode
+        // Multi-select mode uses aggregated data from the useEffect below
+        if (selectedIds.length <= 1) {
+          if (img.status === 'ready' || img.status === 'done' || img.status === 'editing') {
+            setKeywords(img.keywords || []);
+            setPending(img.pending || []);
+            setDesigner(img.designer || null);
+            setVisionData(img.visionData || null);
+            setIgnored([]);
+            setModified(false);
+          } else if (img.status === 'pending') {
+            setKeywords([]); setPending([]); setDesigner(null); setVisionData(null); setIgnored([]); setModified(false);
+            analyzeImage(img);
+          } else {
+            setKeywords([]); setPending([]); setDesigner(null); setVisionData(null); setIgnored([]); setModified(false);
+          }
         }
       }, [queue, isEditing, modified, selectedImg, selectedIds, keywords, designer, analyzeImage, saveImage]);
 

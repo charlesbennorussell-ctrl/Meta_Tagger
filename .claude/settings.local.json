@@ -8,7 +8,10 @@
       "Bash(git add:*)",
       "Bash(git commit:*)",
       "Bash(git push)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(start \"\" \"C:\\Users\\benno\\.claude-worktrees\\Meta_Tagger\\laughing-chatterjee\\index.html\")",
+      "Bash(git checkout:*)",
+      "Bash(git merge:*)"
     ]
   }
 }
