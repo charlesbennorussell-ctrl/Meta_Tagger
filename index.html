@@ -1432,8 +1432,18 @@
       const selectImage = useCallback(async (id, skipAutoSave = false) => {
         // Only auto-save if actually modified and not skipped
         if (!skipAutoSave && isEditing && modified && selectedImg && keywords.length > 0) {
-          console.log('[NAV] Auto-saving before navigation:', selectedImg.name);
-          await saveImage(selectedImg, keywords, designer);
+          // Check if multi-select is active - save ALL selected images
+          if (selectedIds.length > 1) {
+            console.log('[NAV] Auto-saving', selectedIds.length, 'selected images before navigation');
+            const selectedImages = queue.filter(q => selectedIds.includes(q.id));
+            for (const img of selectedImages) {
+              // Use the current keywords for all selected images
+              await saveImage(img, keywords, designer, true); // skipSync=true for batch
+            }
+          } else {
+            console.log('[NAV] Auto-saving before navigation:', selectedImg.name);
+            await saveImage(selectedImg, keywords, designer);
+          }
         }
 
         const img = queue.find(q => q.id === id);
@@ -1456,7 +1466,7 @@
         } else {
           setKeywords([]); setPending([]); setDesigner(null); setVisionData(null); setIgnored([]); setModified(false);
         }
-      }, [queue, isEditing, modified, selectedImg, keywords, designer, analyzeImage, saveImage]);
+      }, [queue, isEditing, modified, selectedImg, selectedIds, keywords, designer, analyzeImage, saveImage]);
 
       // Multi-select handler with Ctrl-click and Shift-click support
       const handleThumbnailClick = useCallback((id, event) => {
@@ -1503,6 +1513,43 @@
           selectImage(id);
         }
       }, [selectedIds, selectedId, lastClickedId, filteredQueue, selectImage]);
+
+      // Aggregate keywords and pending tags when multi-select is active
+      useEffect(() => {
+        if (selectedIds.length > 1) {
+          const selectedImages = queue.filter(q => selectedIds.includes(q.id));
+          console.log('[MULTI-SELECT] Aggregating tags from', selectedImages.length, 'images');
+
+          // Aggregate accepted keywords (intersection: only show keywords common to ALL selected images)
+          const keywordSets = selectedImages.map(img =>
+            new Set((img.keywords || []).map(k => k.value.toLowerCase()))
+          );
+
+          const commonKeywords = selectedImages.length > 0 && selectedImages[0].keywords
+            ? selectedImages[0].keywords.filter(kw =>
+                keywordSets.every(set => set.has(kw.value.toLowerCase()))
+              )
+            : [];
+
+          // Aggregate pending keywords (union: show ALL pending from any selected image)
+          const pendingMap = new Map();
+          selectedImages.forEach(img => {
+            (img.pending || []).forEach(kw => {
+              const key = kw.value.toLowerCase();
+              if (!pendingMap.has(key)) {
+                pendingMap.set(key, kw);
+              }
+            });
+          });
+          const aggregatedPending = Array.from(pendingMap.values());
+
+          console.log('[MULTI-SELECT] Common keywords:', commonKeywords.length, 'Pending (union):', aggregatedPending.length);
+          setKeywords(commonKeywords);
+          setPending(aggregatedPending);
+          setModified(false);
+          setIsEditing(false);
+        }
+      }, [selectedIds, queue]);
 
       const analyzeAllPending = () => {
         const pendingImgs = queue.filter(q => q.status === 'pending' && !q.hidden);
