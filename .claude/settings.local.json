@@ -16,7 +16,11 @@
       "Bash(start \"\" \"C:\\Users\\benno\\.claude-worktrees\\Meta_Tagger\\suspicious-brown\\index.html\")",
       "Bash(powershell -Command \"(Get-Content index.html) -replace ''fontSize: 12'', ''fontSize: 13'' | Set-Content index.html\")",
       "Bash(powershell -Command \"(Get-Content index.html) -replace ''fontWeight: 600'', ''fontWeight: 500'' | Set-Content index.html\")",
-      "Bash(powershell -Command \"(Get-Content index.html) -replace ''fontWeight: 400'', ''fontWeight: 500'' | Set-Content index.html\")"
+      "Bash(powershell -Command \"(Get-Content index.html) -replace ''fontWeight: 400'', ''fontWeight: 500'' | Set-Content index.html\")",
+      "Bash(start \"\" \"C:\\Users\\benno\\.claude-worktrees\\Meta_Tagger\\vigorous-napier\\index.html\")",
+      "Bash(start \"\" \"file:///C:/Users/benno/.claude-worktrees/Meta_Tagger/kind-lehmann/index.html\")",
+      "Bash(start \"\" \"C:\\Users\\benno\\.claude-worktrees\\Meta_Tagger\\vigorous-napier\\migrate-data.html\")",
+      "Bash(node -c:*)"
     ]
   }
 }

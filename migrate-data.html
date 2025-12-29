@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>LocalStorage Migration Tool - Meta Tagger</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      padding: 40px;
+      background: #0F0F0F;
+      color: #A4A4A4;
+      line-height: 1.6;
+    }
+    h1 { color: #fff; margin-bottom: 30px; }
+    h2 { color: #fff; margin-top: 30px; margin-bottom: 15px; font-size: 18px; }
+    button {
+      padding: 12px 24px;
+      margin: 10px 10px 10px 0;
+      cursor: pointer;
+      background: #2D2D2D;
+      color: #fff;
+      border: 1px solid #3D3D3D;
+      border-radius: 4px;
+      font-size: 13px;
+      font-weight: 500;
+    }
+    button:hover { background: #3D3D3D; }
+    button:active { transform: scale(0.98); }
+    button.primary { background: #0066CC; border-color: #0066CC; }
+    button.primary:hover { background: #0077EE; }
+    textarea {
+      width: 100%;
+      height: 400px;
+      background: #1A1A1A;
+      color: #0F0;
+      border: 1px solid #2D2D2D;
+      padding: 15px;
+      font-family: 'Consolas', 'Monaco', monospace;
+      font-size: 12px;
+      border-radius: 4px;
+      margin-top: 10px;
+    }
+    .section {
+      margin: 30px 0;
+      padding: 25px;
+      background: #1A1A1A;
+      border: 1px solid #2D2D2D;
+      border-radius: 6px;
+    }
+    .info {
+      background: #2D2D2D;
+      padding: 15px;
+      border-radius: 4px;
+      margin: 15px 0;
+      border-left: 3px solid #0066CC;
+    }
+    .success {
+      background: #1A3A1A;
+      padding: 15px;
+      border-radius: 4px;
+      margin: 15px 0;
+      border-left: 3px solid #00AA00;
+      color: #00FF00;
+    }
+    .error {
+      background: #3A1A1A;
+      padding: 15px;
+      border-radius: 4px;
+      margin: 15px 0;
+      border-left: 3px solid #AA0000;
+      color: #FF6666;
+    }
+    code {
+      background: #2D2D2D;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-family: 'Consolas', 'Monaco', monospace;
+      font-size: 12px;
+    }
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 15px;
+      margin: 15px 0;
+    }
+    .stat {
+      background: #2D2D2D;
+      padding: 15px;
+      border-radius: 4px;
+    }
+    .stat-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      opacity: 0.6;
+      margin-bottom: 5px;
+    }
+    .stat-value {
+      font-size: 24px;
+      color: #fff;
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+  <h1>🔄 Meta Tagger Data Migration Tool</h1>
+
+  <div class="info">
+    <strong>Current Location:</strong> <code id="current-location"></code>
+  </div>
+
+  <div class="section">
+    <h2>📤 Step 1: Export Data</h2>
+    <p>Click the button below to export all localStorage data from this location.</p>
+    <button class="primary" onclick="exportData()">Export All Data</button>
+    <button onclick="exportToClipboard()">Copy to Clipboard</button>
+    <button onclick="downloadAsFile()">Download as File</button>
+    <div id="export-status"></div>
+    <textarea id="export" readonly placeholder="Exported data will appear here..."></textarea>
+  </div>
+
+  <div class="section">
+    <h2>📥 Step 2: Import Data</h2>
+    <p>Paste exported data below or upload a file, then click Import.</p>
+    <textarea id="import" placeholder="Paste exported data here..."></textarea>
+    <button class="primary" onclick="importData()">Import Data</button>
+    <button onclick="importFromFile()">Upload File</button>
+    <input type="file" id="file-input" accept=".json" style="display: none;" onchange="handleFileSelect(event)">
+    <div id="import-status"></div>
+  </div>
+
+  <div class="section">
+    <h2>📊 Current Storage Analysis</h2>
+    <button onclick="analyzeStorage()">Analyze Current Data</button>
+    <div id="stats"></div>
+    <textarea id="current" readonly placeholder="Click 'Analyze' to view current storage..."></textarea>
+  </div>
+
+  <div class="section">
+    <h2>🧹 Maintenance</h2>
+    <button onclick="clearStorage()" style="background: #AA0000; border-color: #AA0000;">Clear All Storage</button>
+    <button onclick="viewRawKeys()">View All Keys</button>
+  </div>
+
+  <script>
+    // Display current location
+    document.getElementById('current-location').textContent = window.location.href;
+
+    function showStatus(elementId, message, type = 'info') {
+      const el = document.getElementById(elementId);
+      el.innerHTML = `<div class="${type}">${message}</div>`;
+      setTimeout(() => { el.innerHTML = ''; }, 5000);
+    }
+
+    function exportData() {
+      const data = {};
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        data[key] = localStorage.getItem(key);
+      }
+      const jsonStr = JSON.stringify(data, null, 2);
+      document.getElementById('export').value = jsonStr;
+      showStatus('export-status', `✓ Exported ${Object.keys(data).length} items successfully!`, 'success');
+      return jsonStr;
+    }
+
+    function exportToClipboard() {
+      const jsonStr = exportData();
+      navigator.clipboard.writeText(jsonStr).then(() => {
+        showStatus('export-status', '✓ Copied to clipboard! You can now paste this in the new location.', 'success');
+      }).catch(err => {
+        showStatus('export-status', '✗ Failed to copy to clipboard: ' + err.message, 'error');
+      });
+    }
+
+    function downloadAsFile() {
+      const jsonStr = exportData();
+      const blob = new Blob([jsonStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `metatagger-backup-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      showStatus('export-status', '✓ Downloaded backup file!', 'success');
+    }
+
+    function importData() {
+      try {
+        const data = JSON.parse(document.getElementById('import').value);
+        let count = 0;
+        for (const [key, value] of Object.entries(data)) {
+          localStorage.setItem(key, value);
+          count++;
+        }
+        showStatus('import-status', `✓ Imported ${count} items successfully! Reload the app to see your data.`, 'success');
+        analyzeStorage();
+      } catch (e) {
+        showStatus('import-status', '✗ Error importing data: ' + e.message, 'error');
+      }
+    }
+
+    function importFromFile() {
+      document.getElementById('file-input').click();
+    }
+
+    function handleFileSelect(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        document.getElementById('import').value = e.target.result;
+        showStatus('import-status', `✓ Loaded file: ${file.name}`, 'success');
+      };
+      reader.readAsText(file);
+    }
+
+    function analyzeStorage() {
+      const data = {};
+      let totalSize = 0;
+
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        const value = localStorage.getItem(key);
+        data[key] = value;
+        totalSize += key.length + value.length;
+      }
+
+      const jsonStr = JSON.stringify(data, null, 2);
+      document.getElementById('current').value = jsonStr;
+
+      // Parse special keys
+      let imageCount = 0;
+      let keywordCount = 0;
+      try {
+        const memory = JSON.parse(data.tagger_memory || '{}');
+        imageCount = Object.keys(memory).length;
+        keywordCount = Object.values(memory).reduce((sum, img) => {
+          return sum + (img.keywords?.length || 0);
+        }, 0);
+      } catch (e) {}
+
+      const statsHtml = `
+        <div class="stats">
+          <div class="stat">
+            <div class="stat-label">Total Keys</div>
+            <div class="stat-value">${Object.keys(data).length}</div>
+          </div>
+          <div class="stat">
+            <div class="stat-label">Total Size</div>
+            <div class="stat-value">${(totalSize / 1024).toFixed(1)} KB</div>
+          </div>
+          <div class="stat">
+            <div class="stat-label">Tagged Images</div>
+            <div class="stat-value">${imageCount}</div>
+          </div>
+          <div class="stat">
+            <div class="stat-label">Total Keywords</div>
+            <div class="stat-value">${keywordCount}</div>
+          </div>
+        </div>
+      `;
+
+      document.getElementById('stats').innerHTML = statsHtml;
+    }
+
+    function clearStorage() {
+      if (confirm('⚠️ Are you sure you want to clear ALL storage? This cannot be undone!')) {
+        if (confirm('⚠️ FINAL WARNING: This will delete all your tags and settings. Continue?')) {
+          localStorage.clear();
+          showStatus('import-status', '✓ All storage cleared!', 'success');
+          analyzeStorage();
+        }
+      }
+    }
+
+    function viewRawKeys() {
+      const keys = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        keys.push(localStorage.key(i));
+      }
+      alert('Storage Keys:\n\n' + keys.join('\n'));
+    }
+
+    // Auto-analyze on load
+    window.addEventListener('load', () => {
+      analyzeStorage();
+    });
+  </script>
+</body>
+</html>

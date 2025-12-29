@@ -263,8 +263,8 @@
               </div>
             )}
             {(item.status === 'ready' || item.status === 'editing') && (
-              <div style={{ position: 'absolute', inset: 0, background: 'rgba(65,71,255,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Icon name="rate_review" size={28} style={{ color: '#4147FF' }} />
+              <div style={{ position: 'absolute', top: 6, right: 6, width: 20, height: 20, borderRadius: '50%', background: '#4147FF', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 4px rgba(0,0,0,0.4)' }}>
+                <Icon name="rate_review" size={12} style={{ color: '#fff' }} />
               </div>
             )}
             {item.status === 'done' && (
@@ -311,22 +311,20 @@
       const keywords = node._keywords || [];
       const count = countKeywords(node);
       const pathKey = node._path?.join('>');
-      const isExpanded = expanded[pathKey] !== false;
+      const isExpanded = true; // Always expanded
       const color = ROOT_COLORS[node._path?.[0]] || s.text;
 
       return (
         <div style={{ marginLeft: depth > 0 ? 16 : 0 }}>
-          <div onClick={() => (hasChildren || keywords.length > 0) && onToggle(pathKey)}
-            style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', borderRadius: 6, cursor: 'pointer', background: depth === 0 ? 'rgba(255,255,255,0.03)' : 'transparent' }}>
-            <Icon name={isExpanded ? "expand_more" : "chevron_right"} size={16} style={{ color: s.textMuted, opacity: (hasChildren || keywords.length > 0) ? 1 : 0 }} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', borderRadius: 6, background: depth === 0 ? 'rgba(255,255,255,0.03)' : 'transparent' }}>
             {depth === 0 && <span style={{ width: 10, height: 10, borderRadius: 4, background: color }} />}
-            <span style={{ flex: 1, color: depth === 0 ? s.text : s.text, fontSize: 13 }}>{name}</span>
+            <span style={{ flex: 1, color: depth === 0 ? '#777777' : '#777777', fontSize: 13 }}>{name}</span>
             <span style={{ color: s.text, fontSize: 13 }}>{count}</span>
           </div>
           {isExpanded && keywords.length > 0 && (
-            <div style={{ marginLeft: 28, marginTop: 6, color: s.text, fontSize: 13, lineHeight: 1.8 }}>
+            <div style={{ marginLeft: 28, marginTop: 6, marginBottom: 20, color: s.text, fontSize: 13, lineHeight: 2.0 }}>
               {keywords.map((kw, idx) => (
-                <span key={kw.id}>
+                <span key={kw.id} style={{ display: 'inline-block', whiteSpace: 'nowrap' }}>
                   <span>{kw.value}</span>
                   <span onClick={(e) => { e.stopPropagation(); onDeleteKeyword(kw.id); }} style={{ cursor: 'pointer', opacity: 0.6, marginLeft: 4, display: 'inline-flex', verticalAlign: 'middle' }}>
                     <Icon name="close" size={12} />
@@ -346,7 +344,7 @@
     const MasterTaxonomyNode = ({ name, value, path = [], depth = 0, expanded, onToggle, onDelete, s }) => {
       const currentPath = [...path, name];
       const pathKey = currentPath.join('>');
-      const isExpanded = expanded[pathKey] !== false;
+      const isExpanded = true; // Always expanded
       const color = ROOT_COLORS[currentPath[0]] || s.text;
 
       let children = {};
@@ -364,16 +362,14 @@
 
       return (
         <div style={{ marginLeft: depth > 0 ? 16 : 0 }}>
-          <div onClick={() => hasContent && onToggle(pathKey)}
-            style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', borderRadius: 6, cursor: hasContent ? 'pointer' : 'default', background: depth === 0 ? 'rgba(255,255,255,0.03)' : 'transparent' }}>
-            <Icon name={isExpanded ? "expand_more" : "chevron_right"} size={16} style={{ color: s.textMuted, opacity: hasContent ? 1 : 0 }} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', borderRadius: 6, background: depth === 0 ? 'rgba(255,255,255,0.03)' : 'transparent' }}>
             {depth === 0 && <span style={{ width: 10, height: 10, borderRadius: 4, background: color }} />}
-            <span style={{ flex: 1, color: depth === 0 ? s.text : s.text, fontSize: 13 }}>{name}</span>
+            <span style={{ flex: 1, color: depth === 0 ? '#777777' : '#777777', fontSize: 13 }}>{name}</span>
           </div>
           {isExpanded && hasItems && (
-            <div style={{ marginLeft: 28, marginTop: 6, color: s.text, fontSize: 13, lineHeight: 1.8 }}>
+            <div style={{ marginLeft: 28, marginTop: 6, marginBottom: 20, color: s.text, fontSize: 13, lineHeight: 2.0 }}>
               {items.map((item, idx) => (
-                <span key={`${pathKey}-${item}-${idx}`}>
+                <span key={`${pathKey}-${item}-${idx}`} style={{ display: 'inline-block', whiteSpace: 'nowrap' }}>
                   <span>{item}</span>
                   <span onClick={(e) => { e.stopPropagation(); onDelete(currentPath, item); }} style={{ cursor: 'pointer', opacity: 0.6, marginLeft: 4, display: 'inline-flex', verticalAlign: 'middle' }}>
                     <Icon name="close" size={12} />
@@ -422,24 +418,41 @@
       const [selectedIds, setSelectedIds] = useState([]); // Multi-select support
       const [lastClickedId, setLastClickedId] = useState(null); // For shift-click range selection
 
-      // Load memory from IndexedDB on mount
+      // Load memory from browser storage on mount, then from folder when available
       useEffect(() => {
-        loadMemory().then(m => {
-          if (m && Object.keys(m).length > 0) {
-            setMemory(m);
-            console.log('[MEMORY] Loaded from IndexedDB:', Object.keys(m).length, 'items');
-          }
-        });
-
-        // Load saved output directory on mount
+        // Load saved output directory first
         loadOutputDirectory().then(handle => {
           if (handle) {
             setOutputDir(handle);
             setOutputDirName(handle.name);
             console.log('[INIT] Restored output directory:', handle.name);
+
+            // Load memory from folder
+            loadMemory(handle).then(m => {
+              if (m && Object.keys(m).length > 0) {
+                setMemory(m);
+              }
+            }).catch(e => {
+              console.error('[INIT] Failed to load memory from folder:', e);
+            });
+          } else {
+            // No folder, load from browser storage
+            loadMemory(null).then(m => {
+              if (m && Object.keys(m).length > 0) {
+                setMemory(m);
+              }
+            }).catch(e => {
+              console.error('[INIT] Failed to load memory:', e);
+            });
           }
         }).catch(e => {
           console.error('[INIT] Failed to restore output directory:', e);
+          // Load from browser storage if no folder
+          loadMemory(null).then(m => {
+            if (m && Object.keys(m).length > 0) {
+              setMemory(m);
+            }
+          });
         });
       }, []);
 
@@ -631,15 +644,15 @@
         localStorage.setItem('thumb_size', thumbSize.toString());
       }, [geminiKey, visionKey, useVision, autoDownloadLarger, saveMode, thumbSize]);
 
-      // Auto-save memory to IndexedDB (debounced to avoid excessive writes)
+      // Auto-save memory to folder or IndexedDB (debounced to avoid excessive writes)
       useEffect(() => {
         const timeoutId = setTimeout(() => {
           if (Object.keys(memory).length > 0) {
-            saveMemory(memory).catch(e => console.error('[MEMORY] Save failed:', e));
+            saveMemory(memory, outputDir).catch(e => console.error('[MEMORY] Save failed:', e));
           }
         }, 1000); // Debounce 1 second
         return () => clearTimeout(timeoutId);
-      }, [memory]);
+      }, [memory, outputDir]);
       useEffect(() => { localStorage.setItem(TAXONOMY_KEY, JSON.stringify(taxonomy)); }, [taxonomy]);
       useEffect(() => { localStorage.setItem('grid_width', gridWidth.toString()); }, [gridWidth]);
 
@@ -713,17 +726,45 @@
         }
       }, []);
 
-      // Save output dir to IndexedDB when it changes
+      // Save output dir to IndexedDB when it changes and load memory from the new folder
+      const outputDirRef = useRef(null);
       useEffect(() => {
-        if (outputDir) {
+        if (outputDir && outputDir !== outputDirRef.current) {
+          const previousDir = outputDirRef.current;
+          outputDirRef.current = outputDir;
+
           localStorage.setItem('output_dir_name', outputDir.name); // Keep for backward compatibility
           setOutputDirName(outputDir.name);
           // Save the actual handle to IndexedDB for persistence
           saveOutputDirectory(outputDir).catch(e => {
             console.error('[SETTINGS] Failed to save output directory:', e);
           });
+
+          // If switching folders (not initial load), save current memory first
+          if (previousDir && Object.keys(memory).length > 0) {
+            console.log('[FOLDER] Saving current memory before switching folders');
+            saveMemory(memory, previousDir).catch(e => {
+              console.error('[FOLDER] Failed to save to previous folder:', e);
+            });
+          }
+
+          // Load memory from the newly selected folder
+          loadMemory(outputDir).then(m => {
+            if (m && Object.keys(m).length > 0) {
+              setMemory(m);
+              console.log('[FOLDER] Loaded memory from folder:', Object.keys(m).length, 'items');
+            } else {
+              console.log('[FOLDER] No existing data in folder, starting fresh');
+              // If no data in folder but we have current memory, keep it (user might be setting up a new folder)
+              if (Object.keys(memory).length === 0) {
+                setMemory({});
+              }
+            }
+          }).catch(e => {
+            console.error('[FOLDER] Failed to load memory from folder:', e);
+          });
         }
-      }, [outputDir]);
+      }, [outputDir, memory]);
 
       // Clear cache and re-analyze non-done images
       const refreshAnalysis = useCallback(() => {
@@ -2773,7 +2814,7 @@
 
                         {/* REQUIRED CATEGORIES */}
                         <div style={{ background: s.panel, borderRadius: s.radius, padding: 12, border: `1px solid ${s.border}` }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: s.text, marginBottom: 10, fontSize: s.fontSize, fontWeight: 500 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#777777', marginBottom: 20, fontSize: s.fontSize, fontWeight: 500 }}>
                             <Icon name="category" size={18} />
                             Primary Category (Required)
                           </div>
@@ -2829,7 +2870,7 @@
 
                         {keywords.length > 0 && (
                           <div style={{ padding: 12 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: s.text, marginBottom: 10, fontSize: 13 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#777777', marginBottom: 20, fontSize: 13 }}>
                               <Icon name="sell" size={16} />
                               Tagged ({keywords.length})
                             </div>
@@ -2847,16 +2888,16 @@
                                 })()}
 
                                 {keywords.filter(k => !k.partialCount).length > 0 && (
-                                  <div style={{ marginBottom: 12 }}>
-                                    <div style={{ fontSize: 13, color: s.text, marginBottom: 8, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                  <div style={{ marginBottom: 20 }}>
+                                    <div style={{ fontSize: 13, color: '#777777', marginBottom: 20, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 6 }}>
                                       <Icon name="done_all" size={16} />
                                       Applied to All ({keywords.filter(k => !k.partialCount).length})
                                     </div>
-                                    <div style={{ color: s.text, fontSize: 13, lineHeight: 1.8 }}>
+                                    <div style={{ color: s.text, fontSize: 13, lineHeight: 2.0 }}>
                                       {keywords.filter(k => !k.partialCount).map((k, idx, arr) => (
-                                        <span key={k.id}>
-                                          {k.source === 'vision' && <Icon name="image_search" size={14} style={{ verticalAlign: 'middle', marginRight: 4 }} />}
-                                          {k.source === 'filename' && <Icon name="description" size={14} style={{ verticalAlign: 'middle', marginRight: 4 }} />}
+                                        <span key={k.id} style={{ display: 'inline-block', whiteSpace: 'nowrap' }}>
+                                          {k.source === 'vision' && <Icon name="image_search" size={14} style={{ display: 'inline-flex', verticalAlign: 'middle', marginRight: 4 }} />}
+                                          {k.source === 'filename' && <Icon name="description" size={14} style={{ display: 'inline-flex', verticalAlign: 'middle', marginRight: 4 }} />}
                                           {k.value}
                                           <span onClick={() => removeFromAll(k)} style={{ cursor: 'pointer', opacity: 0.6, marginLeft: 4, display: 'inline-flex', verticalAlign: 'middle' }}>
                                             <Icon name="close" size={14} />
@@ -2870,7 +2911,7 @@
 
                                 {keywords.filter(k => k.partialCount).length > 0 && (
                                   <div>
-                                    <div style={{ fontSize: 13, color: s.text, marginBottom: 8, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'space-between' }}>
+                                    <div style={{ fontSize: 13, color: '#777777', marginBottom: 20, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'space-between' }}>
                                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                                         <Icon name="content_copy" size={16} />
                                         Applied to Some ({keywords.filter(k => k.partialCount).length}) - Click to add to all
@@ -2879,11 +2920,11 @@
                                         <Icon name="remove_circle" size={14} /> Remove All
                                       </button>
                                     </div>
-                                    <div style={{ color: s.text, fontSize: 13, lineHeight: 1.8 }}>
+                                    <div style={{ color: s.text, fontSize: 13, lineHeight: 2.0 }}>
                                       {keywords.filter(k => k.partialCount).map((k, idx, arr) => (
-                                        <span key={k.id}>
-                                          {k.source === 'vision' && <Icon name="image_search" size={14} style={{ verticalAlign: 'middle', marginRight: 4 }} />}
-                                          {k.source === 'filename' && <Icon name="description" size={14} style={{ verticalAlign: 'middle', marginRight: 4 }} />}
+                                        <span key={k.id} style={{ display: 'inline-block', whiteSpace: 'nowrap' }}>
+                                          {k.source === 'vision' && <Icon name="image_search" size={14} style={{ display: 'inline-flex', verticalAlign: 'middle', marginRight: 4 }} />}
+                                          {k.source === 'filename' && <Icon name="description" size={14} style={{ display: 'inline-flex', verticalAlign: 'middle', marginRight: 4 }} />}
                                           <span
                                             onClick={(e) => {
                                               if (!e.target.closest('[data-action]')) {
@@ -2908,11 +2949,11 @@
                                 )}
                               </>
                             ) : (
-                              <div style={{ color: s.text, fontSize: 13, lineHeight: 1.8 }}>
+                              <div style={{ color: s.text, fontSize: 13, lineHeight: 2.0 }}>
                                 {keywords.map((k, idx) => (
-                                  <span key={k.id}>
-                                    {k.source === 'vision' && <Icon name="image_search" size={14} style={{ verticalAlign: 'middle', marginRight: 4 }} />}
-                                    {k.source === 'filename' && <Icon name="description" size={14} style={{ verticalAlign: 'middle', marginRight: 4 }} />}
+                                  <span key={k.id} style={{ display: 'inline-block', whiteSpace: 'nowrap' }}>
+                                    {k.source === 'vision' && <Icon name="image_search" size={14} style={{ display: 'inline-flex', verticalAlign: 'middle', marginRight: 4 }} />}
+                                    {k.source === 'filename' && <Icon name="description" size={14} style={{ display: 'inline-flex', verticalAlign: 'middle', marginRight: 4 }} />}
                                     {k.value}
                                     <span onClick={() => removeKw(k.id)} style={{ cursor: 'pointer', opacity: 0.6, marginLeft: 4, display: 'inline-flex', verticalAlign: 'middle' }}>
                                       <Icon name="close" size={14} />
@@ -2927,8 +2968,8 @@
 
                         {pending.length > 0 && (
                           <div style={{ padding: 12 }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: s.text, fontSize: 13 }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#777777', fontSize: 13 }}>
                                 <Icon name="rate_review" size={16} />
                                 {pending.length} to review
                               </div>
@@ -2941,16 +2982,16 @@
                             {isMultiSelect ? (
                               <>
                                 {pending.filter(k => !k.partialCount).length > 0 && (
-                                  <div style={{ marginBottom: 12 }}>
-                                    <div style={{ fontSize: 13, color: s.text, marginBottom: 8, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                  <div style={{ marginBottom: 20 }}>
+                                    <div style={{ fontSize: 13, color: '#777777', marginBottom: 20, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 6 }}>
                                       <Icon name="recommend" size={16} />
                                       Recommended to All ({pending.filter(k => !k.partialCount).length})
                                     </div>
-                                    <div style={{ color: s.text, fontSize: 13, lineHeight: 1.8 }}>
+                                    <div style={{ color: s.text, fontSize: 13, lineHeight: 2.0 }}>
                                       {pending.filter(k => !k.partialCount).map((k, idx, arr) => (
-                                        <span key={k.id}>
-                                          {k.source === 'vision' && <Icon name="image_search" size={14} style={{ verticalAlign: 'middle', marginRight: 4 }} />}
-                                          {k.source === 'filename' && <Icon name="description" size={14} style={{ verticalAlign: 'middle', marginRight: 4 }} />}
+                                        <span key={k.id} style={{ display: 'inline-block', whiteSpace: 'nowrap' }}>
+                                          {k.source === 'vision' && <Icon name="image_search" size={14} style={{ display: 'inline-flex', verticalAlign: 'middle', marginRight: 4 }} />}
+                                          {k.source === 'filename' && <Icon name="description" size={14} style={{ display: 'inline-flex', verticalAlign: 'middle', marginRight: 4 }} />}
                                           <span
                                             onClick={(e) => {
                                               if (!e.target.closest('[data-action]')) accept(k.id);
@@ -2971,15 +3012,15 @@
 
                                 {pending.filter(k => k.partialCount).length > 0 && (
                                   <div>
-                                    <div style={{ fontSize: 13, color: s.text, marginBottom: 8, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                    <div style={{ fontSize: 13, color: '#777777', marginBottom: 20, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 6 }}>
                                       <Icon name="exposure" size={16} />
                                       Recommended to Some ({pending.filter(k => k.partialCount).length})
                                     </div>
-                                    <div style={{ color: s.text, fontSize: 13, lineHeight: 1.8 }}>
+                                    <div style={{ color: s.text, fontSize: 13, lineHeight: 2.0 }}>
                                       {pending.filter(k => k.partialCount).map((k, idx, arr) => (
-                                        <span key={k.id}>
-                                          {k.source === 'vision' && <Icon name="image_search" size={14} style={{ verticalAlign: 'middle', marginRight: 4 }} />}
-                                          {k.source === 'filename' && <Icon name="description" size={14} style={{ verticalAlign: 'middle', marginRight: 4 }} />}
+                                        <span key={k.id} style={{ display: 'inline-block', whiteSpace: 'nowrap' }}>
+                                          {k.source === 'vision' && <Icon name="image_search" size={14} style={{ display: 'inline-flex', verticalAlign: 'middle', marginRight: 4 }} />}
+                                          {k.source === 'filename' && <Icon name="description" size={14} style={{ display: 'inline-flex', verticalAlign: 'middle', marginRight: 4 }} />}
                                           <span
                                             onClick={(e) => {
                                               if (!e.target.closest('[data-action]')) accept(k.id);
@@ -3002,11 +3043,11 @@
                                 )}
                               </>
                             ) : (
-                              <div style={{ color: s.text, fontSize: 13, lineHeight: 1.8 }}>
+                              <div style={{ color: s.text, fontSize: 13, lineHeight: 2.0 }}>
                                 {pending.map((k, idx) => (
-                                  <span key={k.id}>
-                                    {k.source === 'vision' && <Icon name="image_search" size={14} style={{ verticalAlign: 'middle', marginRight: 4 }} />}
-                                    {k.source === 'filename' && <Icon name="description" size={14} style={{ verticalAlign: 'middle', marginRight: 4 }} />}
+                                  <span key={k.id} style={{ display: 'inline-block', whiteSpace: 'nowrap' }}>
+                                    {k.source === 'vision' && <Icon name="image_search" size={14} style={{ display: 'inline-flex', verticalAlign: 'middle', marginRight: 4 }} />}
+                                    {k.source === 'filename' && <Icon name="description" size={14} style={{ display: 'inline-flex', verticalAlign: 'middle', marginRight: 4 }} />}
                                     <span
                                       onClick={(e) => {
                                         if (!e.target.closest('[data-action]')) accept(k.id);

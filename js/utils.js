@@ -658,27 +658,43 @@ const getBaseName = (filename) => {
   return base;
 };
 
-// Migrate from localStorage to IndexedDB for large datasets
-const loadMemory = async () => {
+// Load memory from folder-based storage or fall back to browser storage
+const loadMemory = async (folderHandle = null) => {
   const { STORAGE_KEY } = window.TaggerData;
 
-  // Try IndexedDB first
-  if (window.TaggerPerformance && window.TaggerPerformance.getMemory) {
-    const idbData = await window.TaggerPerformance.getMemory(STORAGE_KEY);
-    if (idbData) return idbData;
+  // Try to load from folder's .megatagger.json first
+  if (folderHandle) {
+    try {
+      const fileHandle = await folderHandle.getFileHandle('.megatagger.json');
+      const file = await fileHandle.getFile();
+      const text = await file.text();
+      const data = JSON.parse(text);
+      console.log('[MEMORY] Loaded from .megatagger.json:', Object.keys(data).length, 'items');
+      return data;
+    } catch (e) {
+      if (e.name !== 'NotFoundError') {
+        console.warn('[MEMORY] Failed to read .megatagger.json:', e);
+      } else {
+        console.log('[MEMORY] No .megatagger.json found in folder');
+      }
+      // Fall through to browser storage
+    }
   }
 
-  // Fallback to localStorage (for migration)
+  // Try IndexedDB (for migration or when no folder is selected)
+  if (window.TaggerPerformance && window.TaggerPerformance.getMemory) {
+    const idbData = await window.TaggerPerformance.getMemory(STORAGE_KEY);
+    if (idbData) {
+      console.log('[MEMORY] Loaded from IndexedDB:', Object.keys(idbData).length, 'items');
+      return idbData;
+    }
+  }
+
+  // Fallback to localStorage (for migration from old versions)
   try {
     const lsData = JSON.parse(localStorage.getItem(STORAGE_KEY));
     if (lsData) {
-      // Migrate to IndexedDB
-      console.log('[MEMORY] Migrating from localStorage to IndexedDB...');
-      if (window.TaggerPerformance && window.TaggerPerformance.storeMemory) {
-        await window.TaggerPerformance.storeMemory(STORAGE_KEY, lsData);
-        // Clear from localStorage after successful migration
-        localStorage.removeItem(STORAGE_KEY);
-      }
+      console.log('[MEMORY] Migrating from localStorage...');
       return lsData;
     }
   } catch (e) {
@@ -688,8 +704,37 @@ const loadMemory = async () => {
   return {};
 };
 
-const saveMemory = async (m) => {
+const saveMemory = async (m, folderHandle = null) => {
   const { STORAGE_KEY } = window.TaggerData;
+
+  // Try to save to folder's .megatagger.json first
+  if (folderHandle) {
+    try {
+      // Check if we have write permission
+      const permission = await folderHandle.queryPermission({ mode: 'readwrite' });
+      if (permission !== 'granted') {
+        const requested = await folderHandle.requestPermission({ mode: 'readwrite' });
+        if (requested !== 'granted') {
+          console.warn('[MEMORY] No write permission for folder, falling back to browser storage');
+          // Fall through to browser storage
+        }
+      }
+
+      if (permission === 'granted' || await folderHandle.queryPermission({ mode: 'readwrite' }) === 'granted') {
+        const fileHandle = await folderHandle.getFileHandle('.megatagger.json', { create: true });
+        const writable = await fileHandle.createWritable();
+        const jsonString = JSON.stringify(m, null, 2);
+        await writable.write(jsonString);
+        await writable.close();
+        console.log('[MEMORY] Saved to .megatagger.json:', Object.keys(m).length, 'items');
+        return; // Success, don't fall back to browser storage
+      }
+    } catch (e) {
+      console.warn('[MEMORY] Failed to write .megatagger.json:', e);
+      console.log('[MEMORY] Falling back to browser storage');
+      // Fall through to browser storage
+    }
+  }
 
   // Use IndexedDB for storage (no quota issues)
   if (window.TaggerPerformance && window.TaggerPerformance.storeMemory) {
