@@ -1961,6 +1961,47 @@
         setIsEditing(true);
       };
 
+      const removeAllPartial = () => {
+        const partialKeywords = keywords.filter(k => k.partialCount);
+        console.log(`[REMOVE-ALL-PARTIAL] Removing ${partialKeywords.length} partial keywords from accepted and moving to pending`);
+
+        // Remove all partial keywords from the keywords list
+        setKeywords(current => current.filter(k => !k.partialCount));
+
+        // Add them to pending (as recommendations)
+        const newPending = partialKeywords.map(k => {
+          const kw = { ...k };
+          delete kw.partialCount; // Remove the partial count
+          return kw;
+        });
+        setPending(current => [...current, ...newPending]);
+
+        // Remove from all selected images in the queue
+        const targetIds = new Set(selectedImgs.filter(t => t).map(t => t.id));
+        const kwValues = new Set(partialKeywords.map(k => k.value.toLowerCase()));
+
+        setQueue(q => q.map(img => {
+          if (!targetIds.has(img.id)) return img;
+
+          // Filter out the partial keywords
+          const filteredKeywords = (img.keywords || []).filter(k => !kwValues.has(k.value.toLowerCase()));
+
+          // Add to pending for this image
+          const imgPending = img.pending || [];
+          const existingPendingVals = new Set(imgPending.map(p => p.value.toLowerCase()));
+          const newImgPending = [...imgPending, ...newPending.filter(k => !existingPendingVals.has(k.value.toLowerCase()))];
+
+          return {
+            ...img,
+            keywords: filteredKeywords,
+            pending: newImgPending
+          };
+        }));
+
+        setModified(true);
+        setIsEditing(true);
+      };
+
       const deleteFromTaxonomy = (id) => {
         setAccepted(a => a.filter(k => k.id !== id));
       };
@@ -2641,9 +2682,14 @@
 
                                 {keywords.filter(k => k.partialCount).length > 0 && (
                                   <div>
-                                    <div style={{ fontSize: 13, color: '#fbbf24', marginBottom: 8, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
-                                      <Icon name="content_copy" size={16} />
-                                      Applied to Some ({keywords.filter(k => k.partialCount).length}) - Click to add to all
+                                    <div style={{ fontSize: 13, color: '#fbbf24', marginBottom: 8, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'space-between' }}>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                        <Icon name="content_copy" size={16} />
+                                        Applied to Some ({keywords.filter(k => k.partialCount).length}) - Click to add to all
+                                      </div>
+                                      <button onClick={removeAllPartial} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', background: 'rgba(251,191,36,0.15)', color: '#fbbf24', border: 'none', borderRadius: s.radiusSm, cursor: 'pointer', fontSize: 12 }}>
+                                        <Icon name="remove_circle" size={14} /> Remove All
+                                      </button>
                                     </div>
                                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                                       {keywords.filter(k => k.partialCount).map(k => (
