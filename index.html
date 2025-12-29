@@ -118,7 +118,7 @@
     );
 
     // Claude-style Toggle Switch component (segmented control style)
-    const Toggle = ({ checked, onChange, label, disabled = false, offLabel = 'Off', onLabel = 'On' }) => (
+    const Toggle = ({ checked, onChange, label, disabled = false, offLabel = 'Off', onLabel = 'On', s }) => (
       <div
         style={{
           display: 'inline-flex',
@@ -170,7 +170,7 @@
     );
 
     // Optimized thumbnail component with lazy loading
-    const ThumbnailImage = memo(({ item, isSelected, onSelect, onHide, onUnhide, thumbSize }) => {
+    const ThumbnailImage = memo(({ item, isSelected, onSelect, onHide, onUnhide, thumbSize, s }) => {
       const [thumbUrl, setThumbUrl] = useState(null);
       const [isLoading, setIsLoading] = useState(true);
       const imgRef = useRef(null);
@@ -305,7 +305,7 @@
     // ============================================
     // REACT COMPONENTS (must be in Babel block for JSX)
     // ============================================
-    const TreeNode = ({ name, node, depth = 0, expanded, onToggle, onDeleteKeyword }) => {
+    const TreeNode = ({ name, node, depth = 0, expanded, onToggle, onDeleteKeyword, s }) => {
       const children = node._children || {};
       const hasChildren = Object.keys(children).length > 0;
       const keywords = node._keywords || [];
@@ -337,13 +337,13 @@
             </div>
           )}
           {isExpanded && hasChildren && Object.entries(children).map(([n, c]) => (
-            <TreeNode key={n} name={n} node={c} depth={depth + 1} expanded={expanded} onToggle={onToggle} onDeleteKeyword={onDeleteKeyword} />
+            <TreeNode key={n} name={n} node={c} depth={depth + 1} expanded={expanded} onToggle={onToggle} onDeleteKeyword={onDeleteKeyword} s={s} />
           ))}
         </div>
       );
     };
 
-    const MasterTaxonomyNode = ({ name, value, path = [], depth = 0, expanded, onToggle, onDelete }) => {
+    const MasterTaxonomyNode = ({ name, value, path = [], depth = 0, expanded, onToggle, onDelete, s }) => {
       const currentPath = [...path, name];
       const pathKey = currentPath.join('>');
       const isExpanded = expanded[pathKey] !== false;
@@ -384,7 +384,7 @@
             </div>
           )}
           {isExpanded && hasChildren && Object.entries(children).map(([n, v]) => (
-            <MasterTaxonomyNode key={n} name={n} value={v} path={currentPath} depth={depth + 1} expanded={expanded} onToggle={onToggle} onDelete={onDelete} />
+            <MasterTaxonomyNode key={n} name={n} value={v} path={currentPath} depth={depth + 1} expanded={expanded} onToggle={onToggle} onDelete={onDelete} s={s} />
           ))}
         </div>
       );
@@ -2528,6 +2528,30 @@
                   <Icon name="check_circle" size={16} filled /> Auto-save
                 </div>
               )}
+              <button onClick={async () => {
+                const db = await new Promise((resolve, reject) => {
+                  const req = indexedDB.open('TaggerDB', 3);
+                  req.onsuccess = () => resolve(req.result);
+                  req.onerror = () => reject(req.error);
+                });
+                const tx = db.transaction('memory', 'readonly');
+                const store = tx.objectStore('memory');
+                const req = store.get('tagger_memory');
+                req.onsuccess = () => {
+                  const data = req.result;
+                  if (data) {
+                    console.log('[DEBUG] Memory data found:', Object.keys(data).length, 'items');
+                    console.log('[DEBUG] Sample keys:', Object.keys(data).slice(0, 5));
+                    console.log('[DEBUG] Sample item:', data[Object.keys(data)[0]]);
+                    alert(`Found ${Object.keys(data).length} items in memory.\nCheck console for details.\n\nTo restore: reimport your images - they will automatically load their saved data.`);
+                    setMemory(data);
+                  } else {
+                    alert('No memory data found in IndexedDB');
+                  }
+                };
+              }} title="Check IndexedDB Memory" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 40, height: 40, background: 'transparent', color: s.muted, border: 'none', borderRadius: s.radius, cursor: 'pointer' }}>
+                <Icon name="database" size={22} />
+              </button>
               <button onClick={() => setShowSettings(true)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 40, height: 40, background: 'transparent', color: s.muted, border: 'none', borderRadius: s.radius, cursor: 'pointer' }}>
                 <Icon name="settings" size={22} />
               </button>
@@ -2629,6 +2653,7 @@
                           onHide={hideImage}
                           onUnhide={unhideImage}
                           thumbSize={currentThumbSize}
+                          s={s}
                         />
                       ))}
                     </div>
@@ -3127,7 +3152,7 @@
                     {Object.entries(taxonomy).map(([name, value]) => (
                       <MasterTaxonomyNode key={name} name={name} value={value} depth={0} expanded={expanded}
                         onToggle={p => setExpanded(e => ({ ...e, [p]: e[p] === false ? true : false }))}
-                        onDelete={deleteFromMasterTaxonomy} />
+                        onDelete={deleteFromMasterTaxonomy} s={s} />
                     ))}
                   </div>
                 ) : Object.keys(tree).length === 0 ? (
@@ -3149,7 +3174,7 @@
                     .map(([name, node]) => (
                       <TreeNode key={name} name={name} node={node} depth={0} expanded={expanded}
                         onToggle={p => setExpanded(e => ({ ...e, [p]: e[p] === false ? true : false }))}
-                        onDeleteKeyword={deleteFromTaxonomy} />
+                        onDeleteKeyword={deleteFromTaxonomy} s={s} />
                     ))
                 )}
               </div>
