@@ -2041,6 +2041,55 @@
         setIsEditing(true);
       };
 
+      // Remove a keyword from all selected images
+      const removeFromAll = (kw) => {
+        console.log(`[REMOVE-FROM-ALL] Removing "${kw.value}" from all ${selectedImgs.length} selected images`);
+        console.log('[REMOVE-FROM-ALL] Keyword:', kw);
+
+        // Remove from local keywords state
+        setKeywords(current => current.filter(k => k.id !== kw.id));
+
+        // Move it back to pending (recommendations) instead of deleting
+        setPending(p => {
+          const exists = p.some(existing => existing.value.toLowerCase() === kw.value.toLowerCase());
+          return exists ? p : [...p, kw];
+        });
+
+        // Remove from all selected images in the queue
+        const targetIds = new Set(selectedImgs.filter(t => t).map(t => t.id));
+        console.log('[REMOVE-FROM-ALL] Target IDs:', Array.from(targetIds));
+
+        let removedCount = 0;
+        let skippedCount = 0;
+
+        setQueue(q => q.map(img => {
+          if (!targetIds.has(img.id)) return img;
+
+          // Check if keyword exists in this image
+          const hasKeyword = (img.keywords || []).some(k => k.value.toLowerCase() === kw.value.toLowerCase());
+          if (!hasKeyword) {
+            console.log(`[REMOVE-FROM-ALL] Skipping ${img.name} - doesn't have "${kw.value}"`);
+            skippedCount++;
+            return img;
+          }
+
+          // Remove keyword
+          const updatedKeywords = (img.keywords || []).filter(k => k.value.toLowerCase() !== kw.value.toLowerCase());
+          console.log(`[REMOVE-FROM-ALL] Removing from ${img.name} - keyword count: ${(img.keywords || []).length} -> ${updatedKeywords.length}`);
+          removedCount++;
+          return {
+            ...img,
+            keywords: updatedKeywords,
+            status: img.status === 'done' ? 'editing' : img.status
+          };
+        }));
+
+        console.log(`[REMOVE-FROM-ALL] Complete - removed from ${removedCount} images, skipped ${skippedCount} images`);
+
+        setModified(true);
+        setIsEditing(true);
+      };
+
       const removeAllPartial = () => {
         const partialKeywords = keywords.filter(k => k.partialCount);
         console.log(`[REMOVE-ALL-PARTIAL] Removing ${partialKeywords.length} partial keywords from accepted and moving to pending`);
@@ -2751,7 +2800,7 @@
                                           {k.source === 'vision' && <Icon name="image_search" size={14} />}
                                           {k.source === 'filename' && <Icon name="description" size={14} />}
                                           {k.value}
-                                          <span onClick={() => removeKw(k.id)} style={{ cursor: 'pointer', opacity: 0.6, marginLeft: 2, display: 'flex' }}>
+                                          <span onClick={() => removeFromAll(k)} style={{ cursor: 'pointer', opacity: 0.6, marginLeft: 2, display: 'flex' }}>
                                             <Icon name="close" size={14} />
                                           </span>
                                         </motion.span>
