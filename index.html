@@ -1572,15 +1572,50 @@
         }
       }, [selectedIds, selectedId, lastClickedId, filteredQueue, selectImage, isEditing, modified, keywords, designer, queue, saveImage]);
 
+      // Deduplicate keywords in an image (keep first occurrence of each value)
+      const deduplicateKeywords = useCallback((keywords) => {
+        const seen = new Set();
+        return keywords.filter(kw => {
+          const key = kw.value.toLowerCase();
+          if (seen.has(key)) {
+            console.warn('[DEDUP] Removing duplicate keyword:', kw.value);
+            return false;
+          }
+          seen.add(key);
+          return true;
+        });
+      }, []);
+
       // Aggregate keywords and pending tags when multi-select is active
       useEffect(() => {
         if (selectedIds.length > 1) {
           const selectedImages = queue.filter(q => selectedIds.includes(q.id));
           console.log('[MULTI-SELECT] Aggregating tags from', selectedImages.length, 'images');
 
+          // Deduplicate keywords in all selected images first
+          const deduplicatedImages = selectedImages.map(img => ({
+            ...img,
+            keywords: deduplicateKeywords(img.keywords || [])
+          }));
+
+          // Update queue with deduplicated keywords if any duplicates were found
+          const hasDuplicates = selectedImages.some((img, idx) =>
+            (img.keywords || []).length !== (deduplicatedImages[idx].keywords || []).length
+          );
+          if (hasDuplicates) {
+            console.log('[MULTI-SELECT] Found duplicates - deduplicating queue');
+            setQueue(q => q.map(img => {
+              const deduped = deduplicatedImages.find(d => d.id === img.id);
+              return deduped || img;
+            }));
+          }
+
+          // Use deduplicated images for aggregation
+          const imagesToAggregate = deduplicatedImages;
+
           // Build keyword occurrence map for accepted keywords
           const keywordOccurrences = new Map(); // Map<lowercaseValue, { keyword, count }>
-          selectedImages.forEach((img, idx) => {
+          imagesToAggregate.forEach((img, idx) => {
             console.log(`[MULTI-SELECT] Image ${idx + 1}/${selectedImages.length} (${img.name}) has ${(img.keywords || []).length} keywords:`, (img.keywords || []).map(k => k.value).join(', '));
             (img.keywords || []).forEach(kw => {
               const key = kw.value.toLowerCase();
@@ -1608,8 +1643,8 @@
 
           // Build pending occurrence map
           const pendingOccurrences = new Map();
-          selectedImages.forEach((img, idx) => {
-            console.log(`[MULTI-SELECT] Image ${idx + 1}/${selectedImages.length} (${img.name}) has ${(img.pending || []).length} pending:`, (img.pending || []).map(k => k.value).join(', '));
+          imagesToAggregate.forEach((img, idx) => {
+            console.log(`[MULTI-SELECT] Image ${idx + 1}/${imagesToAggregate.length} (${img.name}) has ${(img.pending || []).length} pending:`, (img.pending || []).map(k => k.value).join(', '));
             (img.pending || []).forEach(kw => {
               const key = kw.value.toLowerCase();
               if (pendingOccurrences.has(key)) {
@@ -1620,14 +1655,14 @@
             });
           });
 
-          console.log('[MULTI-SELECT] Pending occurrences:', Array.from(pendingOccurrences.entries()).map(([key, {count}]) => `${key}: ${count}/${selectedImages.length}`));
+          console.log('[MULTI-SELECT] Pending occurrences:', Array.from(pendingOccurrences.entries()).map(([key, {count}]) => `${key}: ${count}/${imagesToAggregate.length}`));
 
           // Separate pending into "all" and "some"
           const allPending = [];
           const somePending = [];
           pendingOccurrences.forEach(({ keyword, count }) => {
-            console.log(`[MULTI-SELECT] Pending "${keyword.value}": count=${count}, totalImages=${selectedImages.length}, isAll=${count === selectedImages.length}`);
-            if (count === selectedImages.length) {
+            console.log(`[MULTI-SELECT] Pending "${keyword.value}": count=${count}, totalImages=${imagesToAggregate.length}, isAll=${count === imagesToAggregate.length}`);
+            if (count === imagesToAggregate.length) {
               allPending.push(keyword);
             } else {
               somePending.push({ ...keyword, partialCount: count });
@@ -1650,7 +1685,7 @@
           setModified(false);
           setIsEditing(false);
         }
-      }, [selectedIds, queue]);
+      }, [selectedIds, queue, deduplicateKeywords]);
 
       const analyzeAllPending = () => {
         const pendingImgs = queue.filter(q => q.status === 'pending' && !q.hidden);
