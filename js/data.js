@@ -305,9 +305,9 @@ const NATIONALITY_TO_COUNTRY = {
 };
 
 const ROOT_COLORS = {
-  'Design': '#a78bfa', 'Architecture': '#f87171', 'Art': '#f472b6', 'Style': '#4ade80',
-  'Brand': '#fbbf24', 'Creator': '#c084fc', 'Era': '#fb923c', 'Product': '#60a5fa',
-  'Material': '#22d3d1', 'Color': '#94a3b8', 'Custom': '#6b7280', 'Uncategorized': '#6b7280'
+  'Design': '#CCCCCC', 'Architecture': '#CCCCCC', 'Art': '#CCCCCC', 'Style': '#CCCCCC',
+  'Brand': '#CCCCCC', 'Creator': '#CCCCCC', 'Era': '#CCCCCC', 'Product': '#CCCCCC',
+  'Material': '#CCCCCC', 'Color': '#CCCCCC', 'Custom': '#CCCCCC', 'Uncategorized': '#CCCCCC'
 };
 
 const STORAGE_KEY = 'tagger_memory';

@@ -11,22 +11,22 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { overflow: hidden; background: #0a0a0a; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+    body { overflow: hidden; background: #2B2B2B; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; font-size: 13px; color: #CCCCCC; }
     ::-webkit-scrollbar { width: 8px; height: 8px; }
-    ::-webkit-scrollbar-track { background: #111; }
-    ::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
-    ::-webkit-scrollbar-thumb:hover { background: #444; }
-    #drop-overlay { display: none; position: fixed; inset: 0; background: rgba(96,165,250,0.15); border: 3px dashed #60a5fa; z-index: 9999; align-items: center; justify-content: center; backdrop-filter: blur(4px); }
+    ::-webkit-scrollbar-track { background: #1F1F1F; }
+    ::-webkit-scrollbar-thumb { background: #4A4A4A; border-radius: 0; }
+    ::-webkit-scrollbar-thumb:hover { background: #555555; }
+    #drop-overlay { display: none; position: fixed; inset: 0; background: rgba(128,128,128,0.15); border: 3px dashed #888888; z-index: 9999; align-items: center; justify-content: center; backdrop-filter: blur(4px); }
     #drop-overlay.active { display: flex; }
     .material-symbols-rounded { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; vertical-align: middle; }
     .material-symbols-rounded.filled { font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
     button { transition: all 0.15s ease; }
-    button:hover:not(:disabled) { filter: brightness(1.1); }
+    button:hover:not(:disabled) { filter: brightness(1.15); }
     button:active:not(:disabled) { transform: scale(0.98); }
   </style>
 </head>
 <body>
-  <div id="drop-overlay"><div style="background: rgba(0,0,0,0.95); padding: 40px 72px; border-radius: 20px; color: #60a5fa; font-size: 16px; display: flex; align-items: center; gap: 16px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);"><span class="material-symbols-rounded" style="font-size: 36px;">upload_file</span> Drop images or folder here</div></div>
+  <div id="drop-overlay"><div style="background: #1F1F1F; padding: 40px 72px; border-radius: 4px; color: #CCCCCC; font-size: 13px; display: flex; align-items: center; gap: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.5); border: 1px solid #4A4A4A;"><span class="material-symbols-rounded" style="font-size: 32px; color: #CCCCCC;">upload_file</span> Drop images or folder here</div></div>
   <div id="root"></div>
 
   <script>
@@ -103,7 +103,7 @@
   <script src="js/performance.js"></script>
 
   <script type="text/babel">
-    const { useState, useRef, useEffect, useMemo, useCallback, memo } = React;
+    const { useState, useRef, useEffect, useMemo, useCallback, memo, Fragment } = React;
     const { motion, AnimatePresence } = window.Motion;
 
     // Import performance utilities
@@ -128,16 +128,17 @@
           cursor: disabled ? 'not-allowed' : 'pointer',
           opacity: disabled ? 0.5 : 1,
           padding: '6px 12px',
-          background: checked ? 'rgba(96,165,250,0.15)' : '#1f2937',
-          borderRadius: 8,
-          transition: 'all 0.2s ease'
+          background: checked ? '#353535' : '#1F1F1F',
+          borderRadius: 4,
+          transition: 'all 0.2s ease',
+          border: `1px solid ${checked ? '#666666' : '#4A4A4A'}`
         }}
       >
         <div style={{
           width: 36,
           height: 20,
           borderRadius: 10,
-          background: checked ? '#3b82f6' : '#374151',
+          background: checked ? '#666666' : '#3A3A3A',
           position: 'relative',
           transition: 'background 0.2s ease'
         }}>
@@ -145,7 +146,7 @@
             width: 16,
             height: 16,
             borderRadius: 8,
-            background: '#fff',
+            background: checked ? '#CCCCCC' : '#CCCCCC',
             position: 'absolute',
             top: 2,
             left: checked ? 18 : 2,
@@ -153,7 +154,7 @@
             boxShadow: '0 1px 3px rgba(0,0,0,0.3)'
           }} />
         </div>
-        {label && <span style={{ fontSize: 13, color: checked ? '#60a5fa' : '#9ca3af' }}>{label}</span>}
+        {label && <span style={{ fontSize: 13, color: checked ? '#CCCCCC' : '#CCCCCC' }}>{label}</span>}
       </div>
     );
 
@@ -218,7 +219,7 @@
         };
       }, [item.hash, item.file, thumbSize]);
 
-      const statusColor = item.status === 'done' ? '#4ade80' : item.status === 'editing' ? '#4ade80' : item.status === 'ready' ? '#60a5fa' : item.status === 'analyzing' ? '#fbbf24' : item.status === 'error' ? '#f87171' : '#6b7280';
+      const statusColor = item.status === 'done' ? '#CCCCCC' : item.status === 'editing' ? '#CCCCCC' : item.status === 'ready' ? '#CCCCCC' : item.status === 'analyzing' ? '#CCCCCC' : item.status === 'error' ? '#CCCCCC' : '#CCCCCC';
 
       return (
         <motion.div
@@ -231,37 +232,37 @@
           title={item.status === 'error' ? item.errorMessage || 'Analysis failed - click to retry' : ''}
           style={{
             position: 'relative', borderRadius: 8, overflow: 'hidden', cursor: 'pointer',
-            border: `2px solid ${isSelected ? '#60a5fa' : 'transparent'}`,
-            boxShadow: isSelected ? '0 0 0 2px rgba(96,165,250,0.3)' : 'none',
+            border: `2px solid ${isSelected ? '#CCCCCC' : 'transparent'}`,
+            boxShadow: isSelected ? '0 0 0 2px #4A4A4A' : 'none',
             opacity: item.hidden ? 0.4 : item.status === 'done' ? 0.7 : 1,
-            backgroundColor: '#1a1a1a'
+            backgroundColor: '#252525'
           }}
         >
-          <div style={{ aspectRatio: '1', background: thumbUrl && !isLoading ? `url(${thumbUrl}) center/cover` : '#1a1a1a', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            {isLoading && <Icon name="image" size={24} style={{ color: '#4b5563' }} />}
+          <div style={{ aspectRatio: '1', background: thumbUrl && !isLoading ? `url(${thumbUrl}) center/cover` : '#252525', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            {isLoading && <Icon name="image" size={24} style={{ color: '#666666' }} />}
             <div style={{ position: 'absolute', top: 6, left: 6, width: 10, height: 10, borderRadius: 5, background: statusColor, boxShadow: '0 1px 3px rgba(0,0,0,0.4)' }} />
             {item.status === 'analyzing' && (
-              <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{ position: 'absolute', inset: 0, background: 'rgba(251,191,36,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <Icon name="hourglass_empty" size={28} style={{ color: '#fbbf24' }} />
               </div>
             )}
             {item.status === 'error' && (
               <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Icon name="error" size={28} style={{ color: '#f87171' }} />
+                <Icon name="error" size={28} style={{ color: '#999999' }} />
+              </div>
+            )}
+            {(item.status === 'ready' || item.status === 'editing') && (
+              <div style={{ position: 'absolute', inset: 0, background: 'rgba(96,165,250,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Icon name="rate_review" size={28} style={{ color: '#60a5fa' }} />
               </div>
             )}
             {item.status === 'done' && (
-              <div style={{ position: 'absolute', top: 6, right: 6, background: '#4ade80', color: '#000', padding: '3px 6px', borderRadius: 6, fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center' }}>
-                <Icon name="check" size={14} />
-              </div>
-            )}
-            {item.status === 'editing' && (
-              <div style={{ position: 'absolute', top: 6, right: 6, background: '#60a5fa', color: '#000', padding: '3px 6px', borderRadius: 6, fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center' }}>
-                <Icon name="edit" size={14} />
+              <div style={{ position: 'absolute', inset: 0, background: 'rgba(74,222,128,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Icon name="check_circle" size={28} style={{ color: '#4ade80' }} />
               </div>
             )}
             {item.hidden && (
-              <div style={{ position: 'absolute', top: 6, right: 6, background: '#f87171', color: '#fff', padding: '3px 6px', borderRadius: 6, fontSize: 12, display: 'flex', alignItems: 'center' }}>
+              <div style={{ position: 'absolute', top: 6, right: 6, background: '#999999', color: '#000', padding: '3px 6px', borderRadius: 6, fontSize: 12, display: 'flex', alignItems: 'center' }}>
                 <Icon name="visibility_off" size={14} />
               </div>
             )}
@@ -269,7 +270,7 @@
           <button
             onClick={(e) => item.hidden ? onUnhide(item.id, e) : onHide(item.id, e)}
             tabIndex={-1}
-            style={{ position: 'absolute', bottom: 6, right: 6, background: 'rgba(0,0,0,0.8)', border: 'none', color: '#9ca3af', cursor: 'pointer', padding: 4, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            style={{ position: 'absolute', bottom: 6, right: 6, background: 'rgba(0,0,0,0.8)', border: 'none', color: '#CCCCCC', cursor: 'pointer', padding: 4, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
           >
             <Icon name={item.hidden ? "visibility" : "close"} size={16} />
           </button>
@@ -300,25 +301,26 @@
       const count = countKeywords(node);
       const pathKey = node._path?.join('>');
       const isExpanded = expanded[pathKey] !== false;
-      const color = ROOT_COLORS[node._path?.[0]] || '#94a3b8';
+      const color = ROOT_COLORS[node._path?.[0]] || '#CCCCCC';
 
       return (
         <div style={{ marginLeft: depth > 0 ? 16 : 0 }}>
           <div onClick={() => (hasChildren || keywords.length > 0) && onToggle(pathKey)}
             style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', borderRadius: 6, cursor: 'pointer', background: depth === 0 ? 'rgba(255,255,255,0.03)' : 'transparent' }}>
-            <Icon name={isExpanded ? "expand_more" : "chevron_right"} size={16} style={{ color: '#4b5563', opacity: (hasChildren || keywords.length > 0) ? 1 : 0 }} />
+            <Icon name={isExpanded ? "expand_more" : "chevron_right"} size={16} style={{ color: '#666666', opacity: (hasChildren || keywords.length > 0) ? 1 : 0 }} />
             {depth === 0 && <span style={{ width: 10, height: 10, borderRadius: 4, background: color }} />}
-            <span style={{ flex: 1, color: depth === 0 ? '#f3f4f6' : '#9ca3af', fontSize: 13 }}>{name}</span>
-            <span style={{ color: '#6b7280', fontSize: 12 }}>{count}</span>
+            <span style={{ flex: 1, color: depth === 0 ? '#CCCCCC' : '#CCCCCC', fontSize: 13 }}>{name}</span>
+            <span style={{ color: '#CCCCCC', fontSize: 12 }}>{count}</span>
           </div>
           {isExpanded && keywords.length > 0 && (
-            <div style={{ marginLeft: 28, marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-              {keywords.map(kw => (
-                <span key={kw.id} style={{ padding: '4px 10px', background: `${color}15`, color, borderRadius: 16, fontSize: 12, display: 'flex', alignItems: 'center', gap: 6, border: `1px solid ${color}25` }}>
-                  {kw.value}
-                  <span onClick={(e) => { e.stopPropagation(); onDeleteKeyword(kw.id); }} style={{ cursor: 'pointer', opacity: 0.6, display: 'flex' }}>
+            <div style={{ marginLeft: 28, marginTop: 6, color: '#CCCCCC', fontSize: 12, lineHeight: 1.8 }}>
+              {keywords.map((kw, idx) => (
+                <span key={kw.id}>
+                  <span>{kw.value}</span>
+                  <span onClick={(e) => { e.stopPropagation(); onDeleteKeyword(kw.id); }} style={{ cursor: 'pointer', opacity: 0.6, marginLeft: 4, display: 'inline-flex', verticalAlign: 'middle' }}>
                     <Icon name="close" size={12} />
                   </span>
+                  {idx < keywords.length - 1 && <span style={{ margin: '0 8px', opacity: 0.5 }}>·</span>}
                 </span>
               ))}
             </div>
@@ -334,7 +336,7 @@
       const currentPath = [...path, name];
       const pathKey = currentPath.join('>');
       const isExpanded = expanded[pathKey] !== false;
-      const color = ROOT_COLORS[currentPath[0]] || '#94a3b8';
+      const color = ROOT_COLORS[currentPath[0]] || '#CCCCCC';
 
       let children = {};
       let items = [];
@@ -353,18 +355,19 @@
         <div style={{ marginLeft: depth > 0 ? 16 : 0 }}>
           <div onClick={() => hasContent && onToggle(pathKey)}
             style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', borderRadius: 6, cursor: hasContent ? 'pointer' : 'default', background: depth === 0 ? 'rgba(255,255,255,0.03)' : 'transparent' }}>
-            <Icon name={isExpanded ? "expand_more" : "chevron_right"} size={16} style={{ color: '#4b5563', opacity: hasContent ? 1 : 0 }} />
+            <Icon name={isExpanded ? "expand_more" : "chevron_right"} size={16} style={{ color: '#666666', opacity: hasContent ? 1 : 0 }} />
             {depth === 0 && <span style={{ width: 10, height: 10, borderRadius: 4, background: color }} />}
-            <span style={{ flex: 1, color: depth === 0 ? '#f3f4f6' : '#9ca3af', fontSize: 13 }}>{name}</span>
+            <span style={{ flex: 1, color: depth === 0 ? '#CCCCCC' : '#CCCCCC', fontSize: 13 }}>{name}</span>
           </div>
           {isExpanded && hasItems && (
-            <div style={{ marginLeft: 28, marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            <div style={{ marginLeft: 28, marginTop: 6, color: '#CCCCCC', fontSize: 12, lineHeight: 1.8 }}>
               {items.map((item, idx) => (
-                <span key={`${pathKey}-${item}-${idx}`} style={{ padding: '4px 10px', background: `${color}15`, color, borderRadius: 16, fontSize: 12, display: 'flex', alignItems: 'center', gap: 6, border: `1px solid ${color}25` }}>
-                  {item}
-                  <span onClick={(e) => { e.stopPropagation(); onDelete(currentPath, item); }} style={{ cursor: 'pointer', opacity: 0.6, display: 'flex' }}>
+                <span key={`${pathKey}-${item}-${idx}`}>
+                  <span>{item}</span>
+                  <span onClick={(e) => { e.stopPropagation(); onDelete(currentPath, item); }} style={{ cursor: 'pointer', opacity: 0.6, marginLeft: 4, display: 'inline-flex', verticalAlign: 'middle' }}>
                     <Icon name="close" size={12} />
                   </span>
+                  {idx < items.length - 1 && <span style={{ margin: '0 8px', opacity: 0.5 }}>·</span>}
                 </span>
               ))}
             </div>
@@ -2406,7 +2409,7 @@
       const [isConsolidating, setIsConsolidating] = useState(false);
 
       const tree = buildTree(accepted);
-      const getColor = (r) => ROOT_COLORS[r] || '#94a3b8';
+      const getColor = (r) => ROOT_COLORS[r] || '#CCCCCC';
 
       const totalCount = queue.length;
       const hiddenCount = queue.filter(q => q.hidden).length;
@@ -2433,17 +2436,18 @@
 
       // Unified style system
       const s = {
-        bg: '#0a0a0a',
-        panel: '#111',
-        panelHover: '#1a1a1a',
-        border: '#222',
-        text: '#9ca3af',
-        bright: '#f3f4f6',
-        muted: '#6b7280',
-        fontSize: 14,
-        radius: 8,
-        radiusSm: 6,
-        radiusLg: 12
+        bg: '#2B2B2B',          // Darker grey for tagging section
+        bgMedium: '#3A3A3A',    // Medium grey for grid and taxonomy sections
+        panel: '#1F1F1F',
+        panelHover: '#252525',
+        border: '#4A4A4A',
+        text: '#CCCCCC',
+        bright: '#CCCCCC',
+        muted: '#CCCCCC',
+        fontSize: 13,
+        radius: 4,
+        radiusSm: 4,
+        radiusLg: 4
       };
 
       return (
@@ -2455,19 +2459,19 @@
           <div style={{ height: 56, background: s.panel, display: 'flex', alignItems: 'center', padding: '0 16px', gap: 12, borderBottom: `1px solid ${s.border}`, flexShrink: 0 }}>
             {/* Left side - Import buttons */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <button onClick={() => fileRef.current?.click()} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: '#1f2937', color: s.bright, border: 'none', borderRadius: s.radius, cursor: 'pointer', fontSize: s.fontSize }}>
+              <button onClick={() => fileRef.current?.click()} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: '#1F1F1F', color: s.bright, border: 'none', borderRadius: s.radius, cursor: 'pointer', fontSize: s.fontSize }}>
                 <Icon name="add_photo_alternate" size={18} /> Files
               </button>
-              <button onClick={() => folderRef.current?.click()} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: '#1f2937', color: s.bright, border: 'none', borderRadius: s.radius, cursor: 'pointer', fontSize: s.fontSize }}>
+              <button onClick={() => folderRef.current?.click()} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: '#1F1F1F', color: s.bright, border: 'none', borderRadius: s.radius, cursor: 'pointer', fontSize: s.fontSize }}>
                 <Icon name="folder_open" size={18} /> Folder
               </button>
               {queue.filter(q => q.status !== 'done' && !q.hidden).length > 0 && (
-                <button onClick={refreshAnalysis} title="Clear cache and re-analyze non-done images" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 40, height: 40, background: '#1f2937', color: '#60a5fa', border: 'none', borderRadius: s.radius, cursor: 'pointer' }}>
+                <button onClick={refreshAnalysis} title="Clear cache and re-analyze non-done images" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 40, height: 40, background: '#1F1F1F', color: '#CCCCCC', border: 'none', borderRadius: s.radius, cursor: 'pointer' }}>
                   <Icon name="refresh" size={20} />
                 </button>
               )}
               {errorCount > 0 && (
-                <button onClick={retryFailed} title={`Retry ${errorCount} failed analyses`} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px', background: '#1f2937', color: '#f87171', border: 'none', borderRadius: s.radius, cursor: 'pointer', fontSize: s.fontSize }}>
+                <button onClick={retryFailed} title={`Retry ${errorCount} failed analyses`} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px', background: '#1F1F1F', color: '#CCCCCC', border: 'none', borderRadius: s.radius, cursor: 'pointer', fontSize: s.fontSize }}>
                   <Icon name="refresh" size={18} /> Retry ({errorCount})
                 </button>
               )}
@@ -2477,18 +2481,18 @@
 
             {/* Logo & Status */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div style={{ width: 20, height: 20, background: 'linear-gradient(135deg, #8b5cf6, #3b82f6)', borderRadius: 5 }} />
+              <div style={{ width: 20, height: 20, background: 'linear-gradient(135deg, #CCCCCC, #666666)', borderRadius: 5 }} />
               <span style={{ color: s.bright, fontWeight: 600, fontSize: s.fontSize }}>MegaTagger</span>
             </div>
 
             <span style={{ color: s.muted, fontSize: s.fontSize }}>
               {filteredQueue.length}/{totalCount}
-              {analyzingCount > 0 && <span style={{ color: '#fbbf24' }}> · {analyzingCount} analyzing</span>}
-              {readyCount > 0 && <span style={{ color: '#60a5fa' }}> · {readyCount} ready</span>}
+              {analyzingCount > 0 && <span style={{ color: '#CCCCCC' }}> · {analyzingCount} analyzing</span>}
+              {readyCount > 0 && <span style={{ color: '#CCCCCC' }}> · {readyCount} ready</span>}
               {(() => {
                 const mem = getMemoryUsage();
                 if (mem && parseInt(mem.percent) > 80) {
-                  return <span style={{ color: '#f87171' }}> · Mem: {mem.percent}%</span>;
+                  return <span style={{ color: '#CCCCCC' }}> · Mem: {mem.percent}%</span>;
                 }
                 return null;
               })()}
@@ -2497,12 +2501,12 @@
             {/* Right side - Actions */}
             <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10 }}>
               {readyToSaveCount > 0 && (
-                <button onClick={saveAll} disabled={isSavingAll} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', background: isSavingAll ? '#374151' : '#10b981', color: isSavingAll ? '#9ca3af' : 'white', border: 'none', borderRadius: s.radius, cursor: isSavingAll ? 'default' : 'pointer', fontSize: s.fontSize, fontWeight: 500 }}>
+                <button onClick={saveAll} disabled={isSavingAll} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', background: isSavingAll ? '#3A3A3A' : '#CCCCCC', color: isSavingAll ? '#CCCCCC' : 'white', border: 'none', borderRadius: s.radius, cursor: isSavingAll ? 'default' : 'pointer', fontSize: s.fontSize, fontWeight: 500 }}>
                   <Icon name={isSavingAll ? "hourglass_empty" : "save"} size={18} /> {isSavingAll ? 'Saving...' : `Save All (${readyToSaveCount})`}
                 </button>
               )}
               {outputDir && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 4, color: '#10b981', fontSize: s.fontSize }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4, color: '#CCCCCC', fontSize: s.fontSize }}>
                   <Icon name="check_circle" size={16} filled /> Auto-save
                 </div>
               )}
@@ -2516,28 +2520,30 @@
           <div ref={mainPanelRef} style={{ flex: 1, display: 'flex', overflow: 'hidden', width: '100%', cursor: isDraggingDivider ? 'col-resize' : 'default' }}>
 
             {/* LEFT - GRID */}
-            <div style={{ width: `${gridWidth}%`, minWidth: 250, background: s.panel, display: 'flex', flexDirection: 'column', transition: isDraggingDivider ? 'none' : 'width 0.2s ease-out' }}>
+            <div style={{ width: `${gridWidth}%`, minWidth: 250, background: s.bgMedium, display: 'flex', flexDirection: 'column', transition: isDraggingDivider ? 'none' : 'width 0.2s ease-out' }}>
               <div style={{ padding: '10px 12px', borderBottom: `1px solid ${s.border}`, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                <button onClick={() => setShowPending(!showPending)}
-                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: showPending ? 'rgba(96,165,250,0.15)' : '#1f2937', color: showPending ? '#60a5fa' : s.muted, border: 'none', borderRadius: s.radiusSm, cursor: 'pointer', fontSize: s.fontSize }}>
-                  <Icon name="rate_review" size={16} /> Ready ({readyCount})
-                </button>
-                <button onClick={() => setShowAnalyzing(!showAnalyzing)}
-                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: showAnalyzing ? 'rgba(251,191,36,0.15)' : '#1f2937', color: showAnalyzing ? '#fbbf24' : s.muted, border: 'none', borderRadius: s.radiusSm, cursor: 'pointer', fontSize: s.fontSize }}>
-                  <Icon name="hourglass_empty" size={16} /> Analyzing ({analyzingCount})
-                </button>
-                <button onClick={() => setShowDone(!showDone)}
-                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: showDone ? 'rgba(74,222,128,0.15)' : '#1f2937', color: showDone ? '#4ade80' : s.muted, border: 'none', borderRadius: s.radiusSm, cursor: 'pointer', fontSize: s.fontSize }}>
-                  <Icon name="check_circle" size={16} /> Done ({doneCount})
-                </button>
-                <button onClick={() => setShowHidden(!showHidden)}
-                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: showHidden ? 'rgba(248,113,113,0.15)' : '#1f2937', color: showHidden ? '#f87171' : s.muted, border: 'none', borderRadius: s.radiusSm, cursor: 'pointer', fontSize: s.fontSize }}>
-                  <Icon name="visibility_off" size={16} /> Hidden ({hiddenCount})
-                </button>
+                <div style={{ display: 'inline-flex', background: '#1F1F1F', borderRadius: 20, padding: 4, border: `1px solid ${s.border}` }}>
+                  <button onClick={() => { setShowPending(true); setShowAnalyzing(false); setShowDone(false); setShowHidden(false); }}
+                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', background: showPending ? '#3A3A3A' : 'transparent', color: '#CCCCCC', border: 'none', borderRadius: 16, cursor: 'pointer', fontSize: s.fontSize, transition: 'background 0.2s ease' }}>
+                    Ready ({readyCount})
+                  </button>
+                  <button onClick={() => { setShowPending(false); setShowAnalyzing(true); setShowDone(false); setShowHidden(false); }}
+                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', background: showAnalyzing ? '#3A3A3A' : 'transparent', color: '#CCCCCC', border: 'none', borderRadius: 16, cursor: 'pointer', fontSize: s.fontSize, transition: 'background 0.2s ease' }}>
+                    Analyzing ({analyzingCount})
+                  </button>
+                  <button onClick={() => { setShowPending(false); setShowAnalyzing(false); setShowDone(true); setShowHidden(false); }}
+                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', background: showDone ? '#3A3A3A' : 'transparent', color: '#CCCCCC', border: 'none', borderRadius: 16, cursor: 'pointer', fontSize: s.fontSize, transition: 'background 0.2s ease' }}>
+                    Done ({doneCount})
+                  </button>
+                  <button onClick={() => { setShowPending(false); setShowAnalyzing(false); setShowDone(false); setShowHidden(true); }}
+                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', background: showHidden ? '#3A3A3A' : 'transparent', color: '#CCCCCC', border: 'none', borderRadius: 16, cursor: 'pointer', fontSize: s.fontSize, transition: 'background 0.2s ease' }}>
+                    Hidden ({hiddenCount})
+                  </button>
+                </div>
                 <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
                   {selectedImg && selectedImg.status !== 'pending' && selectedImg.status !== 'analyzing' && (
                     <button onClick={reanalyzeSelected} title="Re-analyze selected image"
-                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 32, height: 32, background: '#1f2937', color: s.muted, border: 'none', borderRadius: s.radiusSm, cursor: 'pointer' }}>
+                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 32, height: 32, background: '#1F1F1F', color: s.muted, border: 'none', borderRadius: s.radiusSm, cursor: 'pointer' }}>
                       <Icon name="refresh" size={18} />
                     </button>
                   )}
@@ -2547,10 +2553,10 @@
                     label={`Auto${pendingCount > 0 ? ` (${pendingCount})` : ''}`}
                     disabled={!geminiKey}
                   />
-                  <div style={{ display: 'flex', gap: 2, background: '#1f2937', borderRadius: s.radiusSm, padding: 2 }}>
+                  <div style={{ display: 'flex', gap: 2, background: '#1F1F1F', borderRadius: s.radiusSm, padding: 2 }}>
                     {['S', 'M', 'L', 'XL'].map((label, i) => (
                       <button key={label} onClick={() => setThumbSize(i)}
-                        style={{ padding: '4px 10px', background: thumbSize === i ? '#374151' : 'transparent', color: thumbSize === i ? s.bright : s.muted, border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: 13, fontWeight: thumbSize === i ? 500 : 400 }}>
+                        style={{ padding: '4px 10px', background: thumbSize === i ? '#3A3A3A' : 'transparent', color: thumbSize === i ? s.bright : s.muted, border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: 13, fontWeight: thumbSize === i ? 500 : 400 }}>
                         {label}
                       </button>
                     ))}
@@ -2562,23 +2568,23 @@
                   <div style={{ padding: 60, textAlign: 'center', color: s.muted }}>
                     <Icon name="add_photo_alternate" size={64} style={{ opacity: 0.3, display: 'block', margin: '0 auto 16px' }} />
                     <div style={{ fontSize: s.fontSize, marginBottom: 8 }}>Drop images here</div>
-                    <div style={{ fontSize: 13, color: '#4b5563' }}>Use arrow keys to navigate</div>
+                    <div style={{ fontSize: 13, color: '#666666' }}>Use arrow keys to navigate</div>
                   </div>
                 ) : (
                   <>
                     {batchProgress && (
-                      <div style={{ marginBottom: 12, background: '#1f2937', padding: 12, borderRadius: s.radius }}>
+                      <div style={{ marginBottom: 12, background: '#1F1F1F', padding: 12, borderRadius: s.radius }}>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
                           <span style={{ fontSize: 13, color: s.text }}>
                             <Icon name="hourglass_empty" size={16} style={{ marginRight: 6, verticalAlign: 'middle' }} />
                             Processing batch {batchProgress.current}/{batchProgress.total}
                           </span>
-                          <span style={{ fontSize: 13, color: '#fbbf24' }}>
+                          <span style={{ fontSize: 13, color: '#CCCCCC' }}>
                             {Math.round((batchProgress.current / batchProgress.total) * 100)}%
                           </span>
                         </div>
-                        <div style={{ height: 4, background: '#374151', borderRadius: 2, overflow: 'hidden' }}>
-                          <div style={{ height: '100%', background: '#fbbf24', width: `${(batchProgress.current / batchProgress.total) * 100}%`, transition: 'width 0.3s ease' }} />
+                        <div style={{ height: 4, background: '#3A3A3A', borderRadius: 2, overflow: 'hidden' }}>
+                          <div style={{ height: '100%', background: '#CCCCCC', width: `${(batchProgress.current / batchProgress.total) * 100}%`, transition: 'width 0.3s ease' }} />
                         </div>
                       </div>
                     )}
@@ -2619,7 +2625,7 @@
               <div style={{
                 width: 4,
                 height: 40,
-                background: '#4b5563',
+                background: '#666666',
                 borderRadius: 2,
                 opacity: 0.6
               }} />
@@ -2635,17 +2641,17 @@
                       {selectedImg.name}
                     </div>
                     {isMultiSelect && (
-                      <div style={{ position: 'absolute', bottom: 8, right: 8, background: 'rgba(96,165,250,0.9)', color: '#000', padding: '6px 10px', borderRadius: s.radiusSm, fontSize: 13, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <div style={{ position: 'absolute', bottom: 8, right: 8, background: '#CCCCCC', color: '#000', padding: '6px 10px', borderRadius: s.radiusSm, fontSize: 13, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 6 }}>
                         <Icon name="select_all" size={16} /> {selectedIds.length} selected
                       </div>
                     )}
                     {modified && (
-                      <div style={{ position: 'absolute', top: 8, right: 8, background: '#fbbf24', color: '#000', padding: '4px 8px', borderRadius: s.radiusSm, fontSize: 12, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <div style={{ position: 'absolute', top: 8, right: 8, background: '#CCCCCC', color: '#000', padding: '4px 8px', borderRadius: s.radiusSm, fontSize: 12, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 4 }}>
                         <Icon name="edit" size={14} /> Unsaved
                       </div>
                     )}
                     {downloadedLarger && (
-                      <div style={{ position: 'absolute', top: 8, left: 8, background: '#10b981', color: '#fff', padding: '4px 8px', borderRadius: s.radiusSm, fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <div style={{ position: 'absolute', top: 8, left: 8, background: '#CCCCCC', color: '#fff', padding: '4px 8px', borderRadius: s.radiusSm, fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}>
                         <Icon name="download" size={14} /> {(downloadedLarger.size / 1024 / 1024).toFixed(1)}MB
                       </div>
                     )}
@@ -2654,17 +2660,17 @@
                   <div style={{ flex: 1, overflow: 'auto', padding: 14 }}>
                     {selectedImg.status === 'analyzing' && (
                       <div style={{ textAlign: 'center', padding: 40, color: s.muted }}>
-                        <Icon name="hourglass_empty" size={36} style={{ display: 'block', margin: '0 auto 12px', color: '#fbbf24' }} />
+                        <Icon name="hourglass_empty" size={36} style={{ display: 'block', margin: '0 auto 12px', color: '#CCCCCC' }} />
                         <div style={{ fontSize: s.fontSize }}>Analyzing...</div>
                       </div>
                     )}
 
                     {selectedImg.status === 'error' && (
-                      <div style={{ textAlign: 'center', padding: 40, color: '#f87171' }}>
+                      <div style={{ textAlign: 'center', padding: 40, color: '#CCCCCC' }}>
                         <Icon name="error" size={36} style={{ display: 'block', margin: '0 auto 12px' }} />
                         <div style={{ fontSize: s.fontSize, marginBottom: 12 }}>Analysis failed</div>
                         <button onClick={() => { setQueue(q => q.map(i => i.id === selectedImg.id ? {...i, status: 'pending'} : i)); analyzeImage({...selectedImg, status: 'pending'}); }}
-                          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px', background: '#2563eb', color: 'white', border: 'none', borderRadius: s.radius, cursor: 'pointer', fontSize: s.fontSize }}>
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px', background: '#666666', color: 'white', border: 'none', borderRadius: s.radius, cursor: 'pointer', fontSize: s.fontSize }}>
                           <Icon name="refresh" size={16} /> Retry
                         </button>
                       </div>
@@ -2673,8 +2679,8 @@
                     {(selectedImg.status === 'ready' || selectedImg.status === 'done' || selectedImg.status === 'editing' || isEditing) && (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                         {(designer?.designer || designer?.designers?.length > 0) && (
-                          <div style={{ background: 'rgba(167,139,250,0.1)', padding: '10px 12px', borderRadius: s.radius, border: '1px solid rgba(167,139,250,0.25)' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#a78bfa', fontSize: s.fontSize }}>
+                          <div style={{ background: '#2E2E2E', padding: '10px 12px', borderRadius: s.radius, border: '1px solid #3A3A3A' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#CCCCCC', fontSize: s.fontSize }}>
                               <Icon name="brush" size={18} />
                               {designer.designers?.length > 1 ? designer.designers.join(', ') : designer.designer}
                             </div>
@@ -2682,8 +2688,8 @@
                         )}
 
                         {similarCount > 0 && (
-                          <div style={{ background: 'rgba(251,191,36,0.1)', padding: '10px 12px', borderRadius: s.radius, border: '1px solid rgba(251,191,36,0.25)' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#fbbf24', fontSize: s.fontSize }}>
+                          <div style={{ background: '#2E2E2E', padding: '10px 12px', borderRadius: s.radius, border: '1px solid #3A3A3A' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#CCCCCC', fontSize: s.fontSize }}>
                               <Icon name="link" size={18} />
                               {similarCount} similar image{similarCount > 1 ? 's' : ''} will sync
                             </div>
@@ -2691,8 +2697,8 @@
                         )}
 
                         {visionData?.matchingImages?.filter(m => m.type === 'full').length > 0 && (
-                          <div style={{ background: 'rgba(96,165,250,0.1)', padding: '10px 12px', borderRadius: s.radius, border: '1px solid rgba(96,165,250,0.25)' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#60a5fa', fontSize: s.fontSize, marginBottom: 8 }}>
+                          <div style={{ background: '#2E2E2E', padding: '10px 12px', borderRadius: s.radius, border: '1px solid #3A3A3A' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#CCCCCC', fontSize: s.fontSize, marginBottom: 8 }}>
                               <Icon name="image_search" size={18} />
                               {visionData.matchingImages.filter(m => m.type === 'full').length} exact matches
                             </div>
@@ -2700,7 +2706,7 @@
                               {visionData.matchingImages.filter(m => m.type === 'full').slice(0, 4).map((img, i) => {
                                 const domain = new URL(img.url).hostname.replace('www.', '');
                                 return (
-                                  <a key={i} href={img.url} target="_blank" rel="noreferrer" style={{ color: '#60a5fa', fontSize: 12, textDecoration: 'none', padding: '4px 8px', background: 'rgba(96,165,250,0.15)', borderRadius: s.radiusSm }}>
+                                  <a key={i} href={img.url} target="_blank" rel="noreferrer" style={{ color: '#CCCCCC', fontSize: 12, textDecoration: 'none', padding: '4px 8px', background: '#353535', borderRadius: s.radiusSm }}>
                                     {domain}
                                   </a>
                                 );
@@ -2711,7 +2717,7 @@
 
                         {/* REQUIRED CATEGORIES */}
                         <div style={{ background: s.panel, borderRadius: s.radius, padding: 12, border: `1px solid ${s.border}` }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#ec4899', marginBottom: 10, fontSize: s.fontSize, fontWeight: 500 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#CCCCCC', marginBottom: 10, fontSize: s.fontSize, fontWeight: 500 }}>
                             <Icon name="category" size={18} />
                             Primary Category (Required)
                           </div>
@@ -2745,9 +2751,9 @@
                                   }}
                                   style={{
                                     padding: '8px 12px',
-                                    background: hasCategory ? '#ec489920' : 'rgba(255,255,255,0.03)',
-                                    color: hasCategory ? '#ec4899' : '#9ca3af',
-                                    border: hasCategory ? '1px solid #ec489950' : '1px solid #374151',
+                                    background: hasCategory ? '#CCCCCC20' : 'rgba(255,255,255,0.03)',
+                                    color: hasCategory ? '#CCCCCC' : '#CCCCCC',
+                                    border: hasCategory ? '1px solid #CCCCCC50' : '1px solid #3A3A3A',
                                     borderRadius: s.radiusSm,
                                     cursor: 'pointer',
                                     fontSize: 13,
@@ -2767,7 +2773,7 @@
 
                         {keywords.length > 0 && (
                           <div style={{ background: s.panel, borderRadius: s.radius, padding: 12, border: `1px solid ${s.border}` }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#4ade80', marginBottom: 10, fontSize: s.fontSize, fontWeight: 500 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#CCCCCC', marginBottom: 10, fontSize: s.fontSize, fontWeight: 500 }}>
                               <Icon name="sell" size={18} />
                               Tagged ({keywords.length})
                             </div>
@@ -2786,24 +2792,21 @@
 
                                 {keywords.filter(k => !k.partialCount).length > 0 && (
                                   <div style={{ marginBottom: 12 }}>
-                                    <div style={{ fontSize: 13, color: '#4ade80', marginBottom: 8, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                    <div style={{ fontSize: 13, color: '#CCCCCC', marginBottom: 8, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
                                       <Icon name="done_all" size={16} />
                                       Applied to All ({keywords.filter(k => !k.partialCount).length})
                                     </div>
-                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                                      {keywords.filter(k => !k.partialCount).map(k => (
-                                        <motion.span
-                                          key={k.id}
-                                          initial={{ opacity: 0, scale: 0.8 }}
-                                          animate={{ opacity: 1, scale: 1 }}
-                                          style={{ padding: '5px 10px', background: `${getColor(k.rootCategory)}15`, color: getColor(k.rootCategory), borderRadius: 20, fontSize: 13, display: 'flex', alignItems: 'center', gap: 6, border: `1px solid ${getColor(k.rootCategory)}30` }}>
-                                          {k.source === 'vision' && <Icon name="image_search" size={14} />}
-                                          {k.source === 'filename' && <Icon name="description" size={14} />}
+                                    <div style={{ color: s.text, fontSize: 13, lineHeight: 1.8 }}>
+                                      {keywords.filter(k => !k.partialCount).map((k, idx, arr) => (
+                                        <span key={k.id}>
+                                          {k.source === 'vision' && <Icon name="image_search" size={14} style={{ verticalAlign: 'middle', marginRight: 4 }} />}
+                                          {k.source === 'filename' && <Icon name="description" size={14} style={{ verticalAlign: 'middle', marginRight: 4 }} />}
                                           {k.value}
-                                          <span onClick={() => removeFromAll(k)} style={{ cursor: 'pointer', opacity: 0.6, marginLeft: 2, display: 'flex' }}>
+                                          <span onClick={() => removeFromAll(k)} style={{ cursor: 'pointer', opacity: 0.6, marginLeft: 4, display: 'inline-flex', verticalAlign: 'middle' }}>
                                             <Icon name="close" size={14} />
                                           </span>
-                                        </motion.span>
+                                          {idx < arr.length - 1 && <span style={{ margin: '0 8px', opacity: 0.5 }}>·</span>}
+                                        </span>
                                       ))}
                                     </div>
                                   </div>
@@ -2811,57 +2814,55 @@
 
                                 {keywords.filter(k => k.partialCount).length > 0 && (
                                   <div>
-                                    <div style={{ fontSize: 13, color: '#fbbf24', marginBottom: 8, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'space-between' }}>
+                                    <div style={{ fontSize: 13, color: '#CCCCCC', marginBottom: 8, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'space-between' }}>
                                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                                         <Icon name="content_copy" size={16} />
                                         Applied to Some ({keywords.filter(k => k.partialCount).length}) - Click to add to all
                                       </div>
-                                      <button onClick={removeAllPartial} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', background: 'rgba(251,191,36,0.15)', color: '#fbbf24', border: 'none', borderRadius: s.radiusSm, cursor: 'pointer', fontSize: 12 }}>
+                                      <button onClick={removeAllPartial} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', background: '#353535', color: '#CCCCCC', border: 'none', borderRadius: s.radiusSm, cursor: 'pointer', fontSize: 12 }}>
                                         <Icon name="remove_circle" size={14} /> Remove All
                                       </button>
                                     </div>
-                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                                      {keywords.filter(k => k.partialCount).map(k => (
-                                        <motion.span
-                                          key={k.id}
-                                          initial={{ opacity: 0, scale: 0.8 }}
-                                          animate={{ opacity: 1, scale: 1 }}
-                                          onClick={(e) => {
-                                            if (!e.target.closest('[data-action]')) {
-                                              addToAll(k);
-                                            }
-                                          }}
-                                          style={{ padding: '5px 10px', background: `${getColor(k.rootCategory)}15`, color: getColor(k.rootCategory), borderRadius: 20, fontSize: 13, display: 'flex', alignItems: 'center', gap: 6, border: `1px solid ${getColor(k.rootCategory)}30`, opacity: 0.7, cursor: 'pointer', transition: 'opacity 0.15s ease' }}
-                                          onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
-                                          onMouseLeave={(e) => e.currentTarget.style.opacity = '0.7'}>
-                                          {k.source === 'vision' && <Icon name="image_search" size={14} />}
-                                          {k.source === 'filename' && <Icon name="description" size={14} />}
-                                          {k.value}
-                                          <span style={{ fontSize: 11, opacity: 0.6, marginLeft: 2 }}>({k.partialCount}/{selectedIds.length})</span>
-                                          <span data-action="remove" onClick={(e) => { e.stopPropagation(); removeKw(k.id); }} style={{ cursor: 'pointer', opacity: 0.6, marginLeft: 2, display: 'flex' }}>
+                                    <div style={{ color: s.text, fontSize: 13, lineHeight: 1.8 }}>
+                                      {keywords.filter(k => k.partialCount).map((k, idx, arr) => (
+                                        <span key={k.id}>
+                                          {k.source === 'vision' && <Icon name="image_search" size={14} style={{ verticalAlign: 'middle', marginRight: 4 }} />}
+                                          {k.source === 'filename' && <Icon name="description" size={14} style={{ verticalAlign: 'middle', marginRight: 4 }} />}
+                                          <span
+                                            onClick={(e) => {
+                                              if (!e.target.closest('[data-action]')) {
+                                                addToAll(k);
+                                              }
+                                            }}
+                                            style={{ cursor: 'pointer', opacity: 0.7 }}
+                                            onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
+                                            onMouseLeave={(e) => e.currentTarget.style.opacity = '0.7'}
+                                          >
+                                            {k.value}
+                                          </span>
+                                          <span style={{ fontSize: 11, opacity: 0.6, marginLeft: 4 }}>({k.partialCount}/{selectedIds.length})</span>
+                                          <span data-action="remove" onClick={(e) => { e.stopPropagation(); removeKw(k.id); }} style={{ cursor: 'pointer', opacity: 0.6, marginLeft: 4, display: 'inline-flex', verticalAlign: 'middle' }}>
                                             <Icon name="close" size={14} />
                                           </span>
-                                        </motion.span>
+                                          {idx < arr.length - 1 && <span style={{ margin: '0 8px', opacity: 0.5 }}>·</span>}
+                                        </span>
                                       ))}
                                     </div>
                                   </div>
                                 )}
                               </>
                             ) : (
-                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                                {keywords.map(k => (
-                                  <motion.span
-                                    key={k.id}
-                                    initial={{ opacity: 0, scale: 0.8 }}
-                                    animate={{ opacity: 1, scale: 1 }}
-                                    style={{ padding: '5px 10px', background: `${getColor(k.rootCategory)}15`, color: getColor(k.rootCategory), borderRadius: 20, fontSize: 13, display: 'flex', alignItems: 'center', gap: 6, border: `1px solid ${getColor(k.rootCategory)}30` }}>
-                                    {k.source === 'vision' && <Icon name="image_search" size={14} />}
-                                    {k.source === 'filename' && <Icon name="description" size={14} />}
+                              <div style={{ color: s.text, fontSize: 13, lineHeight: 1.8 }}>
+                                {keywords.map((k, idx) => (
+                                  <span key={k.id}>
+                                    {k.source === 'vision' && <Icon name="image_search" size={14} style={{ verticalAlign: 'middle', marginRight: 4 }} />}
+                                    {k.source === 'filename' && <Icon name="description" size={14} style={{ verticalAlign: 'middle', marginRight: 4 }} />}
                                     {k.value}
-                                    <span onClick={() => removeKw(k.id)} style={{ cursor: 'pointer', opacity: 0.6, marginLeft: 2, display: 'flex' }}>
+                                    <span onClick={() => removeKw(k.id)} style={{ cursor: 'pointer', opacity: 0.6, marginLeft: 4, display: 'inline-flex', verticalAlign: 'middle' }}>
                                       <Icon name="close" size={14} />
                                     </span>
-                                  </motion.span>
+                                    {idx < keywords.length - 1 && <span style={{ margin: '0 8px', opacity: 0.5 }}>·</span>}
+                                  </span>
                                 ))}
                               </div>
                             )}
@@ -2875,7 +2876,7 @@
                                 <Icon name="rate_review" size={18} />
                                 {pending.length} to review
                               </div>
-                              <button onClick={acceptAll} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', background: 'rgba(96,165,250,0.15)', color: '#60a5fa', border: 'none', borderRadius: s.radiusSm, cursor: 'pointer', fontSize: 13 }}>
+                              <button onClick={acceptAll} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', background: '#353535', color: '#CCCCCC', border: 'none', borderRadius: s.radiusSm, cursor: 'pointer', fontSize: 13 }}>
                                 <Icon name="done_all" size={16} /> Accept all
                               </button>
                             </div>
@@ -2885,29 +2886,28 @@
                               <>
                                 {pending.filter(k => !k.partialCount).length > 0 && (
                                   <div style={{ marginBottom: 12 }}>
-                                    <div style={{ fontSize: 13, color: '#60a5fa', marginBottom: 8, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                    <div style={{ fontSize: 13, color: '#CCCCCC', marginBottom: 8, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
                                       <Icon name="recommend" size={16} />
                                       Recommended to All ({pending.filter(k => !k.partialCount).length})
                                     </div>
-                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                                      {pending.filter(k => !k.partialCount).map(k => (
-                                        <motion.span
-                                          key={k.id}
-                                          initial={{ opacity: 0, scale: 0.8 }}
-                                          animate={{ opacity: 1, scale: 1 }}
-                                          onClick={(e) => {
-                                            if (!e.target.closest('[data-action]')) accept(k.id);
-                                          }}
-                                          style={{ padding: '5px 10px', background: `${getColor(k.rootCategory)}15`, color: getColor(k.rootCategory), borderRadius: 20, fontSize: 13, display: 'flex', alignItems: 'center', gap: 6, border: `1px solid ${getColor(k.rootCategory)}30`, cursor: 'pointer', transition: 'all 0.15s ease' }}
-                                          onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
-                                          onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}>
-                                          {k.source === 'vision' && <Icon name="image_search" size={14} />}
-                                          {k.source === 'filename' && <Icon name="description" size={14} />}
-                                          {k.value}
-                                          <span data-action="block" onClick={(e) => { e.stopPropagation(); block(k.id); }} style={{ cursor: 'pointer', opacity: 0.6, marginLeft: 2, display: 'flex' }}>
+                                    <div style={{ color: s.text, fontSize: 13, lineHeight: 1.8 }}>
+                                      {pending.filter(k => !k.partialCount).map((k, idx, arr) => (
+                                        <span key={k.id}>
+                                          {k.source === 'vision' && <Icon name="image_search" size={14} style={{ verticalAlign: 'middle', marginRight: 4 }} />}
+                                          {k.source === 'filename' && <Icon name="description" size={14} style={{ verticalAlign: 'middle', marginRight: 4 }} />}
+                                          <span
+                                            onClick={(e) => {
+                                              if (!e.target.closest('[data-action]')) accept(k.id);
+                                            }}
+                                            style={{ cursor: 'pointer' }}
+                                          >
+                                            {k.value}
+                                          </span>
+                                          <span data-action="block" onClick={(e) => { e.stopPropagation(); block(k.id); }} style={{ cursor: 'pointer', opacity: 0.6, marginLeft: 4, display: 'inline-flex', verticalAlign: 'middle' }}>
                                             <Icon name="block" size={14} />
                                           </span>
-                                        </motion.span>
+                                          {idx < arr.length - 1 && <span style={{ margin: '0 8px', opacity: 0.5 }}>·</span>}
+                                        </span>
                                       ))}
                                     </div>
                                   </div>
@@ -2915,55 +2915,55 @@
 
                                 {pending.filter(k => k.partialCount).length > 0 && (
                                   <div>
-                                    <div style={{ fontSize: 13, color: '#a78bfa', marginBottom: 8, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                    <div style={{ fontSize: 13, color: '#CCCCCC', marginBottom: 8, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
                                       <Icon name="exposure" size={16} />
                                       Recommended to Some ({pending.filter(k => k.partialCount).length})
                                     </div>
-                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                                      {pending.filter(k => k.partialCount).map(k => (
-                                        <motion.span
-                                          key={k.id}
-                                          initial={{ opacity: 0, scale: 0.8 }}
-                                          animate={{ opacity: 1, scale: 1 }}
-                                          onClick={(e) => {
-                                            if (!e.target.closest('[data-action]')) accept(k.id);
-                                          }}
-                                          style={{ padding: '5px 10px', background: `${getColor(k.rootCategory)}15`, color: getColor(k.rootCategory), borderRadius: 20, fontSize: 13, display: 'flex', alignItems: 'center', gap: 6, border: `1px solid ${getColor(k.rootCategory)}30`, opacity: 0.7, cursor: 'pointer', transition: 'all 0.15s ease' }}
-                                          onMouseEnter={(e) => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.transform = 'scale(1.05)'; }}
-                                          onMouseLeave={(e) => { e.currentTarget.style.opacity = '0.7'; e.currentTarget.style.transform = 'scale(1)'; }}>
-                                          {k.source === 'vision' && <Icon name="image_search" size={14} />}
-                                          {k.source === 'filename' && <Icon name="description" size={14} />}
-                                          {k.value}
-                                          <span style={{ fontSize: 11, opacity: 0.6, marginLeft: 2 }}>({k.partialCount}/{selectedIds.length})</span>
-                                          <span data-action="block" onClick={(e) => { e.stopPropagation(); block(k.id); }} style={{ cursor: 'pointer', opacity: 0.6, marginLeft: 2, display: 'flex' }}>
+                                    <div style={{ color: s.text, fontSize: 13, lineHeight: 1.8 }}>
+                                      {pending.filter(k => k.partialCount).map((k, idx, arr) => (
+                                        <span key={k.id}>
+                                          {k.source === 'vision' && <Icon name="image_search" size={14} style={{ verticalAlign: 'middle', marginRight: 4 }} />}
+                                          {k.source === 'filename' && <Icon name="description" size={14} style={{ verticalAlign: 'middle', marginRight: 4 }} />}
+                                          <span
+                                            onClick={(e) => {
+                                              if (!e.target.closest('[data-action]')) accept(k.id);
+                                            }}
+                                            style={{ cursor: 'pointer', opacity: 0.7 }}
+                                            onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
+                                            onMouseLeave={(e) => e.currentTarget.style.opacity = '0.7'}
+                                          >
+                                            {k.value}
+                                          </span>
+                                          <span style={{ fontSize: 11, opacity: 0.6, marginLeft: 4 }}>({k.partialCount}/{selectedIds.length})</span>
+                                          <span data-action="block" onClick={(e) => { e.stopPropagation(); block(k.id); }} style={{ cursor: 'pointer', opacity: 0.6, marginLeft: 4, display: 'inline-flex', verticalAlign: 'middle' }}>
                                             <Icon name="block" size={14} />
                                           </span>
-                                        </motion.span>
+                                          {idx < arr.length - 1 && <span style={{ margin: '0 8px', opacity: 0.5 }}>·</span>}
+                                        </span>
                                       ))}
                                     </div>
                                   </div>
                                 )}
                               </>
                             ) : (
-                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                                {pending.map(k => (
-                                  <motion.span
-                                    key={k.id}
-                                    initial={{ opacity: 0, scale: 0.8 }}
-                                    animate={{ opacity: 1, scale: 1 }}
-                                    onClick={(e) => {
-                                      if (!e.target.closest('[data-action]')) accept(k.id);
-                                    }}
-                                    style={{ padding: '5px 10px', background: `${getColor(k.rootCategory)}15`, color: getColor(k.rootCategory), borderRadius: 20, fontSize: 13, display: 'flex', alignItems: 'center', gap: 6, border: `1px solid ${getColor(k.rootCategory)}30`, cursor: 'pointer', transition: 'all 0.15s ease' }}
-                                    onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
-                                    onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}>
-                                    {k.source === 'vision' && <Icon name="image_search" size={14} />}
-                                    {k.source === 'filename' && <Icon name="description" size={14} />}
-                                    {k.value}
-                                    <span data-action="block" onClick={(e) => { e.stopPropagation(); block(k.id); }} style={{ cursor: 'pointer', opacity: 0.6, marginLeft: 2, display: 'flex' }}>
+                              <div style={{ color: s.text, fontSize: 13, lineHeight: 1.8 }}>
+                                {pending.map((k, idx) => (
+                                  <span key={k.id}>
+                                    {k.source === 'vision' && <Icon name="image_search" size={14} style={{ verticalAlign: 'middle', marginRight: 4 }} />}
+                                    {k.source === 'filename' && <Icon name="description" size={14} style={{ verticalAlign: 'middle', marginRight: 4 }} />}
+                                    <span
+                                      onClick={(e) => {
+                                        if (!e.target.closest('[data-action]')) accept(k.id);
+                                      }}
+                                      style={{ cursor: 'pointer' }}
+                                    >
+                                      {k.value}
+                                    </span>
+                                    <span data-action="block" onClick={(e) => { e.stopPropagation(); block(k.id); }} style={{ cursor: 'pointer', opacity: 0.6, marginLeft: 4, display: 'inline-flex', verticalAlign: 'middle' }}>
                                       <Icon name="block" size={14} />
                                     </span>
-                                  </motion.span>
+                                    {idx < pending.length - 1 && <span style={{ margin: '0 8px', opacity: 0.5 }}>·</span>}
+                                  </span>
                                 ))}
                               </div>
                             )}
@@ -2976,7 +2976,7 @@
                             placeholder="Add custom tag..."
                             style={{ flex: 1, padding: '10px 14px', background: s.panel, border: `1px solid ${s.border}`, borderRadius: s.radius, color: s.bright, fontSize: s.fontSize, outline: 'none' }} />
                           <button onClick={addCustom} disabled={!customInput.trim()} tabIndex={-1}
-                            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 44, background: customInput.trim() ? '#ec4899' : '#1f2937', color: customInput.trim() ? 'white' : '#4b5563', border: 'none', borderRadius: s.radius, cursor: customInput.trim() ? 'pointer' : 'default' }}>
+                            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 44, background: customInput.trim() ? '#CCCCCC' : '#1F1F1F', color: customInput.trim() ? 'white' : '#666666', border: 'none', borderRadius: s.radius, cursor: customInput.trim() ? 'pointer' : 'default' }}>
                             <Icon name="add" size={22} />
                           </button>
                         </div>
@@ -3005,8 +3005,8 @@
                           tabIndex={-1}
                           style={{
                             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '12px 20px',
-                            background: keywords.length > 0 && keywords.some(k => REQUIRED_CATEGORIES.includes(k.value)) ? '#2563eb' : '#1f2937',
-                            color: keywords.length > 0 && keywords.some(k => REQUIRED_CATEGORIES.includes(k.value)) ? 'white' : '#4b5563',
+                            background: keywords.length > 0 && keywords.some(k => REQUIRED_CATEGORIES.includes(k.value)) ? '#666666' : '#1F1F1F',
+                            color: keywords.length > 0 && keywords.some(k => REQUIRED_CATEGORIES.includes(k.value)) ? 'white' : '#666666',
                             border: 'none', borderRadius: s.radius,
                             cursor: keywords.length > 0 && keywords.some(k => REQUIRED_CATEGORIES.includes(k.value)) ? 'pointer' : 'default',
                             fontSize: s.fontSize, fontWeight: 500,
@@ -3023,7 +3023,7 @@
                     {selectedImg.status === 'pending' && (
                       <div style={{ textAlign: 'center', padding: 40, color: s.muted }}>
                         <button onClick={() => analyzeImage(selectedImg)} tabIndex={-1}
-                          style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '12px 24px', background: '#2563eb', color: 'white', border: 'none', borderRadius: s.radius, cursor: 'pointer', fontSize: s.fontSize, fontWeight: 500 }}>
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '12px 24px', background: '#666666', color: 'white', border: 'none', borderRadius: s.radius, cursor: 'pointer', fontSize: s.fontSize, fontWeight: 500 }}>
                           <Icon name="auto_awesome" size={20} /> Analyze
                         </button>
                       </div>
@@ -3035,14 +3035,14 @@
                   <div style={{ textAlign: 'center' }}>
                     <Icon name="image" size={64} style={{ opacity: 0.2, display: 'block', margin: '0 auto 16px' }} />
                     <div style={{ fontSize: s.fontSize }}>Select an image</div>
-                    <div style={{ fontSize: 13, marginTop: 8, color: '#4b5563' }}>Use arrow keys to navigate</div>
+                    <div style={{ fontSize: 13, marginTop: 8, color: '#666666' }}>Use arrow keys to navigate</div>
                   </div>
                 </div>
               )}
             </div>
 
             {/* RIGHT - TAXONOMY */}
-            <div style={{ width: 375, minWidth: 280, flexShrink: 0, background: s.panel, borderLeft: `1px solid ${s.border}`, display: 'flex', flexDirection: 'column' }}>
+            <div style={{ width: 375, minWidth: 280, flexShrink: 0, background: s.bgMedium, borderLeft: `1px solid ${s.border}`, display: 'flex', flexDirection: 'column' }}>
               <div style={{ padding: '14px 16px', borderBottom: `1px solid ${s.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: s.bright, fontSize: s.fontSize, fontWeight: 600 }}>
@@ -3061,8 +3061,8 @@
                     tabIndex={-1}
                     style={{
                       display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
-                      padding: '6px 10px', background: isOrganizing ? '#374151' : '#1f2937',
-                      color: isOrganizing ? '#fbbf24' : '#a855f7', border: 'none',
+                      padding: '6px 10px', background: isOrganizing ? '#3A3A3A' : '#1F1F1F',
+                      color: isOrganizing ? '#CCCCCC' : '#a855f7', border: 'none',
                       borderRadius: s.radiusSm, cursor: isOrganizing ? 'default' : 'pointer',
                       fontSize: 13, opacity: geminiKey ? 1 : 0.5
                     }}
@@ -3072,12 +3072,12 @@
                   </button>
                   {customCount > 0 && showMasterTaxonomy && (
                     <button onClick={runCategorization} disabled={isCategorizing || !geminiKey} tabIndex={-1}
-                      style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 10px', background: isCategorizing ? '#374151' : '#ec4899', color: isCategorizing ? '#9ca3af' : 'white', border: 'none', borderRadius: s.radiusSm, cursor: isCategorizing ? 'default' : 'pointer', fontSize: 13 }}>
+                      style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 10px', background: isCategorizing ? '#3A3A3A' : '#CCCCCC', color: isCategorizing ? '#CCCCCC' : 'white', border: 'none', borderRadius: s.radiusSm, cursor: isCategorizing ? 'default' : 'pointer', fontSize: 13 }}>
                       <Icon name={isCategorizing ? "hourglass_empty" : "auto_fix_high"} size={16} /> {customCount}
                     </button>
                   )}
                   <button onClick={() => setShowMasterTaxonomy(!showMasterTaxonomy)} tabIndex={-1}
-                    style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 10px', background: showMasterTaxonomy ? 'rgba(96,165,250,0.15)' : '#1f2937', color: showMasterTaxonomy ? '#60a5fa' : s.muted, border: 'none', borderRadius: s.radiusSm, cursor: 'pointer', fontSize: 13 }}>
+                    style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 10px', background: showMasterTaxonomy ? '#353535' : '#1F1F1F', color: showMasterTaxonomy ? '#CCCCCC' : s.muted, border: 'none', borderRadius: s.radiusSm, cursor: 'pointer', fontSize: 13 }}>
                     <Icon name={showMasterTaxonomy ? "list" : "library_books"} size={16} />
                     {showMasterTaxonomy ? 'Session' : 'Master'}
                   </button>
@@ -3097,7 +3097,7 @@
                   <div style={{ textAlign: 'center', padding: 32, color: s.muted }}>
                     <Icon name="folder_open" size={40} style={{ opacity: 0.3, display: 'block', margin: '0 auto 12px' }} />
                     <div style={{ fontSize: s.fontSize, marginBottom: 6 }}>Empty</div>
-                    <div style={{ fontSize: 13, color: '#4b5563' }}>Analyze images to build taxonomy</div>
+                    <div style={{ fontSize: 13, color: '#666666' }}>Analyze images to build taxonomy</div>
                   </div>
                 ) : (
                   // Sort to put Custom/Uncategorized at top (grey), then alphabetically
@@ -3143,7 +3143,7 @@
                       <div style={{ marginBottom: 8, color: s.text, fontSize: s.fontSize, fontWeight: 500 }}>Gemini API Key</div>
                       <input type="password" value={geminiKey} onChange={e => setGeminiKey(e.target.value)}
                         style={{ width: '100%', padding: '10px 14px', background: s.bg, border: `1px solid ${s.border}`, borderRadius: s.radius, color: s.bright, fontSize: s.fontSize, outline: 'none' }} />
-                      <a href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: '#60a5fa', fontSize: 13, marginTop: 6, textDecoration: 'none' }}>
+                      <a href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: '#CCCCCC', fontSize: 13, marginTop: 6, textDecoration: 'none' }}>
                         Get API key <Icon name="open_in_new" size={14} />
                       </a>
                     </div>
@@ -3151,21 +3151,21 @@
                       <div style={{ marginBottom: 8, color: s.text, fontSize: s.fontSize, fontWeight: 500 }}>Vision API Key (optional)</div>
                       <input type="password" value={visionKey} onChange={e => setVisionKey(e.target.value)}
                         style={{ width: '100%', padding: '10px 14px', background: s.bg, border: `1px solid ${s.border}`, borderRadius: s.radius, color: s.bright, fontSize: s.fontSize, outline: 'none' }} />
-                      <a href="https://console.cloud.google.com/apis/library/vision.googleapis.com" target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: '#60a5fa', fontSize: 13, marginTop: 6, textDecoration: 'none' }}>
+                      <a href="https://console.cloud.google.com/apis/library/vision.googleapis.com" target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: '#CCCCCC', fontSize: 13, marginTop: 6, textDecoration: 'none' }}>
                         Enable Vision API <Icon name="open_in_new" size={14} />
                       </a>
                     </div>
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                       <label style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', padding: '10px 14px', background: s.bg, borderRadius: s.radius }}>
-                        <input type="checkbox" checked={useVision} onChange={e => setUseVision(e.target.checked)} style={{ width: 18, height: 18, accentColor: '#60a5fa' }} />
+                        <input type="checkbox" checked={useVision} onChange={e => setUseVision(e.target.checked)} style={{ width: 18, height: 18, accentColor: '#CCCCCC' }} />
                         <div>
                           <div style={{ fontSize: s.fontSize, color: s.bright }}>Use Vision API for reverse image search</div>
                           <div style={{ fontSize: 13, color: s.muted }}>Find web matches and similar images</div>
                         </div>
                       </label>
                       <label style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', padding: '10px 14px', background: s.bg, borderRadius: s.radius }}>
-                        <input type="checkbox" checked={autoDownloadLarger} onChange={e => setAutoDownloadLarger(e.target.checked)} style={{ width: 18, height: 18, accentColor: '#60a5fa' }} />
+                        <input type="checkbox" checked={autoDownloadLarger} onChange={e => setAutoDownloadLarger(e.target.checked)} style={{ width: 18, height: 18, accentColor: '#CCCCCC' }} />
                         <div>
                           <div style={{ fontSize: s.fontSize, color: s.bright }}>Auto-download larger versions</div>
                           <div style={{ fontSize: 13, color: s.muted }}>Requires output folder to be set</div>
@@ -3176,15 +3176,15 @@
                     <div>
                       <div style={{ marginBottom: 10, color: s.text, fontSize: s.fontSize, fontWeight: 500 }}>Save Mode</div>
                       <div style={{ display: 'flex', gap: 12 }}>
-                        <label style={{ flex: 1, padding: '14px 16px', border: `2px solid ${saveMode === 'embed' ? '#60a5fa' : s.border}`, background: saveMode === 'embed' ? 'rgba(96,165,250,0.1)' : 'transparent', borderRadius: s.radius, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10 }}>
-                          <input type="radio" checked={saveMode === 'embed'} onChange={() => setSaveMode('embed')} style={{ width: 18, height: 18, accentColor: '#60a5fa' }} />
+                        <label style={{ flex: 1, padding: '14px 16px', border: `2px solid ${saveMode === 'embed' ? '#CCCCCC' : s.border}`, background: saveMode === 'embed' ? '#2E2E2E' : 'transparent', borderRadius: s.radius, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <input type="radio" checked={saveMode === 'embed'} onChange={() => setSaveMode('embed')} style={{ width: 18, height: 18, accentColor: '#CCCCCC' }} />
                           <div>
                             <div style={{ fontSize: s.fontSize, color: s.bright }}>Embed XMP</div>
                             <div style={{ fontSize: 13, color: s.muted }}>Write metadata into file</div>
                           </div>
                         </label>
-                        <label style={{ flex: 1, padding: '14px 16px', border: `2px solid ${saveMode === 'sidecar' ? '#60a5fa' : s.border}`, background: saveMode === 'sidecar' ? 'rgba(96,165,250,0.1)' : 'transparent', borderRadius: s.radius, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10 }}>
-                          <input type="radio" checked={saveMode === 'sidecar'} onChange={() => setSaveMode('sidecar')} style={{ width: 18, height: 18, accentColor: '#60a5fa' }} />
+                        <label style={{ flex: 1, padding: '14px 16px', border: `2px solid ${saveMode === 'sidecar' ? '#CCCCCC' : s.border}`, background: saveMode === 'sidecar' ? '#2E2E2E' : 'transparent', borderRadius: s.radius, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <input type="radio" checked={saveMode === 'sidecar'} onChange={() => setSaveMode('sidecar')} style={{ width: 18, height: 18, accentColor: '#CCCCCC' }} />
                           <div>
                             <div style={{ fontSize: s.fontSize, color: s.bright }}>Sidecar .xmp</div>
                             <div style={{ fontSize: 13, color: s.muted }}>Create separate file</div>
@@ -3194,13 +3194,13 @@
                     </div>
 
                     <button onClick={async () => { try { setOutputDir(await window.showDirectoryPicker({ mode: 'readwrite' })); } catch {} }}
-                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '12px 16px', background: outputDir ? 'rgba(16,185,129,0.15)' : (outputDirName ? 'rgba(251,191,36,0.15)' : '#1f2937'), color: outputDir ? '#10b981' : (outputDirName ? '#fbbf24' : s.text), border: `1px solid ${outputDir ? 'rgba(16,185,129,0.3)' : (outputDirName ? 'rgba(251,191,36,0.3)' : s.border)}`, borderRadius: s.radius, cursor: 'pointer', fontSize: s.fontSize }}>
+                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '12px 16px', background: outputDir ? 'rgba(16,185,129,0.15)' : (outputDirName ? '#353535' : '#1F1F1F'), color: outputDir ? '#CCCCCC' : (outputDirName ? '#CCCCCC' : s.text), border: `1px solid ${outputDir ? 'rgba(16,185,129,0.3)' : (outputDirName ? 'rgba(251,191,36,0.3)' : s.border)}`, borderRadius: s.radius, cursor: 'pointer', fontSize: s.fontSize }}>
                       <Icon name={outputDir ? "check_circle" : (outputDirName ? "warning" : "folder_open")} size={20} />
                       {outputDir ? `Output: ${outputDir.name}` : (outputDirName ? `Re-select: ${outputDirName}` : 'Choose output folder')}
                     </button>
                   </div>
                   <div style={{ padding: '16px 20px', borderTop: `1px solid ${s.border}`, display: 'flex', justifyContent: 'flex-end' }}>
-                    <button onClick={() => setShowSettings(false)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px 20px', background: '#2563eb', color: 'white', border: 'none', borderRadius: s.radius, cursor: 'pointer', fontSize: s.fontSize, fontWeight: 500 }}>
+                    <button onClick={() => setShowSettings(false)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px 20px', background: '#666666', color: 'white', border: 'none', borderRadius: s.radius, cursor: 'pointer', fontSize: s.fontSize, fontWeight: 500 }}>
                       Done
                     </button>
                   </div>
