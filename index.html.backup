@@ -273,7 +273,7 @@
               </div>
             )}
             {item.hidden && (
-              <div style={{ position: 'absolute', top: 6, right: 6, background: '#999999', color: '#000', padding: '3px 6px', borderRadius: 6, fontSize: 13, display: 'flex', alignItems: 'center' }}>
+              <div style={{ position: 'absolute', top: 6, right: 6, background: '#999999', color: '#000', padding: '3px 6px', borderRadius: 6, fontSize: 12, display: 'flex', alignItems: 'center' }}>
                 <Icon name="visibility_off" size={14} />
               </div>
             )}
@@ -321,10 +321,10 @@
             <Icon name={isExpanded ? "expand_more" : "chevron_right"} size={16} style={{ color: '#666666', opacity: (hasChildren || keywords.length > 0) ? 1 : 0 }} />
             {depth === 0 && <span style={{ width: 10, height: 10, borderRadius: 4, background: color }} />}
             <span style={{ flex: 1, color: depth === 0 ? '#CCCCCC' : '#CCCCCC', fontSize: 13 }}>{name}</span>
-            <span style={{ color: '#CCCCCC', fontSize: 13 }}>{count}</span>
+            <span style={{ color: '#CCCCCC', fontSize: 12 }}>{count}</span>
           </div>
           {isExpanded && keywords.length > 0 && (
-            <div style={{ marginLeft: 28, marginTop: 6, color: '#CCCCCC', fontSize: 13, lineHeight: 1.8 }}>
+            <div style={{ marginLeft: 28, marginTop: 6, color: '#CCCCCC', fontSize: 12, lineHeight: 1.8 }}>
               {keywords.map((kw, idx) => (
                 <span key={kw.id}>
                   <span>{kw.value}</span>
@@ -371,7 +371,7 @@
             <span style={{ flex: 1, color: depth === 0 ? '#CCCCCC' : '#CCCCCC', fontSize: 13 }}>{name}</span>
           </div>
           {isExpanded && hasItems && (
-            <div style={{ marginLeft: 28, marginTop: 6, color: '#CCCCCC', fontSize: 13, lineHeight: 1.8 }}>
+            <div style={{ marginLeft: 28, marginTop: 6, color: '#CCCCCC', fontSize: 12, lineHeight: 1.8 }}>
               {items.map((item, idx) => (
                 <span key={`${pathKey}-${item}-${idx}`}>
                   <span>{item}</span>
@@ -2493,7 +2493,7 @@
             {/* Logo & Status */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <div style={{ width: 20, height: 20, background: 'linear-gradient(135deg, #CCCCCC, #666666)', borderRadius: 5 }} />
-              <span style={{ color: s.bright, fontWeight: 500, fontSize: s.fontSize }}>MegaTagger</span>
+              <span style={{ color: s.bright, fontWeight: 600, fontSize: s.fontSize }}>MegaTagger</span>
             </div>
 
             <span style={{ color: s.muted, fontSize: s.fontSize }}>
@@ -2665,12 +2665,12 @@
                       </div>
                     )}
                     {modified && (
-                      <div style={{ position: 'absolute', top: 8, right: 8, background: '#CCCCCC', color: '#000', padding: '4px 8px', borderRadius: s.radiusSm, fontSize: 13, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <div style={{ position: 'absolute', top: 8, right: 8, background: '#CCCCCC', color: '#000', padding: '4px 8px', borderRadius: s.radiusSm, fontSize: 12, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 4 }}>
                         <Icon name="edit" size={14} /> Unsaved
                       </div>
                     )}
                     {downloadedLarger && (
-                      <div style={{ position: 'absolute', top: 8, left: 8, background: '#CCCCCC', color: '#fff', padding: '4px 8px', borderRadius: s.radiusSm, fontSize: 13, display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <div style={{ position: 'absolute', top: 8, left: 8, background: '#CCCCCC', color: '#fff', padding: '4px 8px', borderRadius: s.radiusSm, fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}>
                         <Icon name="download" size={14} /> {(downloadedLarger.size / 1024 / 1024).toFixed(1)}MB
                       </div>
                     )}
@@ -2725,7 +2725,7 @@
                               {visionData.matchingImages.filter(m => m.type === 'full').slice(0, 4).map((img, i) => {
                                 const domain = new URL(img.url).hostname.replace('www.', '');
                                 return (
-                                  <a key={i} href={img.url} target="_blank" rel="noreferrer" style={{ color: '#CCCCCC', fontSize: 13, textDecoration: 'none', padding: '4px 8px', background: '#353535', borderRadius: s.radiusSm }}>
+                                  <a key={i} href={img.url} target="_blank" rel="noreferrer" style={{ color: '#CCCCCC', fontSize: 12, textDecoration: 'none', padding: '4px 8px', background: '#353535', borderRadius: s.radiusSm }}>
                                     {domain}
                                   </a>
                                 );
@@ -2811,7 +2811,7 @@
 
                                 {keywords.filter(k => !k.partialCount).length > 0 && (
                                   <div style={{ marginBottom: 12 }}>
-                                    <div style={{ fontSize: 13, color: '#CCCCCC', marginBottom: 8, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                    <div style={{ fontSize: 13, color: '#CCCCCC', marginBottom: 8, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
                                       <Icon name="done_all" size={16} />
                                       Applied to All ({keywords.filter(k => !k.partialCount).length})
                                     </div>
@@ -2833,12 +2833,12 @@
 
                                 {keywords.filter(k => k.partialCount).length > 0 && (
                                   <div>
-                                    <div style={{ fontSize: 13, color: '#CCCCCC', marginBottom: 8, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'space-between' }}>
+                                    <div style={{ fontSize: 13, color: '#CCCCCC', marginBottom: 8, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'space-between' }}>
                                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                                         <Icon name="content_copy" size={16} />
                                         Applied to Some ({keywords.filter(k => k.partialCount).length}) - Click to add to all
                                       </div>
-                                      <button onClick={removeAllPartial} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', background: '#353535', color: '#CCCCCC', border: 'none', borderRadius: s.radiusSm, cursor: 'pointer', fontSize: 13 }}>
+                                      <button onClick={removeAllPartial} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', background: '#353535', color: '#CCCCCC', border: 'none', borderRadius: s.radiusSm, cursor: 'pointer', fontSize: 12 }}>
                                         <Icon name="remove_circle" size={14} /> Remove All
                                       </button>
                                     </div>
@@ -2905,7 +2905,7 @@
                               <>
                                 {pending.filter(k => !k.partialCount).length > 0 && (
                                   <div style={{ marginBottom: 12 }}>
-                                    <div style={{ fontSize: 13, color: '#CCCCCC', marginBottom: 8, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                    <div style={{ fontSize: 13, color: '#CCCCCC', marginBottom: 8, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
                                       <Icon name="recommend" size={16} />
                                       Recommended to All ({pending.filter(k => !k.partialCount).length})
                                     </div>
@@ -2934,7 +2934,7 @@
 
                                 {pending.filter(k => k.partialCount).length > 0 && (
                                   <div>
-                                    <div style={{ fontSize: 13, color: '#CCCCCC', marginBottom: 8, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                    <div style={{ fontSize: 13, color: '#CCCCCC', marginBottom: 8, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
                                       <Icon name="exposure" size={16} />
                                       Recommended to Some ({pending.filter(k => k.partialCount).length})
                                     </div>
@@ -3064,7 +3064,7 @@
             <div style={{ width: 375, minWidth: 280, flexShrink: 0, background: s.bgMedium, borderLeft: `1px solid ${s.border}`, display: 'flex', flexDirection: 'column' }}>
               <div style={{ padding: '14px 16px', borderBottom: `1px solid ${s.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: s.bright, fontSize: s.fontSize, fontWeight: 500 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: s.bright, fontSize: s.fontSize, fontWeight: 600 }}>
                     <Icon name="account_tree" size={20} />
                     Taxonomy
                   </div>
@@ -3155,7 +3155,7 @@
                   style={{ background: s.panel, borderRadius: s.radiusLg, width: 480, maxHeight: '85vh', overflow: 'auto', border: `1px solid ${s.border}`, boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)' }}>
                   <div style={{ padding: '18px 20px', borderBottom: `1px solid ${s.border}`, display: 'flex', alignItems: 'center', gap: 10 }}>
                     <Icon name="settings" size={22} style={{ color: s.muted }} />
-                    <span style={{ color: s.bright, fontSize: 16, fontWeight: 500 }}>Settings</span>
+                    <span style={{ color: s.bright, fontSize: 16, fontWeight: 600 }}>Settings</span>
                   </div>
                   <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 20 }}>
                     <div>

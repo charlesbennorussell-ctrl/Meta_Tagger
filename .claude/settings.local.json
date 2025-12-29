@@ -11,7 +11,12 @@
       "Bash(git push:*)",
       "Bash(start \"\" \"C:\\Users\\benno\\.claude-worktrees\\Meta_Tagger\\laughing-chatterjee\\index.html\")",
       "Bash(git checkout:*)",
-      "Bash(git merge:*)"
+      "Bash(git merge:*)",
+      "Bash(findstr:*)",
+      "Bash(start \"\" \"C:\\Users\\benno\\.claude-worktrees\\Meta_Tagger\\suspicious-brown\\index.html\")",
+      "Bash(powershell -Command \"(Get-Content index.html) -replace ''fontSize: 12'', ''fontSize: 13'' | Set-Content index.html\")",
+      "Bash(powershell -Command \"(Get-Content index.html) -replace ''fontWeight: 600'', ''fontWeight: 500'' | Set-Content index.html\")",
+      "Bash(powershell -Command \"(Get-Content index.html) -replace ''fontWeight: 400'', ''fontWeight: 500'' | Set-Content index.html\")"
     ]
   }
 }
