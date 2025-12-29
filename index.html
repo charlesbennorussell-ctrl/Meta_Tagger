@@ -1527,25 +1527,35 @@
         } else {
           // Normal click: Single selection
           // Auto-save multi-select before changing selection
-          if (selectedIds.length > 1 && isEditing && modified && keywords.length > 0) {
+          if (selectedIds.length > 1 && isEditing && modified) {
+            const selectedImages = queue.filter(q => selectedIds.includes(q.id));
+            // Filter to only images that have keywords to save
+            const imagesToSave = selectedImages.filter(img => img.keywords && img.keywords.length > 0);
+
             console.log('[MULTI-SELECT] Auto-save triggered:', {
               selectedCount: selectedIds.length,
               isEditing,
               modified,
-              keywordsCount: keywords.length,
-              selectedIds: selectedIds.slice(0, 5)
+              aggregatedKeywordsCount: keywords.length,
+              imagesToSaveCount: imagesToSave.length,
+              imagesWithKeywords: selectedImages.map(i => ({ name: i.name, kwCount: (i.keywords || []).length }))
             });
-            const selectedImages = queue.filter(q => selectedIds.includes(q.id));
-            console.log('[MULTI-SELECT] Found', selectedImages.length, 'images to save:', selectedImages.map(i => i.name));
 
-            // Save asynchronously without blocking the UI
-            Promise.all(selectedImages.map(img => saveImage(img, keywords, designer, true)))
-              .then(() => {
-                console.log('[MULTI-SELECT] Auto-save complete - saved', selectedImages.length, 'images');
-                setModified(false);
-                setIsEditing(false);
-              })
-              .catch(err => console.error('[MULTI-SELECT] Auto-save failed:', err));
+            if (imagesToSave.length > 0) {
+              // Save each image with its OWN keywords, not the aggregated keywords
+              Promise.all(imagesToSave.map(img => {
+                console.log('[MULTI-SELECT] Saving', img.name, 'with', img.keywords.length, 'keywords');
+                return saveImage(img, img.keywords, img.designer || designer, true);
+              }))
+                .then(() => {
+                  console.log('[MULTI-SELECT] Auto-save complete - saved', imagesToSave.length, 'images');
+                  setModified(false);
+                  setIsEditing(false);
+                })
+                .catch(err => console.error('[MULTI-SELECT] Auto-save failed:', err));
+            } else {
+              console.log('[MULTI-SELECT] No images with keywords to save');
+            }
           } else {
             console.log('[MULTI-SELECT] Auto-save skipped:', {
               selectedCount: selectedIds.length,
