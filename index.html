@@ -1525,12 +1525,26 @@
             setSelectedId(id); // This becomes the new primary selection
           }
         } else {
-          // Normal click: Single selection (calls existing selectImage)
+          // Normal click: Single selection
+          // Auto-save multi-select before changing selection
+          if (selectedIds.length > 1 && isEditing && modified && keywords.length > 0) {
+            console.log('[MULTI-SELECT] Auto-saving', selectedIds.length, 'images before switching to single selection');
+            const selectedImages = queue.filter(q => selectedIds.includes(q.id));
+            // Save asynchronously without blocking the UI
+            Promise.all(selectedImages.map(img => saveImage(img, keywords, designer, true)))
+              .then(() => {
+                console.log('[MULTI-SELECT] Auto-save complete');
+                setModified(false);
+                setIsEditing(false);
+              })
+              .catch(err => console.error('[MULTI-SELECT] Auto-save failed:', err));
+          }
+
           setSelectedIds([id]);
           setLastClickedId(id);
-          selectImage(id);
+          selectImage(id, true); // skipAutoSave=true since we already handled it above
         }
-      }, [selectedIds, selectedId, lastClickedId, filteredQueue, selectImage]);
+      }, [selectedIds, selectedId, lastClickedId, filteredQueue, selectImage, isEditing, modified, keywords, designer, queue, saveImage]);
 
       // Aggregate keywords and pending tags when multi-select is active
       useEffect(() => {
