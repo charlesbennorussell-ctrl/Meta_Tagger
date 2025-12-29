@@ -1904,6 +1904,42 @@
         setIsEditing(true);
       };
 
+      // Add a partial keyword to all selected images
+      const addToAll = (kw) => {
+        console.log(`[ADD-TO-ALL] Adding "${kw.value}" to all ${selectedImgs.length} selected images`);
+
+        // Remove partialCount to make it a full keyword
+        const fullKw = { ...kw };
+        delete fullKw.partialCount;
+
+        // Update local keywords state
+        setKeywords(current => current.map(k =>
+          k.id === kw.id ? fullKw : k
+        ));
+
+        // Apply to all selected images in the queue
+        const targetIds = new Set(selectedImgs.filter(t => t).map(t => t.id));
+
+        setQueue(q => q.map(img => {
+          if (!targetIds.has(img.id)) return img;
+
+          // Check if keyword already exists
+          const existingVals = new Set((img.keywords || []).map(k => k.value.toLowerCase()));
+          if (existingVals.has(kw.value.toLowerCase())) return img;
+
+          // Add keyword with unique ID
+          const syncedKw = { ...fullKw, id: `sync-${Math.random().toString(36).slice(2)}` };
+          return {
+            ...img,
+            keywords: [...(img.keywords || []), syncedKw],
+            status: img.status === 'pending' ? 'ready' : img.status
+          };
+        }));
+
+        setModified(true);
+        setIsEditing(true);
+      };
+
       const deleteFromTaxonomy = (id) => {
         setAccepted(a => a.filter(k => k.id !== id));
       };
@@ -2050,13 +2086,16 @@
       };
 
       useEffect(() => {
+        // Skip this in multi-select mode - the multi-select aggregation useEffect handles it
+        if (selectedIds.length > 1) return;
+
         if (selectedImg && (selectedImg.status === 'ready' || selectedImg.status === 'done') && !modified && !isEditing) {
           setKeywords(selectedImg.keywords || []);
           setPending(selectedImg.pending || []);
           setDesigner(selectedImg.designer || null);
           setVisionData(selectedImg.visionData || null);
         }
-      }, [selectedImg?.id, selectedImg?.status]);
+      }, [selectedImg?.id, selectedImg?.status, selectedIds.length]);
 
       const getCustomKeywords = useCallback(() => {
         const customs = [];
@@ -2583,7 +2622,7 @@
                                   <div>
                                     <div style={{ fontSize: 13, color: '#fbbf24', marginBottom: 8, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
                                       <Icon name="content_copy" size={16} />
-                                      Applied to Some ({keywords.filter(k => k.partialCount).length})
+                                      Applied to Some ({keywords.filter(k => k.partialCount).length}) - Click to add to all
                                     </div>
                                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                                       {keywords.filter(k => k.partialCount).map(k => (
@@ -2591,12 +2630,19 @@
                                           key={k.id}
                                           initial={{ opacity: 0, scale: 0.8 }}
                                           animate={{ opacity: 1, scale: 1 }}
-                                          style={{ padding: '5px 10px', background: `${getColor(k.rootCategory)}15`, color: getColor(k.rootCategory), borderRadius: 20, fontSize: 13, display: 'flex', alignItems: 'center', gap: 6, border: `1px solid ${getColor(k.rootCategory)}30`, opacity: 0.7 }}>
+                                          onClick={(e) => {
+                                            if (!e.target.closest('[data-action]')) {
+                                              addToAll(k);
+                                            }
+                                          }}
+                                          style={{ padding: '5px 10px', background: `${getColor(k.rootCategory)}15`, color: getColor(k.rootCategory), borderRadius: 20, fontSize: 13, display: 'flex', alignItems: 'center', gap: 6, border: `1px solid ${getColor(k.rootCategory)}30`, opacity: 0.7, cursor: 'pointer', transition: 'opacity 0.15s ease' }}
+                                          onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
+                                          onMouseLeave={(e) => e.currentTarget.style.opacity = '0.7'}>
                                           {k.source === 'vision' && <Icon name="image_search" size={14} />}
                                           {k.source === 'filename' && <Icon name="description" size={14} />}
                                           {k.value}
                                           <span style={{ fontSize: 11, opacity: 0.6, marginLeft: 2 }}>({k.partialCount}/{selectedIds.length})</span>
-                                          <span onClick={() => removeKw(k.id)} style={{ cursor: 'pointer', opacity: 0.6, marginLeft: 2, display: 'flex' }}>
+                                          <span data-action="remove" onClick={(e) => { e.stopPropagation(); removeKw(k.id); }} style={{ cursor: 'pointer', opacity: 0.6, marginLeft: 2, display: 'flex' }}>
                                             <Icon name="close" size={14} />
                                           </span>
                                         </motion.span>
@@ -2647,22 +2693,25 @@
                                       <Icon name="recommend" size={16} />
                                       Recommended to All ({pending.filter(k => !k.partialCount).length})
                                     </div>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                                       {pending.filter(k => !k.partialCount).map(k => (
-                                        <motion.div
+                                        <motion.span
                                           key={k.id}
-                                          initial={{ opacity: 0, x: -10 }}
-                                          animate={{ opacity: 1, x: 0 }}
-                                          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 8px', background: 'rgba(255,255,255,0.03)', borderRadius: s.radiusSm }}>
-                                          <button onClick={() => block(k.id)} tabIndex={-1} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, background: 'rgba(248,113,113,0.15)', color: '#f87171', border: 'none', borderRadius: s.radiusSm, cursor: 'pointer' }}>
-                                            <Icon name="block" size={16} />
-                                          </button>
-                                          <button onClick={() => accept(k.id)} tabIndex={-1} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, background: 'rgba(74,222,128,0.15)', color: '#4ade80', border: 'none', borderRadius: s.radiusSm, cursor: 'pointer' }}>
-                                            <Icon name="check" size={16} />
-                                          </button>
-                                          <span style={{ width: 6, height: 6, borderRadius: 3, background: getColor(k.rootCategory), flexShrink: 0 }} />
-                                          <span style={{ color: s.bright, fontSize: s.fontSize, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{k.value}</span>
-                                        </motion.div>
+                                          initial={{ opacity: 0, scale: 0.8 }}
+                                          animate={{ opacity: 1, scale: 1 }}
+                                          onClick={(e) => {
+                                            if (!e.target.closest('[data-action]')) accept(k.id);
+                                          }}
+                                          style={{ padding: '5px 10px', background: `${getColor(k.rootCategory)}15`, color: getColor(k.rootCategory), borderRadius: 20, fontSize: 13, display: 'flex', alignItems: 'center', gap: 6, border: `1px solid ${getColor(k.rootCategory)}30`, cursor: 'pointer', transition: 'all 0.15s ease' }}
+                                          onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
+                                          onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}>
+                                          {k.source === 'vision' && <Icon name="image_search" size={14} />}
+                                          {k.source === 'filename' && <Icon name="description" size={14} />}
+                                          {k.value}
+                                          <span data-action="block" onClick={(e) => { e.stopPropagation(); block(k.id); }} style={{ cursor: 'pointer', opacity: 0.6, marginLeft: 2, display: 'flex' }}>
+                                            <Icon name="block" size={14} />
+                                          </span>
+                                        </motion.span>
                                       ))}
                                     </div>
                                   </div>
@@ -2674,45 +2723,51 @@
                                       <Icon name="exposure" size={16} />
                                       Recommended to Some ({pending.filter(k => k.partialCount).length})
                                     </div>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                                       {pending.filter(k => k.partialCount).map(k => (
-                                        <motion.div
+                                        <motion.span
                                           key={k.id}
-                                          initial={{ opacity: 0, x: -10 }}
-                                          animate={{ opacity: 1, x: 0 }}
-                                          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 8px', background: 'rgba(255,255,255,0.03)', borderRadius: s.radiusSm, opacity: 0.7 }}>
-                                          <button onClick={() => block(k.id)} tabIndex={-1} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, background: 'rgba(248,113,113,0.15)', color: '#f87171', border: 'none', borderRadius: s.radiusSm, cursor: 'pointer' }}>
-                                            <Icon name="block" size={16} />
-                                          </button>
-                                          <button onClick={() => accept(k.id)} tabIndex={-1} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, background: 'rgba(74,222,128,0.15)', color: '#4ade80', border: 'none', borderRadius: s.radiusSm, cursor: 'pointer' }}>
-                                            <Icon name="check" size={16} />
-                                          </button>
-                                          <span style={{ width: 6, height: 6, borderRadius: 3, background: getColor(k.rootCategory), flexShrink: 0 }} />
-                                          <span style={{ color: s.bright, fontSize: s.fontSize, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{k.value}</span>
-                                          <span style={{ fontSize: 11, opacity: 0.6, color: s.text }}>({k.partialCount}/{selectedIds.length})</span>
-                                        </motion.div>
+                                          initial={{ opacity: 0, scale: 0.8 }}
+                                          animate={{ opacity: 1, scale: 1 }}
+                                          onClick={(e) => {
+                                            if (!e.target.closest('[data-action]')) accept(k.id);
+                                          }}
+                                          style={{ padding: '5px 10px', background: `${getColor(k.rootCategory)}15`, color: getColor(k.rootCategory), borderRadius: 20, fontSize: 13, display: 'flex', alignItems: 'center', gap: 6, border: `1px solid ${getColor(k.rootCategory)}30`, opacity: 0.7, cursor: 'pointer', transition: 'all 0.15s ease' }}
+                                          onMouseEnter={(e) => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.transform = 'scale(1.05)'; }}
+                                          onMouseLeave={(e) => { e.currentTarget.style.opacity = '0.7'; e.currentTarget.style.transform = 'scale(1)'; }}>
+                                          {k.source === 'vision' && <Icon name="image_search" size={14} />}
+                                          {k.source === 'filename' && <Icon name="description" size={14} />}
+                                          {k.value}
+                                          <span style={{ fontSize: 11, opacity: 0.6, marginLeft: 2 }}>({k.partialCount}/{selectedIds.length})</span>
+                                          <span data-action="block" onClick={(e) => { e.stopPropagation(); block(k.id); }} style={{ cursor: 'pointer', opacity: 0.6, marginLeft: 2, display: 'flex' }}>
+                                            <Icon name="block" size={14} />
+                                          </span>
+                                        </motion.span>
                                       ))}
                                     </div>
                                   </div>
                                 )}
                               </>
                             ) : (
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                                 {pending.map(k => (
-                                  <motion.div
+                                  <motion.span
                                     key={k.id}
-                                    initial={{ opacity: 0, x: -10 }}
-                                    animate={{ opacity: 1, x: 0 }}
-                                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 8px', background: 'rgba(255,255,255,0.03)', borderRadius: s.radiusSm }}>
-                                    <button onClick={() => block(k.id)} tabIndex={-1} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, background: 'rgba(248,113,113,0.15)', color: '#f87171', border: 'none', borderRadius: s.radiusSm, cursor: 'pointer' }}>
-                                      <Icon name="block" size={16} />
-                                    </button>
-                                    <button onClick={() => accept(k.id)} tabIndex={-1} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, background: 'rgba(74,222,128,0.15)', color: '#4ade80', border: 'none', borderRadius: s.radiusSm, cursor: 'pointer' }}>
-                                      <Icon name="check" size={16} />
-                                    </button>
-                                    <span style={{ width: 6, height: 6, borderRadius: 3, background: getColor(k.rootCategory), flexShrink: 0 }} />
-                                    <span style={{ color: s.bright, fontSize: s.fontSize, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{k.value}</span>
-                                  </motion.div>
+                                    initial={{ opacity: 0, scale: 0.8 }}
+                                    animate={{ opacity: 1, scale: 1 }}
+                                    onClick={(e) => {
+                                      if (!e.target.closest('[data-action]')) accept(k.id);
+                                    }}
+                                    style={{ padding: '5px 10px', background: `${getColor(k.rootCategory)}15`, color: getColor(k.rootCategory), borderRadius: 20, fontSize: 13, display: 'flex', alignItems: 'center', gap: 6, border: `1px solid ${getColor(k.rootCategory)}30`, cursor: 'pointer', transition: 'all 0.15s ease' }}
+                                    onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
+                                    onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}>
+                                    {k.source === 'vision' && <Icon name="image_search" size={14} />}
+                                    {k.source === 'filename' && <Icon name="description" size={14} />}
+                                    {k.value}
+                                    <span data-action="block" onClick={(e) => { e.stopPropagation(); block(k.id); }} style={{ cursor: 'pointer', opacity: 0.6, marginLeft: 2, display: 'flex' }}>
+                                      <Icon name="block" size={14} />
+                                    </span>
+                                  </motion.span>
                                 ))}
                               </div>
                             )}
