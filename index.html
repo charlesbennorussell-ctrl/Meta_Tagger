@@ -1543,10 +1543,16 @@
             });
 
             if (imagesToSave.length > 0) {
-              // Save each image with its OWN keywords, not the aggregated keywords
+              // Save each image with its OWN keywords (deduplicated), not the aggregated keywords
               Promise.all(imagesToSave.map(img => {
-                console.log('[MULTI-SELECT] Saving', img.name, 'with', img.keywords.length, 'keywords');
-                return saveImage(img, img.keywords, img.designer || designer, true);
+                const deduped = deduplicateKeywords(img.keywords);
+                if (deduped.length !== img.keywords.length) {
+                  console.log('[MULTI-SELECT] Deduped', img.name, 'from', img.keywords.length, 'to', deduped.length, 'keywords');
+                  // Update the queue with deduplicated keywords
+                  setQueue(q => q.map(item => item.id === img.id ? { ...item, keywords: deduped } : item));
+                }
+                console.log('[MULTI-SELECT] Saving', img.name, 'with', deduped.length, 'keywords');
+                return saveImage(img, deduped, img.designer || designer, true);
               }))
                 .then(() => {
                   console.log('[MULTI-SELECT] Auto-save complete - saved', imagesToSave.length, 'images');
