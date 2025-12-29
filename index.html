@@ -1954,6 +1954,7 @@
       // Add a partial keyword to all selected images
       const addToAll = (kw) => {
         console.log(`[ADD-TO-ALL] Adding "${kw.value}" to all ${selectedImgs.length} selected images`);
+        console.log('[ADD-TO-ALL] Keyword:', kw);
 
         // Remove partialCount to make it a full keyword
         const fullKw = { ...kw };
@@ -1966,22 +1967,34 @@
 
         // Apply to all selected images in the queue
         const targetIds = new Set(selectedImgs.filter(t => t).map(t => t.id));
+        console.log('[ADD-TO-ALL] Target IDs:', Array.from(targetIds));
+
+        let addedCount = 0;
+        let skippedCount = 0;
 
         setQueue(q => q.map(img => {
           if (!targetIds.has(img.id)) return img;
 
           // Check if keyword already exists
           const existingVals = new Set((img.keywords || []).map(k => k.value.toLowerCase()));
-          if (existingVals.has(kw.value.toLowerCase())) return img;
+          if (existingVals.has(kw.value.toLowerCase())) {
+            console.log(`[ADD-TO-ALL] Skipping ${img.name} - already has "${kw.value}"`);
+            skippedCount++;
+            return img;
+          }
 
           // Add keyword with unique ID
           const syncedKw = { ...fullKw, id: `sync-${Math.random().toString(36).slice(2)}` };
+          console.log(`[ADD-TO-ALL] Adding to ${img.name} - keyword count: ${(img.keywords || []).length} -> ${(img.keywords || []).length + 1}`);
+          addedCount++;
           return {
             ...img,
             keywords: [...(img.keywords || []), syncedKw],
             status: img.status === 'pending' ? 'ready' : img.status
           };
         }));
+
+        console.log(`[ADD-TO-ALL] Complete - added to ${addedCount} images, skipped ${skippedCount} images`);
 
         setModified(true);
         setIsEditing(true);
