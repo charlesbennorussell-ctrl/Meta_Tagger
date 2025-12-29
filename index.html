@@ -1108,7 +1108,7 @@
       // Save image - defined before selectImage to avoid stale reference
       const saveImage = useCallback(async (img, kws, des, skipSync = false) => {
         if (!img || !kws || kws.length === 0) {
-          console.log('[SAVE] Skipped - no image or keywords');
+          console.log('[SAVE] Skipped - no image or keywords', { img: img?.name, kwsLength: kws?.length });
           return;
         }
 
@@ -1119,7 +1119,7 @@
           return;
         }
 
-        console.log('[SAVE] Saving:', img.name, 'with', kws.length, 'keywords');
+        console.log('[SAVE] Saving:', img.name, 'with', kws.length, 'keywords', 'skipSync:', skipSync);
         try {
           let blob, filename = img.name;
           const creator = des?.designer || null;
@@ -1528,16 +1528,31 @@
           // Normal click: Single selection
           // Auto-save multi-select before changing selection
           if (selectedIds.length > 1 && isEditing && modified && keywords.length > 0) {
-            console.log('[MULTI-SELECT] Auto-saving', selectedIds.length, 'images before switching to single selection');
+            console.log('[MULTI-SELECT] Auto-save triggered:', {
+              selectedCount: selectedIds.length,
+              isEditing,
+              modified,
+              keywordsCount: keywords.length,
+              selectedIds: selectedIds.slice(0, 5)
+            });
             const selectedImages = queue.filter(q => selectedIds.includes(q.id));
+            console.log('[MULTI-SELECT] Found', selectedImages.length, 'images to save:', selectedImages.map(i => i.name));
+
             // Save asynchronously without blocking the UI
             Promise.all(selectedImages.map(img => saveImage(img, keywords, designer, true)))
               .then(() => {
-                console.log('[MULTI-SELECT] Auto-save complete');
+                console.log('[MULTI-SELECT] Auto-save complete - saved', selectedImages.length, 'images');
                 setModified(false);
                 setIsEditing(false);
               })
               .catch(err => console.error('[MULTI-SELECT] Auto-save failed:', err));
+          } else {
+            console.log('[MULTI-SELECT] Auto-save skipped:', {
+              selectedCount: selectedIds.length,
+              isEditing,
+              modified,
+              keywordsCount: keywords.length
+            });
           }
 
           setSelectedIds([id]);
