@@ -1114,12 +1114,13 @@
 
         // Require output directory to be set for batch operations
         if (!outputDir && skipSync) {
-          console.error('[SAVE] Cannot batch save without output directory set. Please select an output folder in settings.');
+          console.error('[SAVE] ❌ Cannot batch save without output directory set. Please select an output folder in settings.');
+          console.error('[SAVE] Image:', img.name, 'Keywords:', kws.length, 'outputDir:', !!outputDir, 'skipSync:', skipSync);
           alert('Please select an output folder in settings before saving multiple files.');
           return;
         }
 
-        console.log('[SAVE] Saving:', img.name, 'with', kws.length, 'keywords', 'skipSync:', skipSync);
+        console.log('[SAVE] ✅ Saving:', img.name, 'with', kws.length, 'keywords', 'skipSync:', skipSync, 'outputDir:', !!outputDir);
         try {
           let blob, filename = img.name;
           const creator = des?.designer || null;
