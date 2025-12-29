@@ -1698,11 +1698,18 @@
           console.log(`[ACCEPT] Accepting keyword: "${kw.value}"`);
           setPending(p => p.filter(k => k.id !== id));
 
+          // If it's a partial recommendation in multi-select mode, remove partialCount to apply to all
+          const fullKw = (isMultiSelect && kw.partialCount) ? { ...kw } : kw;
+          if (isMultiSelect && kw.partialCount) {
+            delete fullKw.partialCount;
+            console.log(`[ACCEPT] Removed partialCount - will apply to all ${selectedImgs.length} images`);
+          }
+
           // Accept immediately with current categorization (non-blocking)
-          const newKeywords = [...keywords, kw];
+          const newKeywords = [...keywords, fullKw];
           setKeywords(newKeywords);
-          setAccepted(a => a.some(x => x.value.toLowerCase() === kw.value.toLowerCase()) ? a : [...a, kw]);
-          setTaxonomy(t => addToTaxonomy(t, kw));
+          setAccepted(a => a.some(x => x.value.toLowerCase() === fullKw.value.toLowerCase()) ? a : [...a, fullKw]);
+          setTaxonomy(t => addToTaxonomy(t, fullKw));
           setModified(true);
           setIsEditing(true);
 
@@ -1726,8 +1733,8 @@
 
               if (isTarget) {
                 const existingVals = new Set((img.keywords || []).map(k => k.value.toLowerCase()));
-                if (!existingVals.has(kw.value.toLowerCase())) {
-                  const syncedKw = img.id === selectedImg?.id ? kw : { ...kw, id: `sync-${Math.random().toString(36).slice(2)}` };
+                if (!existingVals.has(fullKw.value.toLowerCase())) {
+                  const syncedKw = img.id === selectedImg?.id ? fullKw : { ...fullKw, id: `sync-${Math.random().toString(36).slice(2)}` };
                   return {
                     ...img,
                     keywords: [...(img.keywords || []), syncedKw],
@@ -1739,8 +1746,8 @@
                 }
               } else if (isSimilar) {
                 const existingVals = new Set((img.keywords || []).map(k => k.value.toLowerCase()));
-                if (!existingVals.has(kw.value.toLowerCase())) {
-                  const syncedKw = { ...kw, id: `sync-${Math.random().toString(36).slice(2)}` };
+                if (!existingVals.has(fullKw.value.toLowerCase())) {
+                  const syncedKw = { ...fullKw, id: `sync-${Math.random().toString(36).slice(2)}` };
                   return { ...img, keywords: [...(img.keywords || []), syncedKw], status: img.status === 'pending' ? 'ready' : img.status };
                 }
               }
@@ -1749,21 +1756,21 @@
           });
 
           // Background categorization for Custom keywords (non-blocking)
-          if (kw.path?.[0] === 'Custom' && geminiKey) {
+          if (fullKw.path?.[0] === 'Custom' && geminiKey) {
             setTimeout(async () => {
               try {
-                const results = await categorizeKeywords(geminiKey, [kw.value]);
+                const results = await categorizeKeywords(geminiKey, [fullKw.value]);
                 if (results.length > 0 && results[0].path) {
                   const categorizedPath = results[0].path;
-                  const categorizedType = results[0].type || kw.type;
-                  console.log(`[ACCEPT] Background categorized "${kw.value}" as:`, categorizedPath);
+                  const categorizedType = results[0].type || fullKw.type;
+                  console.log(`[ACCEPT] Background categorized "${fullKw.value}" as:`, categorizedPath);
 
                   // Update the keyword with better categorization
                   setKeywords(current => current.map(k =>
-                    k.id === kw.id ? { ...k, path: categorizedPath, rootCategory: categorizedPath[0], type: categorizedType } : k
+                    k.id === fullKw.id ? { ...k, path: categorizedPath, rootCategory: categorizedPath[0], type: categorizedType } : k
                   ));
                   setAccepted(current => current.map(k =>
-                    k.id === kw.id ? { ...k, path: categorizedPath, rootCategory: categorizedPath[0], type: categorizedType } : k
+                    k.id === fullKw.id ? { ...k, path: categorizedPath, rootCategory: categorizedPath[0], type: categorizedType } : k
                   ));
                 }
               } catch (e) {
