@@ -316,13 +316,13 @@
 
       return (
         <div style={{ marginLeft: depth > 0 ? 16 : 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', borderRadius: 6, background: depth === 0 ? 'rgba(255,255,255,0.03)' : 'transparent' }}>
-            {depth === 0 && <span style={{ width: 10, height: 10, borderRadius: 4, background: color }} />}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', borderRadius: depth === 0 ? 20 : 6, background: depth === 0 ? 'rgba(255,255,255,0.03)' : 'transparent' }}>
+            {depth > 0 && <span style={{ color: s.textMuted, fontSize: 13, marginRight: 4 }}>└</span>}
             <span style={{ flex: 1, color: depth === 0 ? '#777777' : '#777777', fontSize: 13 }}>{name}</span>
             <span style={{ color: s.text, fontSize: 13 }}>{count}</span>
           </div>
           {isExpanded && keywords.length > 0 && (
-            <div style={{ marginLeft: 28, marginTop: 6, marginBottom: 20, color: s.text, fontSize: 13, lineHeight: 2.0 }}>
+            <div style={{ marginLeft: depth > 0 ? 48 : 28, marginTop: 6, marginBottom: 20, color: s.text, fontSize: 13, lineHeight: 2.0 }}>
               {keywords.map((kw, idx) => (
                 <span key={kw.id} style={{ display: 'inline-block', whiteSpace: 'nowrap' }}>
                   <span>{kw.value}</span>
@@ -362,12 +362,12 @@
 
       return (
         <div style={{ marginLeft: depth > 0 ? 16 : 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', borderRadius: 6, background: depth === 0 ? 'rgba(255,255,255,0.03)' : 'transparent' }}>
-            {depth === 0 && <span style={{ width: 10, height: 10, borderRadius: 4, background: color }} />}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', borderRadius: depth === 0 ? 20 : 6, background: depth === 0 ? 'rgba(255,255,255,0.03)' : 'transparent' }}>
+            {depth > 0 && <span style={{ color: s.textMuted, fontSize: 13, marginRight: 4 }}>└</span>}
             <span style={{ flex: 1, color: depth === 0 ? '#777777' : '#777777', fontSize: 13 }}>{name}</span>
           </div>
           {isExpanded && hasItems && (
-            <div style={{ marginLeft: 28, marginTop: 6, marginBottom: 20, color: s.text, fontSize: 13, lineHeight: 2.0 }}>
+            <div style={{ marginLeft: depth > 0 ? 48 : 28, marginTop: 6, marginBottom: 20, color: s.text, fontSize: 13, lineHeight: 2.0 }}>
               {items.map((item, idx) => (
                 <span key={`${pathKey}-${item}-${idx}`} style={{ display: 'inline-block', whiteSpace: 'nowrap' }}>
                   <span>{item}</span>
@@ -480,7 +480,7 @@
       const [organizeProgress, setOrganizeProgress] = useState(null);
       const [gridWidth, setGridWidth] = useState(() => parseInt(localStorage.getItem('grid_width')) || 50); // percentage
       const [isDraggingDivider, setIsDraggingDivider] = useState(false);
-      const [autoScan, setAutoScan] = useState(false); // Auto-scan toggle (default: paused)
+      const [autoScan, setAutoScan] = useState(true); // Auto-scan toggle (default: paused)
       const [batchProgress, setBatchProgress] = useState(null); // Batch processing progress
 
       const fileRef = useRef(null);
@@ -2518,11 +2518,11 @@
           <div style={{ height: 56, background: s.panel, display: 'flex', alignItems: 'center', padding: '0 16px', gap: 12, borderBottom: `1px solid ${s.border}`, flexShrink: 0 }}>
             {/* Left side - Import buttons */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <button onClick={() => fileRef.current?.click()} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: s.bgDark, color: s.text, border: 'none', borderRadius: s.radius, cursor: 'pointer', fontSize: s.fontSize }}>
-                <Icon name="add_photo_alternate" size={18} /> Files
-              </button>
-              <button onClick={() => folderRef.current?.click()} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: s.bgDark, color: s.text, border: 'none', borderRadius: s.radius, cursor: 'pointer', fontSize: s.fontSize }}>
+              <button onClick={() => folderRef.current?.click()} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: 'transparent', color: s.text, border: 'none', borderRadius: s.radius, cursor: 'pointer', fontSize: s.fontSize }}>
                 <Icon name="folder_open" size={18} /> Folder
+              </button>
+              <button onClick={() => fileRef.current?.click()} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: 'transparent', color: s.text, border: 'none', borderRadius: s.radius, cursor: 'pointer', fontSize: s.fontSize }}>
+                <Icon name="add_photo_alternate" size={18} /> Files
               </button>
               {queue.filter(q => q.status !== 'done' && !q.hidden).length > 0 && (
                 <button onClick={refreshAnalysis} title="Clear cache and re-analyze non-done images" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 40, height: 40, background: s.bgDark, color: s.text, border: 'none', borderRadius: s.radius, cursor: 'pointer' }}>
@@ -2642,10 +2642,13 @@
                       <Icon name="refresh" size={18} />
                     </button>
                   )}
-                  <button onClick={() => setAutoScan(!autoScan)} disabled={!geminiKey}
-                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: autoScan ? s.bgDark : 'transparent', color: s.text, border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: 13, transition: 'background 0.2s ease', opacity: !geminiKey ? 0.5 : 1 }}>
-                    Auto{pendingCount > 0 ? ` (${pendingCount})` : ''}
-                  </button>
+                  <div style={{ display: 'inline-flex', background: s.bgDark, borderRadius: 20, padding: 4 }}>
+                    <button onClick={() => setAutoScan(!autoScan)} disabled={!geminiKey}
+                      className={autoScan ? '' : 'no-hover'}
+                      style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '6px 16px', background: autoScan ? s.bgMid : 'transparent', color: autoScan ? s.text : s.textMuted, border: 'none', borderRadius: 16, cursor: 'pointer', fontSize: 14, fontWeight: 500, opacity: !geminiKey ? 0.5 : 1 }}>
+                      Auto{pendingCount > 0 ? ` (${pendingCount})` : ''}
+                    </button>
+                  </div>
                   <div style={{ display: 'inline-flex', background: s.bgDark, borderRadius: 20, padding: 4, gap: 0 }}>
                     {['S', 'M', 'L', 'XL'].map((label, i) => (
                       <button key={label} onClick={() => setThumbSize(i)}
@@ -3146,9 +3149,7 @@
                     <Icon name="account_tree" size={20} />
                     Taxonomy
                   </div>
-                  <div style={{ color: s.muted, fontSize: 13, marginTop: 4 }}>
-                    {accepted.length} accepted · {taxInfo.allTerms.size} in dictionary{customCount > 0 ? ` · ${customCount} uncategorized` : ''}
-                  </div>
+                  
                 </div>
                 <div style={{ display: 'flex', gap: 6 }}>
                   <button
