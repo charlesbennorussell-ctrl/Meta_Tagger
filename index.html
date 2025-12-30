@@ -11,12 +11,12 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { overflow: hidden; background: #0F0F0F; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; font-size: 13px; color: #A4A4A4; }
+    body { overflow: hidden; background: #1D1D1D; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; font-size: 13px; color: #A4A4A4; }
     ::-webkit-scrollbar { width: 8px; height: 8px; }
-    ::-webkit-scrollbar-track { background: #0F0F0F; }
-    ::-webkit-scrollbar-thumb { background: #2D2D2D; border-radius: 0; }
+    ::-webkit-scrollbar-track { background: #1D1D1D; }
+    ::-webkit-scrollbar-thumb { background: #3A3A3A; border-radius: 10px; border: 2px solid #1D1D1D; }
     ::-webkit-scrollbar-thumb:hover { background: #777777; }
-    #drop-overlay { display: none; position: fixed; inset: 0; background: rgba(128,128,128,0.15); border: 2px dashed #0F0F0F; z-index: 9999; align-items: center; justify-content: center; backdrop-filter: blur(4px); }
+    #drop-overlay { display: none; position: fixed; inset: 0; background: rgba(128,128,128,0.15); border: 2px dashed #1D1D1D; z-index: 9999; align-items: center; justify-content: center; backdrop-filter: blur(4px); }
     #drop-overlay.active { display: flex; }
     .material-symbols-rounded { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; vertical-align: middle; }
     .material-symbols-rounded.filled { font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
@@ -2489,7 +2489,7 @@
       // Unified style system
       const s = {
         // Color Standards
-        bgDark: '#0F0F0F',      // Dark grey (keywording section, toggle bg, strokes)
+        bgDark: '#1D1D1D',      // Dark grey (keywording section, toggle bg, strokes)
         bgMid: '#2D2D2D',       // Mid grey (panels, active buttons)
         text: '#A4A4A4',        // General text and keywords
         textMuted: '#777777',   // Inactive buttons, categories
@@ -2497,10 +2497,10 @@
         yellow: '#D97350',      // Yellow accent
         green: '#68B757',       // Done checkmarks
         // Legacy compatibility (point to new colors)
-        bg: '#0F0F0F',
+        bg: '#1D1D1D',
         bgMedium: '#2D2D2D',
         panel: '#2D2D2D',
-        border: '#0F0F0F',      // All strokes/borders (2px)
+        border: '#1D1D1D',      // All strokes/borders (2px)
         muted: '#777777',       // Alias for textMuted
         bright: '#A4A4A4',      // Alias for text
         fontSize: 13,
@@ -2518,11 +2518,11 @@
           <div style={{ height: 56, background: s.panel, display: 'flex', alignItems: 'center', padding: '0 16px', gap: 12, borderBottom: `1px solid ${s.border}`, flexShrink: 0 }}>
             {/* Left side - Import buttons */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <button onClick={() => fileRef.current?.click()} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: s.bgDark, color: s.text, border: 'none', borderRadius: s.radius, cursor: 'pointer', fontSize: s.fontSize }}>
-                <Icon name="add_photo_alternate" size={18} /> Files
-              </button>
-              <button onClick={() => folderRef.current?.click()} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: s.bgDark, color: s.text, border: 'none', borderRadius: s.radius, cursor: 'pointer', fontSize: s.fontSize }}>
+              <button onClick={() => folderRef.current?.click()} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: 'transparent', color: s.text, border: 'none', borderRadius: s.radius, cursor: 'pointer', fontSize: s.fontSize }}>
                 <Icon name="folder_open" size={18} /> Folder
+              </button>
+              <button onClick={() => fileRef.current?.click()} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: 'transparent', color: s.text, border: 'none', borderRadius: s.radius, cursor: 'pointer', fontSize: s.fontSize }}>
+                <Icon name="add_photo_alternate" size={18} /> Files
               </button>
               {queue.filter(q => q.status !== 'done' && !q.hidden).length > 0 && (
                 <button onClick={refreshAnalysis} title="Clear cache and re-analyze non-done images" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 40, height: 40, background: s.bgDark, color: s.text, border: 'none', borderRadius: s.radius, cursor: 'pointer' }}>
@@ -2605,7 +2605,7 @@
             {/* LEFT - GRID */}
             <div style={{ width: `${gridWidth}%`, minWidth: 250, background: s.bgMedium, display: 'flex', flexDirection: 'column', transition: isDraggingDivider ? 'none' : 'width 0.2s ease-out', borderRight: `2px solid ${s.border}` }}>
               <div style={{ padding: '10px 12px', borderBottom: `2px solid ${s.border}`, display: 'flex', gap: 4, alignItems: 'center', flexWrap: 'wrap' }}>
-                <div style={{ display: 'inline-flex', background: s.bgDark, borderRadius: 20, padding: 4, gap: 0 }}>
+                <div style={{ display: 'inline-flex', background: s.bgDark, borderRadius: 20, padding: 4, gap: 4 }}>
                   <button onClick={() => { setShowPending(true); setShowAnalyzing(false); setShowDone(false); setShowHidden(false); }}
                     className={showPending ? 'no-hover' : ''}
                     onMouseEnter={(e) => { if (!showPending) e.currentTarget.style.color = s.text; }}
@@ -3143,47 +3143,51 @@
 
             {/* RIGHT - TAXONOMY */}
             <div style={{ width: 375, minWidth: 280, flexShrink: 0, background: s.bgMedium, borderLeft: `2px solid ${s.border}`, display: 'flex', flexDirection: 'column' }}>
-              <div style={{ padding: '14px 16px', borderBottom: `2px solid ${s.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div>
+              <div style={{ padding: '14px 16px', borderBottom: `2px solid ${s.border}` }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: s.bright, fontSize: s.fontSize, fontWeight: 500 }}>
                     <Icon name="account_tree" size={20} />
                     Taxonomy
                   </div>
-                  
-                </div>
-                <div style={{ display: 'flex', gap: 6 }}>
-                  <button
-                    onClick={handleOrganizeTaxonomy}
-                    disabled={!geminiKey || isOrganizing}
-                    title="Organize taxonomy - research and categorize custom keywords"
-                    tabIndex={-1}
-                    style={{
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
-                      padding: '6px 10px', background: isOrganizing ? s.bgDark : s.bgDark,
-                      color: isOrganizing ? s.text : s.yellow, border: 'none',
-                      borderRadius: s.radiusSm, cursor: isOrganizing ? 'default' : 'pointer',
-                      fontSize: 13, opacity: geminiKey ? 1 : 0.5
-                    }}
-                  >
-                    <Icon name={isOrganizing ? "hourglass_empty" : "auto_fix_high"} size={16} />
-                    {isOrganizing ? 'Organizing...' : 'Organize'}
-                  </button>
-                  {customCount > 0 && showMasterTaxonomy && (
-                    <button onClick={runCategorization} disabled={isCategorizing || !geminiKey} tabIndex={-1}
-                      style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 10px', background: isCategorizing ? s.bgDark : s.text, color: isCategorizing ? s.text : s.bgDark, border: 'none', borderRadius: s.radiusSm, cursor: isCategorizing ? 'default' : 'pointer', fontSize: 13 }}>
-                      <Icon name={isCategorizing ? "hourglass_empty" : "auto_fix_high"} size={16} /> {customCount}
-                    </button>
-                  )}
-                  <div style={{ display: 'inline-flex', background: s.bgDark, borderRadius: 20, padding: 4, gap: 0 }}>
-                    {[{ label: 'Session', value: false }, { label: 'Master', value: true }].map(({ label, value }) => (
-                      <button key={label} onClick={() => setShowMasterTaxonomy(value)} tabIndex={-1}
-                        className={showMasterTaxonomy === value ? 'no-hover' : ''}
-                        onMouseEnter={(e) => { if (showMasterTaxonomy !== value) e.currentTarget.style.color = s.text; }}
-                        onMouseLeave={(e) => { if (showMasterTaxonomy !== value) e.currentTarget.style.color = s.textMuted; }}
-                        style={{ padding: '6px 16px', background: showMasterTaxonomy === value ? s.bgMid : 'transparent', color: showMasterTaxonomy === value ? s.text : s.textMuted, border: 'none', borderRadius: 16, cursor: 'pointer', fontSize: 14, fontWeight: 500 }}>
-                        {label}
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    {customCount > 0 && showMasterTaxonomy && (
+                      <button onClick={runCategorization} disabled={isCategorizing || !geminiKey} tabIndex={-1}
+                        style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 10px', background: isCategorizing ? s.bgDark : s.text, color: isCategorizing ? s.text : s.bgDark, border: 'none', borderRadius: s.radiusSm, cursor: isCategorizing ? 'default' : 'pointer', fontSize: 13 }}>
+                        <Icon name={isCategorizing ? "hourglass_empty" : "auto_fix_high"} size={16} /> {customCount}
                       </button>
-                    ))}
+                    )}
+                    <div style={{ display: 'inline-flex', background: s.bgDark, borderRadius: 20, padding: 4, gap: 0 }}>
+                      {[{ label: 'Session', value: false }, { label: 'Master', value: true }].map(({ label, value }) => (
+                        <button key={label} onClick={() => setShowMasterTaxonomy(value)} tabIndex={-1}
+                          className={showMasterTaxonomy === value ? 'no-hover' : ''}
+                          onMouseEnter={(e) => { if (showMasterTaxonomy !== value) e.currentTarget.style.color = s.text; }}
+                          onMouseLeave={(e) => { if (showMasterTaxonomy !== value) e.currentTarget.style.color = s.textMuted; }}
+                          style={{ padding: '6px 16px', background: showMasterTaxonomy === value ? s.bgMid : 'transparent', color: showMasterTaxonomy === value ? s.text : s.textMuted, border: 'none', borderRadius: 16, cursor: 'pointer', fontSize: 14, fontWeight: 500 }}>
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                  <div style={{ display: 'inline-flex', background: s.bgDark, borderRadius: 20, padding: 4 }}>
+                    <button
+                      onClick={handleOrganizeTaxonomy}
+                      disabled={!geminiKey || isOrganizing}
+                      title="Organize taxonomy - research and categorize custom keywords"
+                      tabIndex={-1}
+                      className="no-hover"
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 6,
+                        padding: '6px 16px', background: s.bgMid,
+                        color: s.text, border: 'none',
+                        borderRadius: 16, cursor: isOrganizing ? 'default' : 'pointer',
+                        fontSize: 14, fontWeight: 500
+                      }}
+                    >
+                      <Icon name={isOrganizing ? "hourglass_empty" : "auto_fix_high"} size={16} />
+                      {isOrganizing ? 'Organizing...' : 'Organize'}
+                    </button>
                   </div>
                 </div>
               </div>
