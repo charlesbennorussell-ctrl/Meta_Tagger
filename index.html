@@ -2524,77 +2524,64 @@
               <button onClick={() => fileRef.current?.click()} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: 'transparent', color: s.text, border: 'none', borderRadius: s.radius, cursor: 'pointer', fontSize: s.fontSize }}>
                 <Icon name="add_photo_alternate" size={18} /> Files
               </button>
-              {queue.filter(q => q.status !== 'done' && !q.hidden).length > 0 && (
-                <button onClick={refreshAnalysis} title="Clear cache and re-analyze non-done images" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 40, height: 40, background: s.bgDark, color: s.text, border: 'none', borderRadius: s.radius, cursor: 'pointer' }}>
-                  <Icon name="refresh" size={20} />
-                </button>
-              )}
-              {errorCount > 0 && (
-                <button onClick={retryFailed} title={`Retry ${errorCount} failed analyses`} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px', background: s.bgDark, color: s.text, border: 'none', borderRadius: s.radius, cursor: 'pointer', fontSize: s.fontSize }}>
-                  <Icon name="refresh" size={18} /> Retry ({errorCount})
-                </button>
-              )}
             </div>
 
             <div style={{ width: 1, height: 24, background: s.border }} />
 
-            {/* Logo & Status */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div style={{ width: 20, height: 20, background: `linear-gradient(135deg, ${s.text}, ${s.textMuted})`, borderRadius: 5 }} />
-              <span style={{ color: s.text, fontWeight: 500, fontSize: s.fontSize }}>MegaTagger</span>
-            </div>
-
-            <span style={{ color: s.muted, fontSize: s.fontSize }}>
-              {filteredQueue.length}/{totalCount}
-              {analyzingCount > 0 && <span style={{ color: s.text }}> · {analyzingCount} analyzing</span>}
-              {readyCount > 0 && <span style={{ color: s.text }}> · {readyCount} ready</span>}
-              {(() => {
-                const mem = getMemoryUsage();
-                if (mem && parseInt(mem.percent) > 80) {
-                  return <span style={{ color: s.text }}> · Mem: {mem.percent}%</span>;
-                }
-                return null;
-              })()}
-            </span>
-
-            {/* Right side - Actions */}
-            <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10 }}>
-              {readyToSaveCount > 0 && (
-                <button onClick={saveAll} disabled={isSavingAll} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', background: isSavingAll ? s.bgDark : s.blue, color: isSavingAll ? s.text : '#FFFFFF', border: 'none', borderRadius: s.radius, cursor: isSavingAll ? 'default' : 'pointer', fontSize: s.fontSize, fontWeight: 500 }}>
-                  <Icon name={isSavingAll ? "hourglass_empty" : "save"} size={18} /> {isSavingAll ? 'Saving...' : `Save All (${readyToSaveCount})`}
-                </button>
-              )}
-              {outputDir && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 4, color: s.text, fontSize: s.fontSize }}>
-                  <Icon name="check_circle" size={16} filled /> Auto-save
+            {/* Action buttons */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              {selectedIds.length > 0 && (
+                <div style={{ display: 'inline-flex', background: s.bgDark, borderRadius: 20, padding: 4 }}>
+                  <button onClick={() => {
+                    selectedIds.forEach(id => {
+                      const img = queue.find(q => q.id === id);
+                      if (img && img.status !== 'done') {
+                        setQueue(q => q.map(i => i.id === id ? { ...i, status: 'done' } : i));
+                      }
+                    });
+                    setSelectedIds([]);
+                    setSelectedId(null);
+                  }} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 16px', background: s.bgMid, color: s.text, border: 'none', borderRadius: 16, cursor: 'pointer', fontSize: 14, fontWeight: 500 }}>
+                    <Icon name="check_circle" size={16} /> Mark as Done
+                  </button>
                 </div>
               )}
-              <button onClick={async () => {
-                const db = await new Promise((resolve, reject) => {
-                  const req = indexedDB.open('TaggerDB', 3);
-                  req.onsuccess = () => resolve(req.result);
-                  req.onerror = () => reject(req.error);
-                });
-                const tx = db.transaction('memory', 'readonly');
-                const store = tx.objectStore('memory');
-                const req = store.get('tagger_memory');
-                req.onsuccess = () => {
-                  const data = req.result;
-                  if (data) {
-                    console.log('[DEBUG] Memory data found:', Object.keys(data).length, 'items');
-                    console.log('[DEBUG] Sample keys:', Object.keys(data).slice(0, 5));
-                    console.log('[DEBUG] Sample item:', data[Object.keys(data)[0]]);
-                    alert(`Found ${Object.keys(data).length} items in memory.\nCheck console for details.\n\nTo restore: reimport your images - they will automatically load their saved data.`);
-                    setMemory(data);
-                  } else {
-                    alert('No memory data found in IndexedDB');
+              {readyToSaveCount > 0 && (
+                <div style={{ display: 'inline-flex', background: s.bgDark, borderRadius: 20, padding: 4 }}>
+                  <button onClick={saveAll} disabled={isSavingAll} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 16px', background: s.green, color: '#FFFFFF', border: 'none', borderRadius: 16, cursor: isSavingAll ? 'default' : 'pointer', fontSize: 14, fontWeight: 500 }}>
+                    <Icon name={isSavingAll ? "hourglass_empty" : "save"} size={16} /> {isSavingAll ? 'Saving...' : `Save All (${readyToSaveCount})`}
+                  </button>
+                </div>
+              )}
+              {outputDir && (
+                <div style={{ display: 'inline-flex', background: s.bgDark, borderRadius: 20, padding: 4 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 16px', background: s.bgMid, color: s.text, fontSize: 14, fontWeight: 500, borderRadius: 16 }}>
+                    <Icon name="check_circle" size={16} filled /> Auto-save
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Right side - Logo, Status, Settings */}
+            <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ color: s.muted, fontSize: s.fontSize }}>
+                {filteredQueue.length}/{totalCount}
+                {analyzingCount > 0 && <span style={{ color: s.text }}> · {analyzingCount} analyzing</span>}
+                {readyCount > 0 && <span style={{ color: s.text }}> · {readyCount} ready</span>}
+                {(() => {
+                  const mem = getMemoryUsage();
+                  if (mem && parseInt(mem.percent) > 80) {
+                    return <span style={{ color: s.text }}> · Mem: {mem.percent}%</span>;
                   }
-                };
-              }} title="Check IndexedDB Memory" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 40, height: 40, background: 'transparent', color: s.muted, border: 'none', borderRadius: s.radius, cursor: 'pointer' }}>
-                <Icon name="database" size={22} />
-              </button>
+                  return null;
+                })()}
+              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ width: 20, height: 20, background: `linear-gradient(135deg, ${s.text}, ${s.textMuted})`, borderRadius: 5 }} />
+                <span style={{ color: s.text, fontWeight: 500, fontSize: s.fontSize }}>MegaTagger</span>
+              </div>
               <button onClick={() => setShowSettings(true)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 40, height: 40, background: 'transparent', color: s.muted, border: 'none', borderRadius: s.radius, cursor: 'pointer' }}>
-                <Icon name="settings" size={22} />
+                <Icon name="tune" size={22} />
               </button>
             </div>
           </div>
