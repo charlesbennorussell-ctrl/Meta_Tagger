@@ -20,7 +20,9 @@
       "Bash(start \"\" \"C:\\Users\\benno\\.claude-worktrees\\Meta_Tagger\\vigorous-napier\\index.html\")",
       "Bash(start \"\" \"file:///C:/Users/benno/.claude-worktrees/Meta_Tagger/kind-lehmann/index.html\")",
       "Bash(start \"\" \"C:\\Users\\benno\\.claude-worktrees\\Meta_Tagger\\vigorous-napier\\migrate-data.html\")",
-      "Bash(node -c:*)"
+      "Bash(node -c:*)",
+      "Bash(copy:*)",
+      "Bash(start \"\" \"C:\\Users\\benno\\.claude-worktrees\\Meta_Tagger\\unruffled-mahavira\\index.html\")"
     ]
   }
 }

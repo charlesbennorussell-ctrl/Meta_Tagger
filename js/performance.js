@@ -101,6 +101,60 @@ const generateThumbnail = async (file, maxSize = 200) => {
   });
 };
 
+// Resize image for API submission (reduce payload size)
+const resizeForAPI = async (file, maxSize = 1600) => {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      let width = img.width;
+      let height = img.height;
+
+      // Only resize if larger than maxSize
+      if (width <= maxSize && height <= maxSize) {
+        // Image is already small enough, just convert to base64
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result.split(',')[1]);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+        URL.revokeObjectURL(img.src);
+        return;
+      }
+
+      // Calculate new dimensions
+      if (width > height) {
+        if (width > maxSize) {
+          height = (height * maxSize) / width;
+          width = maxSize;
+        }
+      } else {
+        if (height > maxSize) {
+          width = (width * maxSize) / height;
+          height = maxSize;
+        }
+      }
+
+      canvas.width = width;
+      canvas.height = height;
+
+      const ctx = canvas.getContext('2d');
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(img, 0, 0, width, height);
+
+      // Convert to base64 with good quality
+      const base64 = canvas.toDataURL('image/jpeg', 0.85).split(',')[1];
+      resolve(base64);
+      URL.revokeObjectURL(img.src);
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(img.src);
+      reject(new Error('Failed to load image for API resize'));
+    };
+    img.src = URL.createObjectURL(file);
+  });
+};
+
 // Store thumbnail in IndexedDB
 const storeThumbnail = async (hash, blob) => {
   try {
@@ -503,6 +557,7 @@ const loadOutputDirectory = async () => {
 window.TaggerPerformance = {
   initDB,
   generateThumbnail,
+  resizeForAPI,
   storeThumbnail,
   getThumbnail,
   storeAnalysis,

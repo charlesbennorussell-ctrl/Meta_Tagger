@@ -107,7 +107,7 @@
     const { motion, AnimatePresence } = window.Motion;
 
     // Import performance utilities
-    const { generateThumbnail, storeThumbnail, getThumbnail, storeAnalysis, getAnalysis, deleteAnalysis, BatchProcessor, LazyLoader, throttle, debounce, getMemoryUsage, saveOutputDirectory, loadOutputDirectory } = window.TaggerPerformance;
+    const { generateThumbnail, resizeForAPI, storeThumbnail, getThumbnail, storeAnalysis, getAnalysis, deleteAnalysis, BatchProcessor, LazyLoader, throttle, debounce, getMemoryUsage, saveOutputDirectory, loadOutputDirectory } = window.TaggerPerformance;
 
     // Icon component for Material Symbols
     const Icon = ({ name, size = 20, filled = false, style = {} }) => (
@@ -1339,12 +1339,8 @@
             return;
           }
 
-          const base64 = await new Promise((res, rej) => {
-            const r = new FileReader();
-            r.onload = () => res(r.result.split(',')[1]);
-            r.onerror = rej;
-            r.readAsDataURL(img.file);
-          });
+          // Resize image for API if necessary (max 1600px) to reduce payload and improve response times
+          const base64 = await resizeForAPI(img.file, 1600);
 
           const contextParts = [];
           if (img.filenameKeywords?.length) {
@@ -2520,7 +2516,7 @@
       const hiddenCount = queue.filter(q => q.hidden).length;
       const doneCount = queue.filter(q => q.status === 'done').length;
       const readyCount = queue.filter(q => (q.status === 'ready' || q.status === 'editing') && !q.hidden).length;
-      const analyzingCount = queue.filter(q => q.status === 'analyzing').length;
+      const analyzingCount = queue.filter(q => q.status === 'analyzing').length + (analysisBatchRef.current?.pending || 0);
       const pendingCount = queue.filter(q => q.status === 'pending' && !q.hidden).length;
       const editingCount = queue.filter(q => q.status === 'editing' && !q.hidden).length;
       const errorCount = queue.filter(q => q.status === 'error').length;
