@@ -55,37 +55,25 @@ const initDB = async () => {
 
 // Thumbnail generation with size control and placeholder detection
 const generateThumbnail = async (file, maxSize = 200, retryCount = 0) => {
-  // Detect Dropbox/cloud placeholder files (typically very small, under 10KB)
-  const MIN_FILE_SIZE = 10 * 1024; // 10KB threshold
-  const MAX_RETRIES = 3;
-  const RETRY_DELAY = 2000; // 2 seconds between retries
-
-  // Check if file is suspiciously small (likely a placeholder)
-  if (file.size < MIN_FILE_SIZE && retryCount < MAX_RETRIES) {
-    console.warn(`[THUMB] File ${file.name} is small (${file.size} bytes), possible cloud placeholder. Retry ${retryCount + 1}/${MAX_RETRIES}`);
-
-    // Wait and retry with exponential backoff
-    await new Promise(resolve => setTimeout(resolve, RETRY_DELAY * (retryCount + 1)));
-
-    // The file reference should update as cloud service downloads, but we'll retry anyway
-    return generateThumbnail(file, maxSize, retryCount + 1);
-  }
+  const MAX_RETRIES = 0; // Disable automatic retries - user can manually rebuild with Alt+Ctrl+R
 
   return new Promise((resolve, reject) => {
     const img = new Image();
+
     img.onload = () => {
       const canvas = document.createElement('canvas');
       let width = img.width;
       let height = img.height;
 
-      // Additional check: if image dimensions are very small, might be placeholder
-      if ((width < 50 || height < 50) && retryCount < MAX_RETRIES) {
-        URL.revokeObjectURL(img.src);
-        console.warn(`[THUMB] Image dimensions too small (${width}x${height}), retrying...`);
-        setTimeout(() => {
-          generateThumbnail(file, maxSize, retryCount + 1).then(resolve).catch(reject);
-        }, RETRY_DELAY * (retryCount + 1));
-        return;
+      // Detect Dropbox/cloud placeholder by checking if image quality is suspiciously low
+      // Placeholders are often 64x64, 128x128, or other low resolutions
+      // Also check file size - real images are typically larger
+      const isLowResolution = width < 300 || height < 300;
+      const isSmallFile = file.size < 30 * 1024; // 30KB
+
+      if (isLowResolution && isSmallFile) {
+        // This is likely a Dropbox placeholder
+        console.warn(`[THUMB] Dropbox placeholder detected for ${file.name}: ${width}x${height}, ${(file.size/1024).toFixed(1)}KB - using low quality thumbnail. Use Alt+Ctrl+R to rebuild after files download.`);
       }
 
       if (width > height) {
@@ -139,6 +127,17 @@ const generateThumbnail = async (file, maxSize = 200, retryCount = 0) => {
 
 // Resize image for API submission (reduce payload size)
 const resizeForAPI = async (file, maxSize = 1600) => {
+  // Check if file format is supported by browser Image API
+  const unsupportedFormats = ['.psd', '.psb', '.ai', '.eps', '.indd', '.tif', '.tiff', '.cr2', '.nef', '.arw', '.dng', '.raf', '.orf'];
+  const fileName = file.name.toLowerCase();
+  const isUnsupported = unsupportedFormats.some(ext => fileName.endsWith(ext));
+
+  if (isUnsupported) {
+    const ext = fileName.substring(fileName.lastIndexOf('.')).toUpperCase();
+    console.warn(`[API] Skipping unsupported format for analysis: ${file.name}`);
+    return Promise.reject(new Error(`${ext} format not supported - only JPEG, PNG, WebP, and GIF can be analyzed`));
+  }
+
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = () => {
@@ -233,6 +232,22 @@ const getThumbnail = async (hash) => {
   } catch (e) {
     console.error('[THUMB] Get failed:', e);
     return null;
+  }
+};
+
+// Delete thumbnail from IndexedDB (for regenerating low-quality thumbnails)
+const deleteThumbnail = async (hash) => {
+  try {
+    const db = await initDB();
+    const tx = db.transaction(STORE_THUMBNAILS, 'readwrite');
+    const store = tx.objectStore(STORE_THUMBNAILS);
+
+    await store.delete(hash);
+    console.log('[THUMB] Deleted cached thumbnail for hash:', hash);
+    return true;
+  } catch (e) {
+    console.error('[THUMB] Delete failed:', e);
+    return false;
   }
 };
 
@@ -596,6 +611,7 @@ window.TaggerPerformance = {
   resizeForAPI,
   storeThumbnail,
   getThumbnail,
+  deleteThumbnail,
   storeAnalysis,
   getAnalysis,
   deleteAnalysis,

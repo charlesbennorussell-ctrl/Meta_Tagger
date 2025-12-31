@@ -190,8 +190,8 @@
               return;
             }
 
-            // Generate and cache thumbnail
-            const thumb = await generateThumbnail(item.file, thumbSize * 2); // 2x for retina
+            // Generate and cache thumbnail (2x for retina, but cap at 600px to avoid excessive memory)
+            const thumb = await generateThumbnail(item.file, Math.min(thumbSize * 2, 600));
             if (thumb && mounted) {
               await storeThumbnail(item.hash, thumb);
               objectUrl = URL.createObjectURL(thumb);
@@ -553,6 +553,33 @@
           }
 
           // Enter key - save current image(s) and advance to next
+          // Alt+Ctrl+R - Clear thumbnail cache and re-import folder
+          if (e.ctrlKey && e.altKey && e.key === 'r') {
+            e.preventDefault();
+
+            // Clear IndexedDB thumbnail cache
+            if (window.TaggerPerformance && window.TaggerPerformance.initDB) {
+              window.TaggerPerformance.initDB().then(async db => {
+                const tx = db.transaction('thumbnails', 'readwrite');
+                const store = tx.objectStore('thumbnails');
+                await store.clear();
+                console.log('[REBUILD] Thumbnail cache cleared');
+
+                // Prompt user to re-select the source folder
+                alert('Thumbnail cache cleared!\n\nNow re-import your folder to rebuild thumbnails with the latest file versions (e.g., after Dropbox finished syncing).');
+
+                // Trigger folder picker by clicking the folder button
+                const folderButton = document.querySelector('button[onclick*="showDirectoryPicker"]');
+                if (folderButton) {
+                  folderButton.click();
+                } else {
+                  console.warn('[REBUILD] Could not find folder button to trigger');
+                }
+              }).catch(e => console.error('[REBUILD] Failed:', e));
+            }
+            return;
+          }
+
           if (e.key === 'Enter') {
             e.preventDefault();
             const img = selectedImgRef.current;
@@ -1796,7 +1823,8 @@
       const [isSavingAll, setIsSavingAll] = useState(false);
       const saveAll = async () => {
         if (isSavingAll) return;
-        const toSave = queue.filter(q => !q.hidden && (q.status === 'ready' || q.status === 'editing' || q.status === 'done') && q.keywords?.length > 0);
+        // Only export images from the current view (Done view = only done images)
+        const toSave = queue.filter(q => !q.hidden && q.status === 'done' && q.keywords?.length > 0);
         if (toSave.length === 0) return;
 
         // Always prompt for save directory
@@ -1828,7 +1856,8 @@
         console.log('[SAVE ALL] Done!');
       };
 
-      const readyToSaveCount = queue.filter(q => !q.hidden && (q.status === 'ready' || q.status === 'editing' || q.status === 'done') && q.keywords?.length > 0).length;
+      // Count only done images for export (since Export All button only shows in Done view)
+      const readyToSaveCount = queue.filter(q => !q.hidden && q.status === 'done' && q.keywords?.length > 0).length;
 
       const hideImage = (id, e) => {
         e?.stopPropagation();
@@ -2833,7 +2862,33 @@
               {selectedImg ? (
                 <>
                   <div style={{ height: '35%', minHeight: 140, background: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
-                    <img src={selectedImg.url} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+                    <img
+                      src={selectedImg.url}
+                      style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
+                      onLoad={async (e) => {
+                        // Auto-detect low quality thumbnails and rebuild them
+                        const fullWidth = e.target.naturalWidth;
+                        const fullHeight = e.target.naturalHeight;
+                        const fileSize = selectedImg.file.size;
+
+                        // Check if this looks like a Dropbox placeholder (low res + small file)
+                        const isLowRes = fullWidth < 400 || fullHeight < 400;
+                        const isSmallFile = fileSize < 50 * 1024; // 50KB
+
+                        if (isLowRes && isSmallFile) {
+                          console.warn(`[AUTO-REBUILD] Detected low quality image: ${selectedImg.name} (${fullWidth}x${fullHeight}, ${(fileSize/1024).toFixed(1)}KB)`);
+                          console.log('[AUTO-REBUILD] This appears to be a Dropbox placeholder - regenerating thumbnail...');
+
+                          // Delete the low-quality thumbnail from cache
+                          if (window.TaggerPerformance && window.TaggerPerformance.deleteThumbnail) {
+                            await window.TaggerPerformance.deleteThumbnail(selectedImg.hash);
+                          }
+
+                          // Trigger thumbnail regeneration by updating the queue
+                          setQueue(q => q.map(i => i.id === selectedImg.id ? {...i} : i));
+                        }
+                      }}
+                    />
                     <div style={{ position: 'absolute', bottom: 8, left: 8, background: 'rgba(0,0,0,0.85)', padding: '4px 10px', borderRadius: s.radiusSm, color: s.text, fontSize: 13, maxWidth: '85%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {selectedImg.name}
                     </div>
