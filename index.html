@@ -2924,15 +2924,6 @@
 
                     {(selectedImg.status === 'ready' || selectedImg.status === 'done' || selectedImg.status === 'editing' || isEditing) && (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                        {(designer?.designer || designer?.designers?.length > 0) && (
-                          <div style={{ background: s.bgMid, padding: '10px 12px', borderRadius: s.radius, border: `1px solid ${s.bgMid}` }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: s.text, fontSize: s.fontSize }}>
-                              <Icon name="brush" size={18} />
-                              {designer.designers?.length > 1 ? designer.designers.join(', ') : designer.designer}
-                            </div>
-                          </div>
-                        )}
-
                         {similarCount > 0 && (
                           <div style={{ background: s.bgMid, padding: '10px 12px', borderRadius: s.radius, border: `1px solid ${s.bgMid}` }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: s.text, fontSize: s.fontSize }}>
@@ -2941,81 +2932,6 @@
                             </div>
                           </div>
                         )}
-
-                        {visionData?.matchingImages?.filter(m => m.type === 'full').length > 0 && (
-                          <div style={{ background: s.bgMid, padding: '10px 12px', borderRadius: s.radius, border: `1px solid ${s.bgMid}` }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: s.text, fontSize: s.fontSize, marginBottom: 8 }}>
-                              <Icon name="image_search" size={18} />
-                              {visionData.matchingImages.filter(m => m.type === 'full').length} exact matches
-                            </div>
-                            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                              {visionData.matchingImages.filter(m => m.type === 'full').slice(0, 4).map((img, i) => {
-                                const domain = new URL(img.url).hostname.replace('www.', '');
-                                return (
-                                  <a key={i} href={img.url} target="_blank" rel="noreferrer" style={{ color: s.text, fontSize: 13, textDecoration: 'none', padding: '4px 8px', background: s.bgMid, borderRadius: s.radiusSm }}>
-                                    {domain}
-                                  </a>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* REQUIRED CATEGORIES */}
-                        <div style={{ background: s.panel, borderRadius: s.radius, padding: 12, border: `1px solid ${s.border}` }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#777777', marginBottom: 20, fontSize: s.fontSize, fontWeight: 500 }}>
-                            <Icon name="category" size={18} />
-                            Primary Category (Required)
-                          </div>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                            {REQUIRED_CATEGORIES.map(cat => {
-                              const hasCategory = keywords.some(k => k.value === cat);
-                              return (
-                                <button
-                                  key={cat}
-                                  onClick={() => {
-                                    if (hasCategory) {
-                                      // Remove the category
-                                      const catKeyword = keywords.find(k => k.value === cat);
-                                      if (catKeyword) removeKw(catKeyword.id);
-                                    } else {
-                                      // Add the category
-                                      const path = smartCategorize({ value: cat, type: 'keyword' });
-                                      const newKw = {
-                                        id: Math.random().toString(36).slice(2),
-                                        value: cat,
-                                        confidence: 1.0,
-                                        type: 'keyword',
-                                        path: path,
-                                        rootCategory: path[0],
-                                        source: 'manual'
-                                      };
-                                      setKeywords([...keywords, newKw]);
-                                      setModified(true);
-                                      setIsEditing(true);
-                                    }
-                                  }}
-                                  style={{
-                                    padding: '8px 12px',
-                                    background: hasCategory ? 'rgba(164,164,164,0.125)' : 'rgba(255,255,255,0.03)',
-                                    color: hasCategory ? s.text : s.text,
-                                    border: hasCategory ? `1px solid ${s.text}80` : `1px solid ${s.bgMid}`,
-                                    borderRadius: s.radiusSm,
-                                    cursor: 'pointer',
-                                    fontSize: 13,
-                                    fontWeight: hasCategory ? 500 : 400,
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: 8,
-                                    transition: 'all 0.15s ease'
-                                  }}>
-                                  <Icon name={hasCategory ? "check_circle" : "radio_button_unchecked"} size={16} />
-                                  {cat}
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </div>
 
                         {keywords.length > 0 && (
                           <div style={{ padding: 12 }}>
@@ -3114,6 +3030,20 @@
                             )}
                           </div>
                         )}
+
+                        {/* Custom tag input - dark pill style */}
+                        <div style={{ padding: '0 12px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: s.bgDark, borderRadius: 20, padding: 4 }}>
+                            <input type="text" value={customInput} onChange={e => setCustomInput(e.target.value)}
+                              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addCustom(); } }}
+                              placeholder="Add custom tag..."
+                              style={{ flex: 1, padding: '6px 16px', background: 'transparent', border: 'none', borderRadius: 16, color: s.text, fontSize: 14, outline: 'none' }} />
+                            <button onClick={addCustom} disabled={!customInput.trim()} tabIndex={-1}
+                              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, padding: '6px 16px', background: customInput.trim() ? s.blue : 'transparent', color: customInput.trim() ? '#FFFFFF' : s.textMuted, border: 'none', borderRadius: 16, cursor: customInput.trim() ? 'pointer' : 'default', fontSize: 14, fontWeight: 500 }}>
+                              <Icon name="add" size={16} /> Add
+                            </button>
+                          </div>
+                        </div>
 
                         {pending.length > 0 && (
                           <div style={{ padding: 12 }}>
@@ -3216,18 +3146,9 @@
                           </div>
                         )}
 
-                        <div style={{ display: 'flex', gap: 8 }}>
-                          <input type="text" value={customInput} onChange={e => setCustomInput(e.target.value)}
-                            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addCustom(); } }}
-                            placeholder="Add custom tag..."
-                            style={{ flex: 1, padding: '10px 14px', background: s.panel, border: `1px solid ${s.border}`, borderRadius: s.radius, color: s.bright, fontSize: s.fontSize, outline: 'none' }} />
-                          <button onClick={addCustom} disabled={!customInput.trim()} tabIndex={-1}
-                            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 44, background: customInput.trim() ? s.text : s.bgDark, color: customInput.trim() ? 'white' : s.textMuted, border: 'none', borderRadius: s.radius, cursor: customInput.trim() ? 'pointer' : 'default' }}>
-                            <Icon name="add" size={22} />
-                          </button>
-                        </div>
-
-                        <button
+                        {/* Save button - pill shaped */}
+                        <div style={{ padding: '0 12px' }}>
+                          <button
                           onClick={async () => {
                             // Check for required category
                             const hasRequiredCategory = keywords.some(k => REQUIRED_CATEGORIES.includes(k.value));
@@ -3249,20 +3170,22 @@
                           }}
                           tabIndex={-1}
                           style={{
-                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '12px 20px',
+                            width: '100%',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '10px 20px',
                             background: keywords.length > 0 && keywords.some(k => REQUIRED_CATEGORIES.includes(k.value)) ? s.blue : s.bgMid,
                             color: keywords.length > 0 && keywords.some(k => REQUIRED_CATEGORIES.includes(k.value)) ? '#FFFFFF' : s.text,
-                            border: 'none', borderRadius: s.radius,
+                            border: 'none', borderRadius: 20,
                             cursor: 'pointer',
-                            fontSize: s.fontSize, fontWeight: 500,
+                            fontSize: 14, fontWeight: 500,
                             opacity: keywords.length > 0 && keywords.some(k => REQUIRED_CATEGORIES.includes(k.value)) ? 1 : 0.7,
                             transition: 'all 0.15s ease'
                           }}>
-                          <Icon name="save" size={20} />
+                          <Icon name="save" size={18} />
                           {keywords.length > 0 && keywords.some(k => REQUIRED_CATEGORIES.includes(k.value))
                             ? `Save${selectedIds.length > 1 ? ` (${selectedIds.length} images)` : similarCount > 0 ? ` + ${similarCount} similar` : ''}`
                             : keywords.length === 0 ? 'Nothing to save' : 'Select primary category'}
                         </button>
+                        </div>
                       </div>
                     )}
 

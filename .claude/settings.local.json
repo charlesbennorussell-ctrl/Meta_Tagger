@@ -23,7 +23,8 @@
       "Bash(node -c:*)",
       "Bash(copy:*)",
       "Bash(start \"\" \"C:\\Users\\benno\\.claude-worktrees\\Meta_Tagger\\unruffled-mahavira\\index.html\")",
-      "Bash(start \"\" \"C:\\Users\\benno\\.claude-worktrees\\Meta_Tagger\\admiring-albattani\\index.html\")"
+      "Bash(start \"\" \"C:\\Users\\benno\\.claude-worktrees\\Meta_Tagger\\admiring-albattani\\index.html\")",
+      "Bash(git pull:*)"
     ]
   }
 }
