@@ -404,7 +404,16 @@
       const [continuousSaveEnabled, setContinuousSaveEnabled] = useState(false);
 
       const [taxonomy, setTaxonomy] = useState(() => {
-        try { return JSON.parse(localStorage.getItem(TAXONOMY_KEY)) || DEFAULT_TAXONOMY; }
+        try {
+          const stored = JSON.parse(localStorage.getItem(TAXONOMY_KEY));
+          // Migrate from old structure if it has "Design" parent category
+          if (stored && stored.Design) {
+            console.log('[TAXONOMY] Migrating from old structure to new flattened structure');
+            localStorage.removeItem(TAXONOMY_KEY);
+            return DEFAULT_TAXONOMY;
+          }
+          return stored || DEFAULT_TAXONOMY;
+        }
         catch { return DEFAULT_TAXONOMY; }
       });
       const taxInfo = useMemo(() => flattenTaxonomy(taxonomy), [taxonomy]);
