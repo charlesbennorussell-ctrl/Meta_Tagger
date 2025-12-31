@@ -53,14 +53,40 @@ const initDB = async () => {
   });
 };
 
-// Thumbnail generation with size control
-const generateThumbnail = async (file, maxSize = 200) => {
+// Thumbnail generation with size control and placeholder detection
+const generateThumbnail = async (file, maxSize = 200, retryCount = 0) => {
+  // Detect Dropbox/cloud placeholder files (typically very small, under 10KB)
+  const MIN_FILE_SIZE = 10 * 1024; // 10KB threshold
+  const MAX_RETRIES = 3;
+  const RETRY_DELAY = 2000; // 2 seconds between retries
+
+  // Check if file is suspiciously small (likely a placeholder)
+  if (file.size < MIN_FILE_SIZE && retryCount < MAX_RETRIES) {
+    console.warn(`[THUMB] File ${file.name} is small (${file.size} bytes), possible cloud placeholder. Retry ${retryCount + 1}/${MAX_RETRIES}`);
+
+    // Wait and retry with exponential backoff
+    await new Promise(resolve => setTimeout(resolve, RETRY_DELAY * (retryCount + 1)));
+
+    // The file reference should update as cloud service downloads, but we'll retry anyway
+    return generateThumbnail(file, maxSize, retryCount + 1);
+  }
+
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = () => {
       const canvas = document.createElement('canvas');
       let width = img.width;
       let height = img.height;
+
+      // Additional check: if image dimensions are very small, might be placeholder
+      if ((width < 50 || height < 50) && retryCount < MAX_RETRIES) {
+        URL.revokeObjectURL(img.src);
+        console.warn(`[THUMB] Image dimensions too small (${width}x${height}), retrying...`);
+        setTimeout(() => {
+          generateThumbnail(file, maxSize, retryCount + 1).then(resolve).catch(reject);
+        }, RETRY_DELAY * (retryCount + 1));
+        return;
+      }
 
       if (width > height) {
         if (width > maxSize) {
@@ -85,6 +111,9 @@ const generateThumbnail = async (file, maxSize = 200) => {
 
       canvas.toBlob((blob) => {
         if (blob) {
+          if (retryCount > 0) {
+            console.log(`[THUMB] Successfully generated thumbnail for ${file.name} after ${retryCount} retries: ${width}x${height}`);
+          }
           resolve(blob);
         } else {
           reject(new Error('Thumbnail generation failed'));
@@ -95,7 +124,14 @@ const generateThumbnail = async (file, maxSize = 200) => {
     };
     img.onerror = () => {
       URL.revokeObjectURL(img.src);
-      reject(new Error('Failed to load image'));
+      if (retryCount < MAX_RETRIES) {
+        console.warn(`[THUMB] Load error for ${file.name}, retrying ${retryCount + 1}/${MAX_RETRIES}...`);
+        setTimeout(() => {
+          generateThumbnail(file, maxSize, retryCount + 1).then(resolve).catch(reject);
+        }, RETRY_DELAY * (retryCount + 1));
+      } else {
+        reject(new Error('Failed to load image after retries'));
+      }
     };
     img.src = URL.createObjectURL(file);
   });

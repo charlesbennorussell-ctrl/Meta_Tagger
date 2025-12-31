@@ -1796,7 +1796,7 @@
       const [isSavingAll, setIsSavingAll] = useState(false);
       const saveAll = async () => {
         if (isSavingAll) return;
-        const toSave = queue.filter(q => !q.hidden && (q.status === 'ready' || q.status === 'editing') && q.keywords?.length > 0);
+        const toSave = queue.filter(q => !q.hidden && (q.status === 'ready' || q.status === 'editing' || q.status === 'done') && q.keywords?.length > 0);
         if (toSave.length === 0) return;
 
         // Always prompt for save directory
@@ -1828,7 +1828,7 @@
         console.log('[SAVE ALL] Done!');
       };
 
-      const readyToSaveCount = queue.filter(q => !q.hidden && (q.status === 'ready' || q.status === 'editing') && q.keywords?.length > 0).length;
+      const readyToSaveCount = queue.filter(q => !q.hidden && (q.status === 'ready' || q.status === 'editing' || q.status === 'done') && q.keywords?.length > 0).length;
 
       const hideImage = (id, e) => {
         e?.stopPropagation();
@@ -2582,7 +2582,26 @@
                 <div style={{ display: 'inline-flex', background: s.bgDark, borderRadius: 20, padding: 4 }}>
                   <button onClick={() => {
                     if (confirm(`Mark all ${readyCount} ready images as done?`)) {
+                      // Update queue status
                       setQueue(q => q.map(i => (i.status === 'ready' || i.status === 'editing') ? { ...i, status: 'done' } : i));
+
+                      // Update memory to persist the "done" status
+                      setMemory(prev => {
+                        const updated = { ...prev };
+                        queue.forEach(img => {
+                          if (img.status === 'ready' || img.status === 'editing') {
+                            updated[img.hash] = {
+                              ...updated[img.hash],
+                              exported: true,
+                              keywords: img.keywords || [],
+                              pending: img.pending || [],
+                              creator: img.designer?.designer || null,
+                              hidden: img.hidden || false
+                            };
+                          }
+                        });
+                        return updated;
+                      });
                     }
                   }} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 16px', background: '#4147FF', color: '#FFFFFF', border: 'none', borderRadius: 16, cursor: 'pointer', fontSize: 14, fontWeight: 500 }}>
                     Mark all as Done
@@ -3179,16 +3198,16 @@
                               await saveImage(selectedImg, keywords, designer);
                             }
                           }}
-                          disabled={keywords.length === 0 || !keywords.some(k => REQUIRED_CATEGORIES.includes(k.value))}
                           tabIndex={-1}
                           style={{
                             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '12px 20px',
-                            background: keywords.length > 0 && keywords.some(k => REQUIRED_CATEGORIES.includes(k.value)) ? s.textMuted : s.bgDark,
-                            color: keywords.length > 0 && keywords.some(k => REQUIRED_CATEGORIES.includes(k.value)) ? 'white' : s.textMuted,
+                            background: keywords.length > 0 && keywords.some(k => REQUIRED_CATEGORIES.includes(k.value)) ? s.blue : s.bgMid,
+                            color: keywords.length > 0 && keywords.some(k => REQUIRED_CATEGORIES.includes(k.value)) ? '#FFFFFF' : s.text,
                             border: 'none', borderRadius: s.radius,
-                            cursor: keywords.length > 0 && keywords.some(k => REQUIRED_CATEGORIES.includes(k.value)) ? 'pointer' : 'default',
+                            cursor: 'pointer',
                             fontSize: s.fontSize, fontWeight: 500,
-                            opacity: keywords.length > 0 && keywords.some(k => REQUIRED_CATEGORIES.includes(k.value)) ? 1 : 0.6
+                            opacity: keywords.length > 0 && keywords.some(k => REQUIRED_CATEGORIES.includes(k.value)) ? 1 : 0.7,
+                            transition: 'all 0.15s ease'
                           }}>
                           <Icon name="save" size={20} />
                           {keywords.length > 0 && keywords.some(k => REQUIRED_CATEGORIES.includes(k.value))
