@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Migrate Old Taxonomy</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      max-width: 900px;
+      margin: 40px auto;
+      padding: 20px;
+      background: #1a1a1a;
+      color: #fff;
+    }
+    button {
+      background: #4147FF;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 16px;
+      margin: 10px 5px;
+    }
+    button:hover { background: #3338dd; }
+    #log {
+      background: #2a2a2a;
+      padding: 20px;
+      border-radius: 8px;
+      margin-top: 20px;
+      font-family: 'Courier New', monospace;
+      font-size: 13px;
+      white-space: pre-wrap;
+      max-height: 600px;
+      overflow-y: auto;
+    }
+    .success { color: #68B757; }
+    .error { color: #ef4444; }
+    .info { color: #4147FF; }
+  </style>
+</head>
+<body>
+  <h1>Migrate Old Taxonomy to New Structure</h1>
+  <p>This will extract all keywords from your broken localStorage taxonomy and rebuild it properly.</p>
+
+  <button onclick="migrateTaxonomy()">Migrate Taxonomy</button>
+  <button onclick="clearAndReset()">Clear Everything & Reset to Default</button>
+
+  <div id="log"></div>
+
+  <script src="js/data.js"></script>
+  <script src="js/utils.js"></script>
+  <script>
+    function log(msg, type = 'info') {
+      const logDiv = document.getElementById('log');
+      const className = type === 'success' ? 'success' : type === 'error' ? 'error' : 'info';
+      logDiv.innerHTML += `<span class="${className}">${msg}</span>\n`;
+      logDiv.scrollTop = logDiv.scrollHeight;
+    }
+
+    function extractAllKeywords(obj, keywords = new Set()) {
+      if (Array.isArray(obj)) {
+        obj.forEach(item => {
+          if (typeof item === 'string' && item.trim()) {
+            keywords.add(item.trim());
+          }
+        });
+      } else if (typeof obj === 'object' && obj !== null) {
+        Object.entries(obj).forEach(([key, value]) => {
+          extractAllKeywords(value, keywords);
+        });
+      }
+      return keywords;
+    }
+
+    function clearAndReset() {
+      if (!confirm('This will DELETE all your custom keywords and reset to the default taxonomy. Are you sure?')) {
+        return;
+      }
+
+      localStorage.removeItem('tagger_taxonomy');
+      log('✓ Cleared taxonomy from localStorage', 'success');
+      log('✓ Refresh Meta Tagger to use clean default taxonomy', 'success');
+    }
+
+    function migrateTaxonomy() {
+      log('Starting migration...', 'info');
+
+      try {
+        // Get old taxonomy
+        const oldTax = JSON.parse(localStorage.getItem('tagger_taxonomy'));
+        if (!oldTax) {
+          log('✗ No taxonomy found in localStorage', 'error');
+          return;
+        }
+
+        log('Extracting all keywords from old structure...', 'info');
+        const allKeywords = extractAllKeywords(oldTax);
+        log(`✓ Found ${allKeywords.size} unique keywords`, 'success');
+
+        // Start with fresh DEFAULT_TAXONOMY
+        const newTax = JSON.parse(JSON.stringify(window.TaggerData.DEFAULT_TAXONOMY));
+        const { smartCategorize, addToTaxonomy } = window.TaggerUtils;
+
+        let categorized = 0;
+        let custom = 0;
+
+        // Categorize each keyword
+        allKeywords.forEach(keyword => {
+          try {
+            const path = smartCategorize({ value: keyword, type: 'keyword' });
+            const kw = {
+              id: `migrated-${Math.random().toString(36).slice(2)}`,
+              value: keyword,
+              path: path,
+              source: 'migrated'
+            };
+
+            // Add to new taxonomy using the proper function
+            const result = addToTaxonomy(newTax, kw);
+            Object.assign(newTax, result);
+
+            if (path[0] === 'Custom') {
+              custom++;
+            } else {
+              categorized++;
+            }
+          } catch (e) {
+            log(`Warning: Could not categorize "${keyword}": ${e.message}`, 'error');
+          }
+        });
+
+        // Save migrated taxonomy
+        localStorage.setItem('tagger_taxonomy', JSON.stringify(newTax));
+
+        log('\n=== MIGRATION COMPLETE ===', 'success');
+        log(`✓ Total keywords migrated: ${allKeywords.size}`, 'success');
+        log(`✓ Auto-categorized: ${categorized}`, 'success');
+        log(`✓ Moved to Custom: ${custom}`, 'info');
+        log('\n✓ Refresh Meta Tagger to see the migrated taxonomy!', 'success');
+
+        // Show category breakdown
+        log('\n=== CATEGORY BREAKDOWN ===', 'info');
+        const counts = {};
+        Object.keys(newTax).forEach(cat => {
+          const count = JSON.stringify(newTax[cat]).split('"').length;
+          if (count > 2) {
+            counts[cat] = count;
+          }
+        });
+        Object.entries(counts).sort((a, b) => b[1] - a[1]).forEach(([cat, count]) => {
+          log(`  ${cat}: ~${Math.floor(count/2)} items`, 'info');
+        });
+
+      } catch (e) {
+        log(`✗ Migration failed: ${e.message}`, 'error');
+        console.error(e);
+      }
+    }
+  </script>
+</body>
+</html>
