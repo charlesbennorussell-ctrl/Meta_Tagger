@@ -490,7 +490,7 @@
             async (img) => {
               await analyzeImageRef.current?.(img);
             },
-            { batchSize: 5, delayMs: 300 } // Process 5 images at a time with 300ms delay
+            { batchSize: 3, delayMs: 400 } // Process 3 images at a time with 400ms delay to avoid rate limits
           );
         }
       }, []);
@@ -509,8 +509,11 @@
           // Non-hidden items filter by status
           if (q.status === 'done') return showDone;
           if (q.status === 'analyzing') return showAnalyzing;
-          // Ready filter controls: pending, ready, editing statuses
-          return showPending;
+          // showPending button actually means "Ready" view - only show ready/editing, not actual pending
+          if (showPending) {
+            return q.status === 'ready' || q.status === 'editing';
+          }
+          return false;
         });
       }, [queue, showDone, showHidden, showPending, showAnalyzing]);
 
@@ -2730,7 +2733,7 @@
                     <button onClick={() => setAutoScan(!autoScan)} disabled={!geminiKey}
                       className={autoScan ? '' : 'no-hover'}
                       style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '6px 16px', background: autoScan ? s.bgMid : 'transparent', color: autoScan ? s.text : s.textMuted, border: 'none', borderRadius: 16, cursor: 'pointer', fontSize: 14, fontWeight: 500, opacity: !geminiKey ? 0.5 : 1 }}>
-                      Auto{pendingCount > 0 ? ` (${pendingCount})` : ''}
+                      Auto
                     </button>
                   </div>
                   <div style={{ display: 'inline-flex', background: s.bgDark, borderRadius: 20, padding: 4, gap: 0 }}>

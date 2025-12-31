@@ -47,6 +47,8 @@ REQUIRED: If this is graphic design work (posters, logos, typography, layouts, e
 Return 10-20 specific, useful keywords. Only return the JSON array.`;
 
   return retryWithBackoff(async () => {
+    console.log('[GEMINI] Sending request to Gemini API...');
+    const startTime = Date.now();
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -55,7 +57,12 @@ Return 10-20 specific, useful keywords. Only return the JSON array.`;
         generationConfig: { temperature: 0.1, maxOutputTokens: 2048 }
       })
     });
-    if (!response.ok) throw new Error(`Gemini error: ${response.status}`);
+    console.log(`[GEMINI] Response received in ${Date.now() - startTime}ms, status: ${response.status}`);
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`[GEMINI] Error ${response.status}:`, errorText);
+      throw new Error(`Gemini error: ${response.status} - ${errorText}`);
+    }
     const text = (await response.json()).candidates?.[0]?.content?.parts?.[0]?.text || '[]';
     const match = text.match(/\[[\s\S]*\]/);
     if (!match) return [];
