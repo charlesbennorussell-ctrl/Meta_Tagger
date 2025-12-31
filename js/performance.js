@@ -78,6 +78,9 @@ const generateThumbnail = async (file, maxSize = 200) => {
       canvas.height = height;
 
       const ctx = canvas.getContext('2d');
+      // Enable image smoothing for better quality
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
       ctx.drawImage(img, 0, 0, width, height);
 
       canvas.toBlob((blob) => {
@@ -86,7 +89,7 @@ const generateThumbnail = async (file, maxSize = 200) => {
         } else {
           reject(new Error('Thumbnail generation failed'));
         }
-      }, 'image/jpeg', 0.8);
+      }, 'image/jpeg', 0.92);
 
       URL.revokeObjectURL(img.src);
     };

@@ -170,7 +170,7 @@
     );
 
     // Optimized thumbnail component with lazy loading
-    const ThumbnailImage = memo(({ item, isSelected, onSelect, onHide, onUnhide, thumbSize, showPending, showDone, s }) => {
+    const ThumbnailImage = memo(({ item, isSelected, onSelect, onHide, onUnhide, thumbSize, showPending, showDone, showAnalyzing, s }) => {
       const [thumbUrl, setThumbUrl] = useState(null);
       const [isLoading, setIsLoading] = useState(true);
       const imgRef = useRef(null);
@@ -231,7 +231,7 @@
       }, [item.hash, item.file, thumbSize]);
 
       const statusColor = item.status === 'done' ? '#68B757' : item.status === 'editing' ? '#4147FF' : item.status === 'ready' ? '#4147FF' : item.status === 'analyzing' ? '#fbbf24' : item.status === 'error' ? '#ef4444' : s.textMuted;
-      const selectionColor = showDone ? '#68B757' : showPending ? '#4147FF' : s.text;
+      const selectionColor = showDone ? '#68B757' : showPending ? '#4147FF' : showAnalyzing ? '#fbbf24' : s.text;
 
       return (
         <motion.div
@@ -490,7 +490,7 @@
             async (img) => {
               await analyzeImageRef.current?.(img);
             },
-            { batchSize: 3, delayMs: 500 } // Process 3 images at a time with 500ms delay
+            { batchSize: 5, delayMs: 300 } // Process 5 images at a time with 300ms delay
           );
         }
       }, []);
@@ -939,10 +939,25 @@
       };
 
       // Find similar images using multi-criteria scoring
+      // Memoize similar images to prevent excessive recalculation
+      const similarImagesCache = useRef(new Map());
+      const queueLengthRef = useRef(queue.length);
+
+      // Clear cache when queue length changes (items added/removed)
+      useEffect(() => {
+        if (queueLengthRef.current !== queue.length) {
+          similarImagesCache.current.clear();
+          queueLengthRef.current = queue.length;
+        }
+      }, [queue.length]);
+
       const getSimilarImages = useCallback((img) => {
-        if (!img) {
-          console.log('[SIMILAR] Called with no image');
-          return [];
+        if (!img) return [];
+
+        // Check cache first
+        const cacheKey = `${img.id}-${queue.length}`;
+        if (similarImagesCache.current.has(cacheKey)) {
+          return similarImagesCache.current.get(cacheKey);
         }
 
         console.log(`[SIMILAR] Called for "${img.name}" with baseName: "${img.baseName}" (length: ${img.baseName?.length || 0})`);
@@ -1072,6 +1087,15 @@
           console.log(`[SIMILAR] ✓ Matched ${similar.length} images using OR logic`);
         } else if (candidates.length > 0) {
           console.log(`[SIMILAR] ✗ No matches found`);
+        }
+
+        // Cache the result
+        similarImagesCache.current.set(cacheKey, similar);
+
+        // Keep cache size reasonable (last 100 entries)
+        if (similarImagesCache.current.size > 100) {
+          const firstKey = similarImagesCache.current.keys().next().value;
+          similarImagesCache.current.delete(firstKey);
         }
 
         return similar;
@@ -2509,7 +2533,7 @@
         });
       }, [queue, analyzeImage]);
 
-      const thumbSizes = [90, 160, 360];
+      const thumbSizes = [110, 200, 480];
       const currentThumbSize = thumbSizes[thumbSize];
 
       // Unified style system
@@ -2544,6 +2568,7 @@
           <div style={{ height: 56, background: s.panel, display: 'flex', alignItems: 'center', padding: '0 16px', gap: 12, borderBottom: `1px solid ${s.border}`, flexShrink: 0 }}>
             {/* Left side - Import buttons */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ color: s.textMuted, fontSize: s.fontSize, fontWeight: 500 }}>Import:</span>
               <button onClick={() => folderRef.current?.click()} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: 'transparent', color: s.text, border: 'none', borderRadius: s.radius, cursor: 'pointer', fontSize: s.fontSize }}>
                 <Icon name="folder_open" size={18} /> Folder
               </button>
@@ -2551,8 +2576,6 @@
                 <Icon name="add_photo_alternate" size={18} /> Files
               </button>
             </div>
-
-            <div style={{ width: 1, height: 24, background: s.border }} />
 
             {/* Action buttons */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -2570,7 +2593,7 @@
               {showDone && readyToSaveCount > 0 && (
                 <div style={{ display: 'inline-flex', background: s.bgDark, borderRadius: 20, padding: 4 }}>
                   <button onClick={saveAll} disabled={isSavingAll} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 16px', background: '#68B757', color: '#000000', border: 'none', borderRadius: 16, cursor: isSavingAll ? 'default' : 'pointer', fontSize: 14, fontWeight: 500 }}>
-                    <Icon name={isSavingAll ? "hourglass_empty" : "save"} size={16} /> {isSavingAll ? 'Saving...' : `Save All (${readyToSaveCount})`}
+                    <Icon name={isSavingAll ? "hourglass_empty" : "upload"} size={16} /> {isSavingAll ? 'Exporting...' : `Export All (${readyToSaveCount})`}
                   </button>
                 </div>
               )}
@@ -2643,9 +2666,9 @@
                   {analyzingCount > 0 && (
                     <button onClick={() => { setShowPending(false); setShowAnalyzing(true); setShowDone(false); setShowHidden(false); }}
                       className={showAnalyzing ? 'no-hover' : ''}
-                      onMouseEnter={(e) => { if (!showAnalyzing) e.currentTarget.style.color = s.text; }}
+                      onMouseEnter={(e) => { if (!showAnalyzing) e.currentTarget.style.color = '#000000'; }}
                       onMouseLeave={(e) => { if (!showAnalyzing) e.currentTarget.style.color = s.textMuted; }}
-                      style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 16px', background: showAnalyzing ? s.bgMid : 'transparent', color: showAnalyzing ? s.text : s.textMuted, border: 'none', borderRadius: 16, cursor: 'pointer', fontSize: 14, fontWeight: 500 }}>
+                      style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 16px', background: showAnalyzing ? '#fbbf24' : 'transparent', color: showAnalyzing ? '#000000' : s.textMuted, border: 'none', borderRadius: 16, cursor: 'pointer', fontSize: 14, fontWeight: 500 }}>
                       Analyzing ({analyzingCount})
                     </button>
                   )}
@@ -2760,6 +2783,7 @@
                           thumbSize={currentThumbSize}
                           showPending={showPending}
                           showDone={showDone}
+                          showAnalyzing={showAnalyzing}
                           s={s}
                         />
                       ))}
@@ -3201,7 +3225,7 @@
               <div style={{ padding: '14px 16px', borderBottom: `2px solid ${s.border}` }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: s.bright, fontSize: s.fontSize, fontWeight: 500 }}>
-                    Taxonomy
+                    Keywords
                   </div>
                   <div style={{ display: 'flex', gap: 6 }}>
                     {customCount > 0 && showMasterTaxonomy && (
