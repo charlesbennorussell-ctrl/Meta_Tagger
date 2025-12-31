@@ -4,35 +4,36 @@
 (function() {
 
 const DEFAULT_TAXONOMY = {
-  "Design": {
-    "Graphic Design": {
-      "_items": ["Graphic Design"],
-      "Print": ["Poster", "Book Design", "Magazine", "Editorial", "Packaging", "Album Cover", "Catalog", "Brochure", "Flyer", "Leaflet", "Annual Report", "Newspaper", "Book Cover", "Book Jacket"],
-      "Identity": ["Logo", "Branding", "Corporate Identity", "Visual Identity", "Logotype", "Wordmark", "Brand Identity", "Identity System", "Brand Guidelines"],
-      "Typography": ["Typeface", "Font", "Lettering", "Calligraphy", "Type Specimen", "Type Design", "Typographic Poster", "Typographic Layout", "Hand Lettering"],
-      "Digital": ["UI Design", "Web Design", "App Design", "Interface", "UX Design", "Icon Design", "Digital Interface", "Website", "Mobile UI"],
-      "Illustration": ["Vector", "Digital Art", "Infographic", "Technical Illustration", "Editorial Illustration", "Illustrated Poster"],
-      "Signage": ["Wayfinding", "Environmental Graphics", "Sign Design", "Directional Signage"],
-      "Packaging": ["Product Packaging", "Label Design", "Box Design", "Package Design"]
-    },
-    "Industrial Design": {
-      "Furniture": ["Chair", "Sofa", "Table", "Desk", "Shelving", "Lighting", "Lamp", "Bench", "Cabinet", "Stool", "Bed"],
-      "Audio Equipment": ["Headphones", "Speakers", "Amplifier", "Turntable", "Earbuds", "DAC", "Receiver", "Radio", "Soundbar"],
-      "Consumer Electronics": ["Phone", "Computer", "Camera", "Wearable", "Tablet", "Laptop", "Monitor", "Television", "Remote"],
-      "Automotive": ["Car", "Motorcycle", "Concept Car", "Interior", "Electric Vehicle", "Bicycle", "Scooter"],
-      "Appliances": ["Kitchen", "Bathroom", "Vacuum", "Coffee Machine", "Toaster", "Blender", "Fan", "Heater"],
-      "Tools": ["Power Tools", "Hand Tools", "Office Equipment", "Medical Device"]
-    },
-    "Interior Design": {
-      "Residential": ["Living Room", "Bedroom", "Kitchen", "Bathroom", "Home Office"],
-      "Commercial": ["Office", "Retail", "Restaurant", "Hotel Lobby", "Showroom"],
-      "Exhibition": ["Gallery", "Museum", "Trade Show", "Installation"]
-    },
-    "Fashion Design": {
-      "Apparel": ["Menswear", "Womenswear", "Outerwear", "Sportswear", "Streetwear"],
-      "Accessories": ["Bags", "Shoes", "Jewelry", "Eyewear", "Watches"],
-      "Textile": ["Fabric", "Pattern", "Print", "Weave"]
-    }
+  "Graphic Design": {
+    "Print": ["Poster", "Book Design", "Magazine", "Editorial", "Packaging", "Album Cover", "Catalog", "Brochure", "Flyer", "Leaflet", "Annual Report", "Newspaper", "Book Cover", "Book Jacket"],
+    "Identity": ["Logo", "Branding", "Corporate Identity", "Visual Identity", "Logotype", "Wordmark", "Brand Identity", "Identity System", "Brand Guidelines"],
+    "Typography": ["Typeface", "Font", "Lettering", "Calligraphy", "Type Specimen", "Type Design", "Typographic Poster", "Typographic Layout", "Hand Lettering"],
+    "Digital": ["UI Design", "Web Design", "App Design", "Interface", "UX Design", "Icon Design", "Digital Interface", "Website", "Mobile UI"],
+    "Illustration": ["Vector", "Digital Art", "Infographic", "Technical Illustration", "Editorial Illustration", "Illustrated Poster"],
+    "Signage": ["Wayfinding", "Environmental Graphics", "Sign Design", "Directional Signage"],
+    "Packaging": ["Product Packaging", "Label Design", "Box Design", "Package Design"],
+    "Misc": []
+  },
+  "Industrial Design": {
+    "Furniture": ["Chair", "Sofa", "Table", "Desk", "Shelving", "Lighting", "Lamp", "Bench", "Cabinet", "Stool", "Bed"],
+    "Audio Equipment": ["Headphones", "Speakers", "Amplifier", "Turntable", "Earbuds", "DAC", "Receiver", "Radio", "Soundbar"],
+    "Consumer Electronics": ["Phone", "Computer", "Camera", "Wearable", "Tablet", "Laptop", "Monitor", "Television", "Remote"],
+    "Automotive": ["Car", "Motorcycle", "Concept Car", "Interior", "Electric Vehicle", "Bicycle", "Scooter"],
+    "Appliances": ["Kitchen", "Bathroom", "Vacuum", "Coffee Machine", "Toaster", "Blender", "Fan", "Heater"],
+    "Tools": ["Power Tools", "Hand Tools", "Office Equipment", "Medical Device"],
+    "Misc": []
+  },
+  "Interior Design": {
+    "Residential": ["Living Room", "Bedroom", "Kitchen", "Bathroom", "Home Office"],
+    "Commercial": ["Office", "Retail", "Restaurant", "Hotel Lobby", "Showroom"],
+    "Exhibition": ["Gallery", "Museum", "Trade Show", "Installation"],
+    "Misc": []
+  },
+  "Fashion Design": {
+    "Apparel": ["Menswear", "Womenswear", "Outerwear", "Sportswear", "Streetwear"],
+    "Accessories": ["Bags", "Shoes", "Jewelry", "Eyewear", "Watches"],
+    "Textile": ["Fabric", "Pattern", "Print", "Weave"],
+    "Misc": []
   },
   "Architecture": {
     "Residential": ["House", "Villa", "Apartment", "Loft", "Cabin", "Townhouse", "Penthouse", "Estate"],
@@ -44,15 +45,17 @@ const DEFAULT_TAXONOMY = {
   "Art": {
     "Painting": ["Oil", "Acrylic", "Watercolor", "Abstract", "Portrait", "Landscape", "Still Life", "Contemporary"],
     "Sculpture": ["Bronze", "Marble", "Steel", "Wood", "Installation", "Kinetic", "Ceramic", "Mixed Media"],
-    "Photography": {
-      "Portrait": ["Studio Portrait", "Environmental Portrait", "Editorial Portrait"],
-      "Landscape": ["Nature", "Urban Landscape", "Seascape", "Aerial"],
-      "Documentary": ["Street", "Photojournalism", "Travel", "Social Documentary"],
-      "Commercial": ["Fashion", "Product", "Architecture", "Food", "Advertising"],
-      "Fine Art": ["Conceptual", "Abstract", "Black and White", "Experimental"]
-    },
     "Digital Art": ["3D Rendering", "CGI", "Motion Graphics", "Generative Art", "Digital Painting"],
-    "Ceramics": ["Pottery", "Porcelain", "Stoneware", "Earthenware", "Raku", "Tea Bowl"]
+    "Ceramics": ["Pottery", "Porcelain", "Stoneware", "Earthenware", "Raku", "Tea Bowl"],
+    "Misc": []
+  },
+  "Photography": {
+    "Portrait": ["Studio Portrait", "Environmental Portrait", "Editorial Portrait"],
+    "Landscape": ["Nature", "Urban Landscape", "Seascape", "Aerial"],
+    "Documentary": ["Street", "Photojournalism", "Travel", "Social Documentary"],
+    "Commercial": ["Fashion", "Product", "Architecture", "Food", "Advertising"],
+    "Fine Art": ["Conceptual", "Abstract", "Black and White", "Experimental"],
+    "Misc": []
   },
   "Style": {
     "Modernism": ["Bauhaus", "De Stijl", "International Style", "Swiss Style", "Functionalism", "Constructivism"],
@@ -79,7 +82,9 @@ const DEFAULT_TAXONOMY = {
       "Interior": [],
       "Product": []
     },
-    "Architect": [],
+    "Architect": {
+      "Misc": []
+    },
     "Artist": {
       "Painter": [],
       "Sculptor": [],
@@ -126,8 +131,12 @@ const DEFAULT_TAXONOMY = {
       "Accessories": [],
       "Footwear": []
     },
-    "Appliances": [],
-    "Watch": [],
+    "Appliances": {
+      "Misc": []
+    },
+    "Watch": {
+      "Misc": []
+    },
     "Camera": {
       "Cameras": [],
       "Lenses": []
@@ -305,8 +314,9 @@ const NATIONALITY_TO_COUNTRY = {
 };
 
 const ROOT_COLORS = {
-  'Design': '#CCCCCC', 'Architecture': '#CCCCCC', 'Art': '#CCCCCC', 'Style': '#CCCCCC',
-  'Brand': '#CCCCCC', 'Creator': '#CCCCCC', 'Era': '#CCCCCC', 'Product': '#CCCCCC',
+  'Graphic Design': '#CCCCCC', 'Industrial Design': '#CCCCCC', 'Interior Design': '#CCCCCC', 'Fashion Design': '#CCCCCC',
+  'Architecture': '#CCCCCC', 'Art': '#CCCCCC', 'Photography': '#CCCCCC',
+  'Style': '#CCCCCC', 'Brand': '#CCCCCC', 'Creator': '#CCCCCC', 'Era': '#CCCCCC', 'Product': '#CCCCCC',
   'Material': '#CCCCCC', 'Color': '#CCCCCC', 'Custom': '#CCCCCC', 'Uncategorized': '#CCCCCC'
 };
 

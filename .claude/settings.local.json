@@ -24,7 +24,8 @@
       "Bash(copy:*)",
       "Bash(start \"\" \"C:\\Users\\benno\\.claude-worktrees\\Meta_Tagger\\unruffled-mahavira\\index.html\")",
       "Bash(start \"\" \"C:\\Users\\benno\\.claude-worktrees\\Meta_Tagger\\admiring-albattani\\index.html\")",
-      "Bash(git pull:*)"
+      "Bash(git pull:*)",
+      "Bash(start \"\" \"C:\\Users\\benno\\.claude-worktrees\\Meta_Tagger\\serene-wright\\index.html\")"
     ]
   }
 }

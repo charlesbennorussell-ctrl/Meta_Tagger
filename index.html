@@ -300,7 +300,6 @@
       const children = node._children || {};
       const hasChildren = Object.keys(children).length > 0;
       const keywords = node._keywords || [];
-      const count = countKeywords(node);
       const pathKey = node._path?.join('>');
       const isExpanded = true; // Always expanded
       const color = ROOT_COLORS[node._path?.[0]] || s.text;
@@ -310,7 +309,6 @@
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', borderRadius: depth === 0 ? 20 : 6, background: depth === 0 ? 'rgba(255,255,255,0.03)' : 'transparent' }}>
             {depth > 0 && <span style={{ color: s.textMuted, fontSize: s.fontSize, marginRight: 4 }}>└</span>}
             <span style={{ flex: 1, color: depth === 0 ? '#777777' : '#777777', fontSize: s.fontSize }}>{name}</span>
-            <span style={{ color: s.text, fontSize: s.fontSize }}>{count}</span>
           </div>
           {isExpanded && keywords.length > 0 && (
             <div style={{ marginLeft: depth > 0 ? 48 : 28, color: s.text, fontSize: s.fontSize, lineHeight: s.lineHeight }}>
@@ -352,10 +350,23 @@
       const hasContent = hasChildren || hasItems;
 
       return (
-        <div style={{ marginLeft: depth > 0 ? 16 : 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', borderRadius: depth === 0 ? 20 : 6, background: depth === 0 ? 'rgba(255,255,255,0.03)' : 'transparent' }}>
+        <div style={{ marginLeft: depth > 0 ? 16 : 0, marginTop: depth === 0 ? 32 : 0, marginBottom: depth === 0 ? 32 : 0 }}>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: depth === 0 ? 0 : 8,
+            padding: '6px 16px',
+            borderRadius: depth === 0 ? 16 : 6,
+            background: depth === 0 ? s.bgDark : 'transparent',
+            width: depth === 0 ? '100%' : 'auto',
+            border: 'none',
+            cursor: 'default',
+            fontSize: s.fontSize,
+            fontWeight: s.fontWeight,
+            boxSizing: 'border-box'
+          }}>
             {depth > 0 && <span style={{ color: s.textMuted, fontSize: s.fontSize, marginRight: 4 }}>└</span>}
-            <span style={{ flex: 1, color: depth === 0 ? '#777777' : '#777777', fontSize: s.fontSize }}>{name}</span>
+            <span style={{ color: depth === 0 ? s.text : s.textMuted, whiteSpace: 'nowrap' }}>{name}</span>
           </div>
           {isExpanded && hasItems && (
             <div style={{ marginLeft: depth > 0 ? 48 : 28, color: s.text, fontSize: s.fontSize, lineHeight: s.lineHeight }}>

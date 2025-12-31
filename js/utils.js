@@ -128,12 +128,12 @@ const smartCategorize = (kw, contextBrand = null) => {
   };
   for (const [subcat, terms] of Object.entries(graphicDesignCategories)) {
     if (terms.some(t => valueLower === t || valueLower.includes(t))) {
-      return ['Design', 'Graphic Design', subcat];
+      return ['Graphic Design', subcat];
     }
   }
   // Generic graphic design fallback
   if (valueLower === 'graphic design' || valueLower === 'graphics') {
-    return ['Design', 'Graphic Design'];
+    return ['Graphic Design', 'Misc'];
   }
 
   // Handle Industrial Design sub-categories
@@ -147,18 +147,18 @@ const smartCategorize = (kw, contextBrand = null) => {
   };
   for (const [subcat, terms] of Object.entries(industrialDesignCategories)) {
     if (terms.some(t => valueLower === t || valueLower.includes(t))) {
-      return ['Design', 'Industrial Design', subcat];
+      return ['Industrial Design', subcat];
     }
   }
   // Generic industrial design and product design fallback
   if (valueLower === 'industrial design' || valueLower === 'product design') {
-    return ['Design', 'Industrial Design'];
+    return ['Industrial Design', 'Misc'];
   }
 
   // Handle Interior Design sub-categories
   const interiorDesignTerms = ['interior', 'living room', 'bedroom', 'kitchen design', 'bathroom design', 'home office', 'showroom', 'exhibition', 'gallery space'];
   if (interiorDesignTerms.some(t => valueLower === t || valueLower.includes(t))) {
-    return ['Design', 'Interior Design'];
+    return ['Interior Design', 'Misc'];
   }
 
   // Handle Fashion Design sub-categories
@@ -169,12 +169,12 @@ const smartCategorize = (kw, contextBrand = null) => {
   };
   for (const [subcat, terms] of Object.entries(fashionDesignCategories)) {
     if (terms.some(t => valueLower === t || valueLower.includes(t))) {
-      return ['Design', 'Fashion Design', subcat];
+      return ['Fashion Design', subcat];
     }
   }
   // Generic fashion design fallback
   if (valueLower === 'fashion design' || valueLower === 'fashion') {
-    return ['Design', 'Fashion Design'];
+    return ['Fashion Design', 'Misc'];
   }
 
   // Handle Photography sub-categories
@@ -187,12 +187,12 @@ const smartCategorize = (kw, contextBrand = null) => {
   };
   for (const [subcat, terms] of Object.entries(photographyCategories)) {
     if (terms.some(t => valueLower === t || valueLower.includes(t))) {
-      return ['Art', 'Photography', subcat];
+      return ['Photography', subcat];
     }
   }
   // Generic photography fallback
   if (['photo', 'photograph', 'photography', 'photographer'].some(t => valueLower === t || valueLower.includes(t))) {
-    return ['Art', 'Photography'];
+    return ['Photography', 'Misc'];
   }
 
   // Handle Art sub-categories
@@ -250,14 +250,14 @@ const smartCategorize = (kw, contextBrand = null) => {
 
   // Handle general design-related terms that should go to Design category
   const generalDesignTerms = {
-    'automotive design': ['Design', 'Industrial Design', 'Automotive'],
-    'web design': ['Design', 'Graphic Design', 'Digital'],
-    'information design': ['Design', 'Graphic Design'],
-    'conceptual design': ['Design'],
-    'sustainable design': ['Design'],
-    'layout design': ['Design', 'Graphic Design'],
-    'ui design': ['Design', 'Graphic Design', 'Digital'],
-    'ux design': ['Design', 'Graphic Design', 'Digital'],
+    'automotive design': ['Industrial Design', 'Automotive'],
+    'web design': ['Graphic Design', 'Digital'],
+    'information design': ['Graphic Design', 'Misc'],
+    'conceptual design': ['Industrial Design', 'Misc'],
+    'sustainable design': ['Industrial Design', 'Misc'],
+    'layout design': ['Graphic Design', 'Misc'],
+    'ui design': ['Graphic Design', 'Digital'],
+    'ux design': ['Graphic Design', 'Digital'],
     'engineering': ['Custom'] // Generic engineering term - needs more context
   };
 
@@ -268,7 +268,7 @@ const smartCategorize = (kw, contextBrand = null) => {
 
   // Catch-all for "*design" patterns not yet categorized
   if (valueLower.endsWith(' design') || valueLower === 'design') {
-    return ['Design'];
+    return ['Industrial Design', 'Misc'];
   }
 
   // Default to Custom for uncategorized terms
