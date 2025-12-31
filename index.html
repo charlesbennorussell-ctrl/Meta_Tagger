@@ -404,52 +404,7 @@
       const [continuousSaveEnabled, setContinuousSaveEnabled] = useState(false);
 
       const [taxonomy, setTaxonomy] = useState(() => {
-        try {
-          const stored = JSON.parse(localStorage.getItem(TAXONOMY_KEY));
-          // Migrate from old structure if it has "Design" parent category
-          if (stored && stored.Design) {
-            console.log('[TAXONOMY] Migrating from old structure to new flattened structure, preserving custom keywords');
-            const migrated = JSON.parse(JSON.stringify(DEFAULT_TAXONOMY)); // Start with new structure
-
-            // Migrate Design sub-categories to top level, preserving custom additions
-            if (stored.Design) {
-              if (stored.Design['Graphic Design']) {
-                migrated['Graphic Design'] = { ...migrated['Graphic Design'], ...stored.Design['Graphic Design'] };
-              }
-              if (stored.Design['Industrial Design']) {
-                migrated['Industrial Design'] = { ...migrated['Industrial Design'], ...stored.Design['Industrial Design'] };
-              }
-              if (stored.Design['Interior Design']) {
-                migrated['Interior Design'] = { ...migrated['Interior Design'], ...stored.Design['Interior Design'] };
-              }
-              if (stored.Design['Fashion Design']) {
-                migrated['Fashion Design'] = { ...migrated['Fashion Design'], ...stored.Design['Fashion Design'] };
-              }
-            }
-
-            // Migrate Photography from Art to top level
-            if (stored.Art && stored.Art.Photography) {
-              migrated['Photography'] = { ...migrated['Photography'], ...stored.Art.Photography };
-              // Copy Art without Photography
-              migrated['Art'] = { ...stored.Art };
-              delete migrated['Art'].Photography;
-            } else if (stored.Art) {
-              migrated['Art'] = { ...migrated['Art'], ...stored.Art };
-            }
-
-            // Copy all other top-level categories preserving custom additions
-            ['Architecture', 'Style', 'Brand', 'Creator', 'Product', 'Era', 'Material', 'Color', 'Custom', 'Uncategorized'].forEach(cat => {
-              if (stored[cat]) {
-                migrated[cat] = { ...migrated[cat], ...stored[cat] };
-              }
-            });
-
-            localStorage.setItem(TAXONOMY_KEY, JSON.stringify(migrated));
-            console.log('[TAXONOMY] Migration complete, custom keywords preserved');
-            return migrated;
-          }
-          return stored || DEFAULT_TAXONOMY;
-        }
+        try { return JSON.parse(localStorage.getItem(TAXONOMY_KEY)) || DEFAULT_TAXONOMY; }
         catch { return DEFAULT_TAXONOMY; }
       });
       const taxInfo = useMemo(() => flattenTaxonomy(taxonomy), [taxonomy]);

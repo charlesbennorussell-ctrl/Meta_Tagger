@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Rebuild Taxonomy from Images</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      max-width: 800px;
+      margin: 40px auto;
+      padding: 20px;
+      background: #1a1a1a;
+      color: #fff;
+    }
+    button {
+      background: #4147FF;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 16px;
+      margin: 10px 0;
+    }
+    button:hover {
+      background: #3338dd;
+    }
+    #log {
+      background: #2a2a2a;
+      padding: 20px;
+      border-radius: 8px;
+      margin-top: 20px;
+      font-family: 'Courier New', monospace;
+      font-size: 14px;
+      white-space: pre-wrap;
+      max-height: 500px;
+      overflow-y: auto;
+    }
+    .success { color: #68B757; }
+    .error { color: #ef4444; }
+    .info { color: #4147FF; }
+  </style>
+</head>
+<body>
+  <h1>Rebuild Taxonomy from Keyworded Images</h1>
+  <p>This tool will scan your keyworded images and rebuild the taxonomy from their embedded XMP metadata.</p>
+
+  <button onclick="selectFolder()">Select KEYWORDED Folder</button>
+  <button onclick="rebuildTaxonomy()" id="rebuildBtn" style="display:none;">Rebuild Taxonomy</button>
+
+  <div id="log"></div>
+
+  <script type="module">
+    import exifr from 'https://cdn.jsdelivr.net/npm/exifr@latest/dist/lite.esm.js';
+    window.exifr = exifr;
+  </script>
+
+  <script>
+    let folderHandle = null;
+    let scannedKeywords = [];
+
+    function log(msg, type = 'info') {
+      const logDiv = document.getElementById('log');
+      const className = type === 'success' ? 'success' : type === 'error' ? 'error' : 'info';
+      logDiv.innerHTML += `<span class="${className}">${msg}</span>\n`;
+      logDiv.scrollTop = logDiv.scrollHeight;
+    }
+
+    async function selectFolder() {
+      try {
+        folderHandle = await window.showDirectoryPicker();
+        log(`✓ Selected folder: ${folderHandle.name}`, 'success');
+        document.getElementById('rebuildBtn').style.display = 'inline-block';
+      } catch (e) {
+        log(`✗ Error selecting folder: ${e.message}`, 'error');
+      }
+    }
+
+    async function* getImageFiles(dirHandle) {
+      for await (const entry of dirHandle.values()) {
+        if (entry.kind === 'file') {
+          const name = entry.name.toLowerCase();
+          if (name.endsWith('.jpg') || name.endsWith('.jpeg') || name.endsWith('.png')) {
+            yield entry;
+          }
+        } else if (entry.kind === 'directory') {
+          yield* getImageFiles(entry);
+        }
+      }
+    }
+
+    async function rebuildTaxonomy() {
+      if (!folderHandle) {
+        log('Please select a folder first', 'error');
+        return;
+      }
+
+      log('Starting taxonomy rebuild...', 'info');
+      log('Scanning images for keywords...', 'info');
+
+      const taxonomy = {};
+      let imageCount = 0;
+      let keywordCount = 0;
+
+      try {
+        for await (const fileHandle of getImageFiles(folderHandle)) {
+          imageCount++;
+          if (imageCount % 10 === 0) {
+            log(`Processed ${imageCount} images...`, 'info');
+          }
+
+          try {
+            const file = await fileHandle.getFile();
+            const metadata = await window.exifr.parse(file, {
+              tiff: true,
+              xmp: true,
+              icc: false,
+              iptc: false,
+              jfif: false,
+              ihdr: false
+            });
+
+            if (metadata && metadata.subject) {
+              const keywords = Array.isArray(metadata.subject) ? metadata.subject : [metadata.subject];
+
+              keywords.forEach(kw => {
+                const parts = kw.split(' > ');
+                if (parts.length >= 2) {
+                  const rootCat = parts[0];
+                  const subCat = parts[1];
+                  const value = parts[parts.length - 1];
+
+                  if (!taxonomy[rootCat]) {
+                    taxonomy[rootCat] = {};
+                  }
+                  if (!taxonomy[rootCat][subCat]) {
+                    taxonomy[rootCat][subCat] = [];
+                  }
+                  if (!taxonomy[rootCat][subCat].includes(value)) {
+                    taxonomy[rootCat][subCat].push(value);
+                    keywordCount++;
+                  }
+                }
+              });
+            }
+          } catch (e) {
+            // Skip files that can't be read
+          }
+        }
+
+        log(`\n✓ Scanned ${imageCount} images`, 'success');
+        log(`✓ Found ${keywordCount} unique keywords`, 'success');
+
+        // Save to localStorage
+        localStorage.setItem('tagger_taxonomy', JSON.stringify(taxonomy));
+        log('\n✓ Taxonomy saved to localStorage!', 'success');
+        log('\nRefresh your Meta Tagger app to see the restored keywords.', 'info');
+
+        // Show summary
+        log('\n=== TAXONOMY SUMMARY ===', 'info');
+        Object.keys(taxonomy).sort().forEach(cat => {
+          const subCats = Object.keys(taxonomy[cat]).length;
+          log(`${cat}: ${subCats} subcategories`, 'info');
+        });
+
+      } catch (e) {
+        log(`✗ Error: ${e.message}`, 'error');
+        console.error(e);
+      }
+    }
+
+    window.selectFolder = selectFolder;
+    window.rebuildTaxonomy = rebuildTaxonomy;
+  </script>
+</body>
+</html>

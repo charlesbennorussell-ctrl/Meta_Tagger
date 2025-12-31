@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Fix Taxonomy</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      max-width: 800px;
+      margin: 40px auto;
+      padding: 20px;
+      background: #1a1a1a;
+      color: #fff;
+    }
+    button {
+      background: #4147FF;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 16px;
+      margin: 10px 0;
+    }
+    button:hover {
+      background: #3338dd;
+    }
+    #log {
+      background: #2a2a2a;
+      padding: 20px;
+      border-radius: 8px;
+      margin-top: 20px;
+      font-family: 'Courier New', monospace;
+      font-size: 14px;
+      white-space: pre-wrap;
+      max-height: 500px;
+      overflow-y: auto;
+    }
+  </style>
+</head>
+<body>
+  <h1>Reset to Default Taxonomy</h1>
+  <p>This will restore the default taxonomy structure with all the standard keywords.</p>
+
+  <button onclick="resetTaxonomy()">Reset to Default Taxonomy</button>
+
+  <div id="log"></div>
+
+  <script>
+    function log(msg) {
+      document.getElementById('log').innerHTML += msg + '\n';
+    }
+
+    function resetTaxonomy() {
+      // Clear the broken taxonomy
+      localStorage.removeItem('tagger_taxonomy');
+      log('✓ Cleared broken taxonomy from localStorage');
+      log('✓ App will now use the default taxonomy with all standard keywords');
+      log('\n✓ Please refresh your Meta Tagger app now!');
+      log('\nThe default taxonomy includes:');
+      log('- Graphic Design (Print, Identity, Typography, Digital, Illustration, Signage, Packaging)');
+      log('- Industrial Design (Furniture, Audio Equipment, Consumer Electronics, Automotive, Appliances, Tools)');
+      log('- Interior Design (Residential, Commercial, Exhibition)');
+      log('- Fashion Design (Apparel, Accessories, Textile)');
+      log('- Architecture (Residential, Commercial, Institutional, Religious, Industrial)');
+      log('- Art (Painting, Sculpture, Digital Art, Ceramics)');
+      log('- Photography (Portrait, Landscape, Documentary, Commercial, Fine Art)');
+      log('- Plus: Style, Brand, Creator, Product, Era, Material, Color categories');
+    }
+  </script>
+</body>
+</html>
