@@ -1172,7 +1172,6 @@
         if (!outputDir && skipSync) {
           console.error('[SAVE] ❌ Cannot batch save without output directory set. Please select an output folder in settings.');
           console.error('[SAVE] Image:', img.name, 'Keywords:', kws.length, 'outputDir:', !!outputDir, 'skipSync:', skipSync);
-          alert('Please select an output folder in settings before saving multiple files.');
           return;
         }
 
@@ -1787,6 +1786,19 @@
         if (isSavingAll) return;
         const toSave = queue.filter(q => !q.hidden && (q.status === 'ready' || q.status === 'editing') && q.keywords?.length > 0);
         if (toSave.length === 0) return;
+
+        // Always prompt for save directory
+        try {
+          const dir = await window.showDirectoryPicker({ mode: 'readwrite' });
+          setOutputDir(dir);
+          setOutputDirName(dir.name);
+          localStorage.setItem('output_dir_name', dir.name);
+          await saveOutputDirectory(dir);
+          console.log('[SAVE ALL] Output directory selected:', dir.name);
+        } catch (e) {
+          console.log('[SAVE ALL] Directory selection cancelled');
+          return;
+        }
 
         setIsSavingAll(true);
         console.log(`[SAVE ALL] Saving ${toSave.length} images...`);
@@ -2563,9 +2575,26 @@
                       <Icon name={isSavingAll ? "hourglass_empty" : "save"} size={16} /> {isSavingAll ? 'Saving...' : `Save All (${readyToSaveCount})`}
                     </button>
                   )}
-                  <button onClick={() => setContinuousSaveEnabled(!continuousSaveEnabled)}
+                  <button onClick={async () => {
+                    if (!continuousSaveEnabled && !outputDir) {
+                      try {
+                        const dir = await window.showDirectoryPicker({ mode: 'readwrite' });
+                        setOutputDir(dir);
+                        setOutputDirName(dir.name);
+                        localStorage.setItem('output_dir_name', dir.name);
+                        await saveOutputDirectory(dir);
+                        setContinuousSaveEnabled(true);
+                        console.log('[CONTINUOUS SAVE] Output directory selected:', dir.name);
+                      } catch (e) {
+                        console.log('[CONTINUOUS SAVE] Directory selection cancelled');
+                        return;
+                      }
+                    } else {
+                      setContinuousSaveEnabled(!continuousSaveEnabled);
+                    }
+                  }}
                     className={continuousSaveEnabled ? '' : 'no-hover'}
-                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 16px', background: continuousSaveEnabled ? s.bgMid : 'transparent', color: continuousSaveEnabled ? s.text : s.textMuted, border: 'none', borderRadius: 16, cursor: 'pointer', fontSize: 14, fontWeight: 500 }}>
+                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 16px', background: continuousSaveEnabled ? '#68B757' : 'transparent', color: continuousSaveEnabled ? '#000000' : s.textMuted, border: 'none', borderRadius: 16, cursor: 'pointer', fontSize: 14, fontWeight: 500 }}>
                     Continuous Save
                   </button>
                 </div>
