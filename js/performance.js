@@ -188,6 +188,26 @@ const getAnalysis = async (hash) => {
   }
 };
 
+const deleteAnalysis = async (hash) => {
+  try {
+    const db = await initDB();
+    const tx = db.transaction(STORE_ANALYSIS, 'readwrite');
+    const store = tx.objectStore(STORE_ANALYSIS);
+
+    return new Promise((resolve, reject) => {
+      const request = store.delete(hash);
+      request.onsuccess = () => {
+        console.log('[ANALYSIS] Deleted cache for:', hash);
+        resolve(true);
+      };
+      request.onerror = () => reject(request.error);
+    });
+  } catch (e) {
+    console.error('[ANALYSIS] Delete failed:', e);
+    return false;
+  }
+};
+
 // Clean old thumbnails (keep last 1000)
 const cleanOldThumbnails = async () => {
   try {
@@ -484,6 +504,7 @@ window.TaggerPerformance = {
   getThumbnail,
   storeAnalysis,
   getAnalysis,
+  deleteAnalysis,
   cleanOldThumbnails,
   storeMemory,
   getMemory,

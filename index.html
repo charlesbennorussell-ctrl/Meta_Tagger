@@ -107,7 +107,7 @@
     const { motion, AnimatePresence } = window.Motion;
 
     // Import performance utilities
-    const { generateThumbnail, storeThumbnail, getThumbnail, storeAnalysis, getAnalysis, BatchProcessor, LazyLoader, throttle, debounce, getMemoryUsage, saveOutputDirectory, loadOutputDirectory } = window.TaggerPerformance;
+    const { generateThumbnail, storeThumbnail, getThumbnail, storeAnalysis, getAnalysis, deleteAnalysis, BatchProcessor, LazyLoader, throttle, debounce, getMemoryUsage, saveOutputDirectory, loadOutputDirectory } = window.TaggerPerformance;
 
     // Icon component for Material Symbols
     const Icon = ({ name, size = 20, filled = false, style = {} }) => (
@@ -170,7 +170,7 @@
     );
 
     // Optimized thumbnail component with lazy loading
-    const ThumbnailImage = memo(({ item, isSelected, onSelect, onHide, onUnhide, thumbSize, s }) => {
+    const ThumbnailImage = memo(({ item, isSelected, onSelect, onHide, onUnhide, thumbSize, showPending, showDone, s }) => {
       const [thumbUrl, setThumbUrl] = useState(null);
       const [isLoading, setIsLoading] = useState(true);
       const imgRef = useRef(null);
@@ -230,7 +230,8 @@
         };
       }, [item.hash, item.file, thumbSize]);
 
-      const statusColor = item.status === 'done' ? s.text : item.status === 'editing' ? s.text : item.status === 'ready' ? s.text : item.status === 'analyzing' ? s.text : item.status === 'error' ? s.text : s.text;
+      const statusColor = item.status === 'done' ? '#68B757' : item.status === 'editing' ? '#4147FF' : item.status === 'ready' ? '#4147FF' : item.status === 'analyzing' ? '#fbbf24' : item.status === 'error' ? '#ef4444' : s.textMuted;
+      const selectionColor = showDone ? '#68B757' : showPending ? '#4147FF' : s.text;
 
       return (
         <motion.div
@@ -243,7 +244,7 @@
           title={item.status === 'error' ? item.errorMessage || 'Analysis failed - click to retry' : ''}
           style={{
             position: 'relative', borderRadius: 0, overflow: 'hidden', cursor: 'pointer',
-            border: `2px solid ${isSelected ? s.text : 'transparent'}`,
+            border: `2px solid ${isSelected ? selectionColor : 'transparent'}`,
             boxShadow: 'none',
             opacity: item.hidden ? 0.4 : item.status === 'done' ? 0.7 : 1,
             backgroundColor: '#2B2B2B'
@@ -260,16 +261,6 @@
             {item.status === 'error' && (
               <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <Icon name="error" size={28} style={{ color: s.textMuted }} />
-              </div>
-            )}
-            {(item.status === 'ready' || item.status === 'editing') && (
-              <div style={{ position: 'absolute', top: 6, right: 6, width: 20, height: 20, borderRadius: '50%', background: '#4147FF', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 4px rgba(0,0,0,0.4)' }}>
-                <Icon name="rate_review" size={12} style={{ color: '#fff' }} />
-              </div>
-            )}
-            {item.status === 'done' && (
-              <div style={{ position: 'absolute', top: 6, right: 6, background: '#68B757', color: '#000', padding: 4, borderRadius: 4, display: 'flex', alignItems: 'center' }}>
-                <Icon name="check_circle" size={16} />
               </div>
             )}
             {item.hidden && (
@@ -1765,14 +1756,12 @@
         }
       }, [autoScan]); // Only trigger when autoScan changes
 
-      const reanalyzeSelected = () => {
+      const reanalyzeSelected = async () => {
         if (!selectedImg || !geminiKey) return;
-        // Clear cache for this image
+        // Clear IndexedDB cache for this image
         try {
-          const cacheKey = 'tagger_analysis_cache';
-          const cache = JSON.parse(localStorage.getItem(cacheKey) || '{}');
-          delete cache[selectedImg.hash];
-          localStorage.setItem(cacheKey, JSON.stringify(cache));
+          await deleteAnalysis(selectedImg.hash);
+          console.log('[REANALYZE] Cleared cache for:', selectedImg.name);
         } catch (e) { console.error('[REANALYZE] Cache clear failed:', e); }
         // Reset to pending and re-analyze
         setQueue(q => q.map(i => i.id === selectedImg.id ? { ...i, status: 'pending', keywords: [], pending: [] } : i));
@@ -1820,6 +1809,31 @@
 
       const hideImage = (id, e) => {
         e?.stopPropagation();
+
+        // Find next image to select before hiding
+        if (selectedIds.includes(id)) {
+          const currentFiltered = queue.filter(q => {
+            if (q.hidden) return showHidden;
+            if (q.status === 'done') return showDone;
+            if (q.status === 'analyzing') return showAnalyzing;
+            return showPending;
+          });
+
+          const currentIndex = currentFiltered.findIndex(q => q.id === id);
+          if (currentIndex !== -1 && currentFiltered.length > 1) {
+            const nextIndex = currentIndex < currentFiltered.length - 1 ? currentIndex + 1 : currentIndex - 1;
+            const nextImg = currentFiltered[nextIndex];
+            if (nextImg && nextImg.id !== id) {
+              setSelectedIds([nextImg.id]);
+              setLastClickedId(nextImg.id);
+              selectImage(nextImg.id, true);
+            }
+          } else {
+            setSelectedIds([]);
+            setSelectedId(null);
+          }
+        }
+
         setQueue(q => q.map(i => {
           if (i.id === id) {
             setMemory(prev => ({ ...prev, [i.hash]: { ...prev[i.hash], hidden: true } }));
@@ -1827,7 +1841,6 @@
           }
           return i;
         }));
-        if (selectedId === id) setSelectedId(null);
       };
 
       const unhideImage = (id, e) => {
@@ -2496,7 +2509,7 @@
         });
       }, [queue, analyzeImage]);
 
-      const thumbSizes = [60, 90, 130, 180];
+      const thumbSizes = [90, 160, 360];
       const currentThumbSize = thumbSizes[thumbSize];
 
       // Unified style system
@@ -2543,38 +2556,26 @@
 
             {/* Action buttons */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              {selectedIds.length > 0 && !showDone && (
-                <div style={{ display: 'inline-flex', background: s.bgDark, borderRadius: 20, padding: 4 }}>
-                  <button onClick={() => {
-                    selectedIds.forEach(id => {
-                      const img = queue.find(q => q.id === id);
-                      if (img && img.status !== 'done') {
-                        setQueue(q => q.map(i => i.id === id ? { ...i, status: 'done' } : i));
-                      }
-                    });
-                    setSelectedIds([]);
-                    setSelectedId(null);
-                  }} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 16px', background: s.bgMid, color: s.text, border: 'none', borderRadius: 16, cursor: 'pointer', fontSize: 14, fontWeight: 500 }}>
-                    <Icon name="check_circle" size={16} /> Mark as Done
-                  </button>
-                </div>
-              )}
               {showPending && readyCount > 0 && (
                 <div style={{ display: 'inline-flex', background: s.bgDark, borderRadius: 20, padding: 4 }}>
                   <button onClick={() => {
-                    setQueue(q => q.map(i => (i.status === 'ready' || i.status === 'editing') ? { ...i, status: 'done' } : i));
+                    if (confirm(`Mark all ${readyCount} ready images as done?`)) {
+                      setQueue(q => q.map(i => (i.status === 'ready' || i.status === 'editing') ? { ...i, status: 'done' } : i));
+                    }
                   }} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 16px', background: '#4147FF', color: '#FFFFFF', border: 'none', borderRadius: 16, cursor: 'pointer', fontSize: 14, fontWeight: 500 }}>
-                    <Icon name="done_all" size={16} /> Mark all as Done
+                    Mark all as Done
+                  </button>
+                </div>
+              )}
+              {showDone && readyToSaveCount > 0 && (
+                <div style={{ display: 'inline-flex', background: s.bgDark, borderRadius: 20, padding: 4 }}>
+                  <button onClick={saveAll} disabled={isSavingAll} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 16px', background: '#68B757', color: '#000000', border: 'none', borderRadius: 16, cursor: isSavingAll ? 'default' : 'pointer', fontSize: 14, fontWeight: 500 }}>
+                    <Icon name={isSavingAll ? "hourglass_empty" : "save"} size={16} /> {isSavingAll ? 'Saving...' : `Save All (${readyToSaveCount})`}
                   </button>
                 </div>
               )}
               {showDone && (
-                <div style={{ display: 'inline-flex', background: s.bgDark, borderRadius: 20, padding: 4, gap: 4 }}>
-                  {readyToSaveCount > 0 && (
-                    <button onClick={saveAll} disabled={isSavingAll} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 16px', background: '#68B757', color: '#000000', border: 'none', borderRadius: 16, cursor: isSavingAll ? 'default' : 'pointer', fontSize: 14, fontWeight: 500 }}>
-                      <Icon name={isSavingAll ? "hourglass_empty" : "save"} size={16} /> {isSavingAll ? 'Saving...' : `Save All (${readyToSaveCount})`}
-                    </button>
-                  )}
+                <div style={{ display: 'inline-flex', background: s.bgDark, borderRadius: 20, padding: 4 }}>
                   <button onClick={async () => {
                     if (!continuousSaveEnabled && !outputDir) {
                       try {
@@ -2594,7 +2595,7 @@
                     }
                   }}
                     className={continuousSaveEnabled ? '' : 'no-hover'}
-                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 16px', background: continuousSaveEnabled ? '#68B757' : 'transparent', color: continuousSaveEnabled ? '#000000' : s.textMuted, border: 'none', borderRadius: 16, cursor: 'pointer', fontSize: 14, fontWeight: 500 }}>
+                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 16px', background: continuousSaveEnabled ? s.bgMid : 'transparent', color: continuousSaveEnabled ? s.text : s.textMuted, border: 'none', borderRadius: 16, cursor: 'pointer', fontSize: 14, fontWeight: 500 }}>
                     Continuous Save
                   </button>
                 </div>
@@ -2671,6 +2672,38 @@
                     </button>
                   )}
                   <div style={{ display: 'inline-flex', background: s.bgDark, borderRadius: 20, padding: 4 }}>
+                    <button onClick={async () => {
+                      const toReanalyze = filteredQueue.filter(q => !q.hidden);
+                      if (toReanalyze.length > 0 && confirm(`Re-analyze all ${toReanalyze.length} images? This will clear cached analysis and start over.`)) {
+                        // Clear IndexedDB cache for these images
+                        try {
+                          for (const img of toReanalyze) {
+                            await deleteAnalysis(img.hash);
+                          }
+                          console.log('[REANALYZE ALL] Cleared IndexedDB cache for', toReanalyze.length, 'images');
+                        } catch (e) { console.error('[REANALYZE ALL] Cache clear failed:', e); }
+
+                        // Reset to pending first (required for analyzeImage guard to pass)
+                        setQueue(q => q.map(i => {
+                          const shouldReanalyze = toReanalyze.find(img => img.id === i.id);
+                          return shouldReanalyze ? { ...i, status: 'pending', keywords: [], pending: [] } : i;
+                        }));
+
+                        // Start analysis after state update
+                        setTimeout(() => {
+                          toReanalyze.forEach(img => {
+                            analyzeImage({ ...img, status: 'pending', keywords: [], pending: [] });
+                          });
+                          console.log('[REANALYZE ALL] Started analysis for', toReanalyze.length, 'images');
+                        }, 200);
+                      }
+                    }} disabled={!geminiKey}
+                      className='no-hover'
+                      style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '6px 16px', background: 'transparent', color: s.textMuted, border: 'none', borderRadius: 16, cursor: geminiKey ? 'pointer' : 'not-allowed', fontSize: 14, fontWeight: 500, opacity: !geminiKey ? 0.5 : 1 }}>
+                      Re-Analyze All
+                    </button>
+                  </div>
+                  <div style={{ display: 'inline-flex', background: s.bgDark, borderRadius: 20, padding: 4 }}>
                     <button onClick={() => setAutoScan(!autoScan)} disabled={!geminiKey}
                       className={autoScan ? '' : 'no-hover'}
                       style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '6px 16px', background: autoScan ? s.bgMid : 'transparent', color: autoScan ? s.text : s.textMuted, border: 'none', borderRadius: 16, cursor: 'pointer', fontSize: 14, fontWeight: 500, opacity: !geminiKey ? 0.5 : 1 }}>
@@ -2678,7 +2711,7 @@
                     </button>
                   </div>
                   <div style={{ display: 'inline-flex', background: s.bgDark, borderRadius: 20, padding: 4, gap: 0 }}>
-                    {['S', 'M', 'L', 'XL'].map((label, i) => (
+                    {['S', 'M', 'L'].map((label, i) => (
                       <button key={label} onClick={() => setThumbSize(i)}
                         className={thumbSize === i ? 'no-hover' : ''}
                         onMouseEnter={(e) => { if (thumbSize !== i) e.currentTarget.style.color = s.text; }}
@@ -2725,6 +2758,8 @@
                           onHide={hideImage}
                           onUnhide={unhideImage}
                           thumbSize={currentThumbSize}
+                          showPending={showPending}
+                          showDone={showDone}
                           s={s}
                         />
                       ))}
@@ -3166,7 +3201,6 @@
               <div style={{ padding: '14px 16px', borderBottom: `2px solid ${s.border}` }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: s.bright, fontSize: s.fontSize, fontWeight: 500 }}>
-                    <Icon name="account_tree" size={20} />
                     Taxonomy
                   </div>
                   <div style={{ display: 'flex', gap: 6 }}>
@@ -3205,7 +3239,6 @@
                         fontSize: 14, fontWeight: 500
                       }}
                     >
-                      <Icon name={isOrganizing ? "hourglass_empty" : "auto_fix_high"} size={16} />
                       {isOrganizing ? 'Organizing...' : 'Organize'}
                     </button>
                   </div>

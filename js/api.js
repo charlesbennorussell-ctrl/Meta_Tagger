@@ -66,7 +66,34 @@ Return 10-20 specific, useful keywords. Only return the JSON array.`;
     try {
       return JSON.parse(jsonStr);
     } catch (e) {
-      console.error('[GEMINI] JSON parse error:', e.message, jsonStr.slice(0, 200));
+      // Check if JSON is truncated (doesn't end with ])
+      const isTruncated = !jsonStr.trim().endsWith(']');
+      if (isTruncated) {
+        console.warn('[GEMINI] Response truncated - attempting to salvage partial JSON');
+        // Try to close the JSON properly
+        const lastComma = jsonStr.lastIndexOf(',');
+        const lastBrace = jsonStr.lastIndexOf('}');
+        if (lastBrace > lastComma) {
+          // Last object seems complete, just add closing bracket
+          const salvaged = jsonStr + ']';
+          try {
+            return JSON.parse(salvaged);
+          } catch (e2) {
+            console.error('[GEMINI] Salvage failed:', e2.message);
+          }
+        } else if (lastComma > 0) {
+          // Remove incomplete last object and close array
+          const salvaged = jsonStr.substring(0, lastComma) + ']';
+          try {
+            const result = JSON.parse(salvaged);
+            console.log('[GEMINI] Salvaged', result.length, 'items from truncated response');
+            return result;
+          } catch (e2) {
+            console.error('[GEMINI] Salvage failed:', e2.message);
+          }
+        }
+      }
+      console.error('[GEMINI] JSON parse error:', e.message, '\nFull response:', jsonStr);
       return [];
     }
   }, 3, 2000); // 3 retries, starting with 2s delay
