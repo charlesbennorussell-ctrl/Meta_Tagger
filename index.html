@@ -397,6 +397,13 @@
       const [useVision, setUseVision] = useState(localStorage.getItem('use_vision') === 'true');
       const [autoDownloadLarger, setAutoDownloadLarger] = useState(localStorage.getItem('auto_download_larger') === 'true');
       const [showSettings, setShowSettings] = useState(false);
+
+      // Debug toggles for API services
+      const [debugUseVisionLabels, setDebugUseVisionLabels] = useState(localStorage.getItem('debug_vision_labels') !== 'false');
+      const [debugUseVisionLogos, setDebugUseVisionLogos] = useState(localStorage.getItem('debug_vision_logos') !== 'false');
+      const [debugUseGeminiAnalysis, setDebugUseGeminiAnalysis] = useState(localStorage.getItem('debug_gemini_analysis') !== 'false');
+      const [debugUseGeminiCategorize, setDebugUseGeminiCategorize] = useState(localStorage.getItem('debug_gemini_categorize') !== 'false');
+      const [debugUseDesignerLookup, setDebugUseDesignerLookup] = useState(localStorage.getItem('debug_designer_lookup') !== 'false');
       const [saveMode, setSaveMode] = useState(localStorage.getItem('save_mode') || 'embed');
       const [outputDir, setOutputDir] = useState(null);
       const [outputDirName, setOutputDirName] = useState(localStorage.getItem('output_dir_name') || '');
@@ -676,7 +683,12 @@
         localStorage.setItem('auto_download_larger', autoDownloadLarger.toString());
         localStorage.setItem('save_mode', saveMode);
         localStorage.setItem('thumb_size', thumbSize.toString());
-      }, [geminiKey, visionKey, useVision, autoDownloadLarger, saveMode, thumbSize]);
+        localStorage.setItem('debug_vision_labels', debugUseVisionLabels.toString());
+        localStorage.setItem('debug_vision_logos', debugUseVisionLogos.toString());
+        localStorage.setItem('debug_gemini_analysis', debugUseGeminiAnalysis.toString());
+        localStorage.setItem('debug_gemini_categorize', debugUseGeminiCategorize.toString());
+        localStorage.setItem('debug_designer_lookup', debugUseDesignerLookup.toString());
+      }, [geminiKey, visionKey, useVision, autoDownloadLarger, saveMode, thumbSize, debugUseVisionLabels, debugUseVisionLogos, debugUseGeminiAnalysis, debugUseGeminiCategorize, debugUseDesignerLookup]);
 
       // Auto-save memory to folder or IndexedDB (debounced to avoid excessive writes)
       useEffect(() => {
@@ -1386,14 +1398,19 @@
             contextParts.push(`Existing tags: ${img.existingKeywords.map(k => k.value).join(', ')}`);
           }
 
-          let rawKws = await analyzeWithGemini(geminiKey, base64, img.file.type, contextParts.join('. '));
+          let rawKws = [];
+
+          // Gemini analysis (if enabled)
+          if (debugUseGeminiAnalysis) {
+            rawKws = await analyzeWithGemini(geminiKey, base64, img.file.type, contextParts.join('. '));
+          }
 
           if (img.filenameKeywords) rawKws = [...img.filenameKeywords, ...rawKws];
           if (img.existingKeywords) rawKws = [...img.existingKeywords, ...rawKws];
 
           let visionResult = null;
           if (useVision && visionKey) {
-            visionResult = await analyzeWithVision(visionKey, base64);
+            visionResult = await analyzeWithVision(visionKey, base64, debugUseVisionLabels, debugUseVisionLogos);
             if (visionResult?.keywords) {
               visionResult.keywords.forEach(vk => {
                 if (!rawKws.some(k => k.value.toLowerCase() === vk.value.toLowerCase())) {
@@ -1460,7 +1477,7 @@
           processedKws = deduplicateKeywords(processedKws);
 
           let designerInfo = null;
-          if (brandFound.length > 0 && modelFound.length > 0) {
+          if (debugUseDesignerLookup && brandFound.length > 0 && modelFound.length > 0) {
             designerInfo = await findDesigner(geminiKey, `${brandFound[0].value} ${modelFound[0].value}`);
             if (designerInfo?.designers && designerInfo.designers.length > 0) {
               designerInfo.designers.forEach(name => {
@@ -1539,7 +1556,7 @@
             errorMessage: err.message || 'Analysis failed'
           } : i));
         }
-      }, [geminiKey, visionKey, useVision, autoDownloadLarger, outputDir, taxInfo, masterTerms, findPath]);
+      }, [geminiKey, visionKey, useVision, autoDownloadLarger, outputDir, taxInfo, masterTerms, findPath, debugUseGeminiAnalysis, debugUseVisionLabels, debugUseVisionLogos, debugUseDesignerLookup]);
 
       // Keep ref updated for use in processFiles
       useEffect(() => { analyzeImageRef.current = analyzeImage; }, [analyzeImage]);
@@ -1998,7 +2015,7 @@
           });
 
           // Background categorization for Custom keywords (non-blocking)
-          if (fullKw.path?.[0] === 'Custom' && geminiKey) {
+          if (fullKw.path?.[0] === 'Custom' && geminiKey && debugUseGeminiCategorize) {
             setTimeout(async () => {
               try {
                 const results = await categorizeKeywords(geminiKey, [fullKw.value]);
@@ -2389,7 +2406,7 @@
         }
 
         // Background research for uncategorized keywords
-        if (uncategorizedKws.length > 0 && geminiKey) {
+        if (uncategorizedKws.length > 0 && geminiKey && debugUseGeminiCategorize) {
           setTimeout(async () => {
             for (const kw of uncategorizedKws) {
               const result = await researchKeyword(geminiKey, kw.value);
@@ -2469,7 +2486,7 @@
       }, [taxonomy]);
 
       const runCategorization = async () => {
-        if (!geminiKey || isCategorizing) return;
+        if (!geminiKey || isCategorizing || !debugUseGeminiCategorize) return;
 
         const customKws = getCustomKeywords();
         if (customKws.length === 0) {
@@ -3383,6 +3400,32 @@
                           <div style={{ fontSize: s.fontSize, color: s.muted }}>Requires output folder to be set</div>
                         </div>
                       </label>
+                    </div>
+
+                    <div style={{ marginTop: 16, paddingTop: 16, borderTop: `1px solid ${s.border}` }}>
+                      <div style={{ marginBottom: 12, color: s.text, fontSize: s.fontSize, fontWeight: s.fontWeight }}>API Debug Toggles</div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', padding: '8px 12px', background: s.bg, borderRadius: s.radiusSm }}>
+                          <input type="checkbox" checked={debugUseGeminiAnalysis} onChange={e => setDebugUseGeminiAnalysis(e.target.checked)} style={{ width: 16, height: 16, accentColor: s.text }} />
+                          <span style={{ fontSize: s.fontSize, color: s.bright }}>Gemini Image Analysis</span>
+                        </label>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', padding: '8px 12px', background: s.bg, borderRadius: s.radiusSm }}>
+                          <input type="checkbox" checked={debugUseVisionLabels} onChange={e => setDebugUseVisionLabels(e.target.checked)} style={{ width: 16, height: 16, accentColor: s.text }} />
+                          <span style={{ fontSize: s.fontSize, color: s.bright }}>Vision API Labels ($10.81/mo)</span>
+                        </label>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', padding: '8px 12px', background: s.bg, borderRadius: s.radiusSm }}>
+                          <input type="checkbox" checked={debugUseVisionLogos} onChange={e => setDebugUseVisionLogos(e.target.checked)} style={{ width: 16, height: 16, accentColor: s.text }} />
+                          <span style={{ fontSize: s.fontSize, color: s.bright }}>Vision API Logos ($10.80/mo)</span>
+                        </label>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', padding: '8px 12px', background: s.bg, borderRadius: s.radiusSm }}>
+                          <input type="checkbox" checked={debugUseGeminiCategorize} onChange={e => setDebugUseGeminiCategorize(e.target.checked)} style={{ width: 16, height: 16, accentColor: s.text }} />
+                          <span style={{ fontSize: s.fontSize, color: s.bright }}>Gemini Auto-Categorization</span>
+                        </label>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', padding: '8px 12px', background: s.bg, borderRadius: s.radiusSm }}>
+                          <input type="checkbox" checked={debugUseDesignerLookup} onChange={e => setDebugUseDesignerLookup(e.target.checked)} style={{ width: 16, height: 16, accentColor: s.text }} />
+                          <span style={{ fontSize: s.fontSize, color: s.bright }}>Designer Lookup</span>
+                        </label>
+                      </div>
                     </div>
 
                     <div>

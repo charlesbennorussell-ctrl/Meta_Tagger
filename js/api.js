@@ -267,21 +267,27 @@ Return empty array [] if no exact matches exist.` }] }],
   }
 };
 
-const analyzeWithVision = async (apiKey, imageBase64) => {
+const analyzeWithVision = async (apiKey, imageBase64, useLabels = true, useLogos = true) => {
   const { extractFromUrls } = window.TaggerUtils;
 
   try {
+    // Build features array based on what's enabled
+    const features = [];
+    if (useLabels) features.push({ type: 'LABEL_DETECTION', maxResults: 10 });
+    if (useLogos) features.push({ type: 'LOGO_DETECTION', maxResults: 5 });
+
+    // If no features enabled, return empty
+    if (features.length === 0) {
+      return { keywords: [], matchingImages: [] };
+    }
+
     const response = await fetch(`https://vision.googleapis.com/v1/images:annotate?key=${apiKey}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         requests: [{
           image: { content: imageBase64 },
-          features: [
-            { type: 'WEB_DETECTION', maxResults: 15 },
-            { type: 'LABEL_DETECTION', maxResults: 20 },
-            { type: 'LOGO_DETECTION', maxResults: 5 }
-          ]
+          features: features
         }]
       })
     });
@@ -293,53 +299,25 @@ const analyzeWithVision = async (apiKey, imageBase64) => {
     const keywords = [];
     const seen = new Set();
 
-    result.webDetection?.webEntities?.forEach(entity => {
-      if (entity.description && entity.score > 0.4 && !seen.has(entity.description.toLowerCase())) {
-        seen.add(entity.description.toLowerCase());
-        keywords.push({ value: entity.description, confidence: entity.score, type: 'web', source: 'vision' });
-      }
-    });
+    if (useLabels) {
+      result.labelAnnotations?.forEach(label => {
+        if (label.description && label.score > 0.6 && !seen.has(label.description.toLowerCase())) {
+          seen.add(label.description.toLowerCase());
+          keywords.push({ value: label.description, confidence: label.score, type: 'label', source: 'vision' });
+        }
+      });
+    }
 
-    result.webDetection?.bestGuessLabels?.forEach(label => {
-      if (label.label && !seen.has(label.label.toLowerCase())) {
-        seen.add(label.label.toLowerCase());
-        keywords.push({ value: label.label, confidence: 0.9, type: 'guess', source: 'vision' });
-      }
-    });
+    if (useLogos) {
+      result.logoAnnotations?.forEach(logo => {
+        if (logo.description && !seen.has(logo.description.toLowerCase())) {
+          seen.add(logo.description.toLowerCase());
+          keywords.push({ value: logo.description, confidence: logo.score || 0.9, type: 'brand', source: 'vision' });
+        }
+      });
+    }
 
-    result.labelAnnotations?.forEach(label => {
-      if (label.description && label.score > 0.6 && !seen.has(label.description.toLowerCase())) {
-        seen.add(label.description.toLowerCase());
-        keywords.push({ value: label.description, confidence: label.score, type: 'label', source: 'vision' });
-      }
-    });
-
-    result.logoAnnotations?.forEach(logo => {
-      if (logo.description && !seen.has(logo.description.toLowerCase())) {
-        seen.add(logo.description.toLowerCase());
-        keywords.push({ value: logo.description, confidence: logo.score || 0.9, type: 'brand', source: 'vision' });
-      }
-    });
-
-    // Only collect full/exact matches - these are the most useful
-    const matchingImages = [];
-    result.webDetection?.fullMatchingImages?.forEach(img => matchingImages.push({ url: img.url, type: 'full' }));
-
-    // Pages with matching images are useful for creator extraction
-    result.webDetection?.pagesWithMatchingImages?.forEach(page => {
-      if (page.url) matchingImages.push({ url: page.url, type: 'page', pageTitle: page.pageTitle });
-    });
-
-    // Extract names from URLs
-    const urlKeywords = extractFromUrls(matchingImages);
-    urlKeywords.forEach(uk => {
-      if (!seen.has(uk.value.toLowerCase())) {
-        seen.add(uk.value.toLowerCase());
-        keywords.push(uk);
-      }
-    });
-
-    return { keywords, matchingImages };
+    return { keywords, matchingImages: [] };
   } catch (err) {
     console.error('[VISION] Error:', err);
     return null;
