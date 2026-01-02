@@ -291,7 +291,7 @@
       embedXMP, embedXMPinPNG, convertToJPEG, isRawFormat, supportsEmbedding,
       autoAssignRequiredCategory
     } = window.TaggerUtils;
-    const { analyzeWithGemini, findDesigner, categorizeKeywords, analyzeWithVision, extractCreatorsFromWebMatches, downloadLargerVersion, organizeTaxonomy, researchKeyword } = window.TaggerAPI;
+    const { analyzeWithGemini, findDesigner, findImageCreator, categorizeKeywords, analyzeWithVision, extractCreatorsFromWebMatches, downloadLargerVersion, organizeTaxonomy, researchKeyword } = window.TaggerAPI;
 
     // ============================================
     // REACT COMPONENTS (must be in Babel block for JSX)
@@ -1099,7 +1099,14 @@
             // to prevent false matches across different photo sessions
             const baseNameTooShort = img.baseName.length <= 4;
 
-            if (prefixMatch && !baseNameTooShort) {
+            // Check if baseName looks like a timestamp (YYYY-MM-DD HH.MM.SS pattern)
+            const isTimestampBased = /^\d{4}-\d{2}-\d{2}\s+\d{2}\.\d{2}\.\d{2}/.test(img.baseName);
+
+            if (isTimestampBased) {
+              // For timestamp-based files with matching baseName, trust the match
+              reasons.push('timestamp match');
+              isMatch = true;
+            } else if (prefixMatch && !baseNameTooShort) {
               // Prefix match only works for longer baseNames
               reasons.push(`prefix: ${Math.round((commonPrefixLen / maxLen) * 100)}%`);
               isMatch = true;
@@ -1477,9 +1484,16 @@
           processedKws = deduplicateKeywords(processedKws);
 
           let designerInfo = null;
+          console.log(`[DESIGNER] Debug enabled: ${debugUseDesignerLookup}, Brands found: ${brandFound.length}, Models found: ${modelFound.length}`);
+          if (brandFound.length > 0) console.log(`[DESIGNER] Brand: ${brandFound[0].value}`);
+          if (modelFound.length > 0) console.log(`[DESIGNER] Model: ${modelFound[0].value}`);
+
           if (debugUseDesignerLookup && brandFound.length > 0 && modelFound.length > 0) {
+            console.log(`[DESIGNER] Looking up designer for: ${brandFound[0].value} ${modelFound[0].value}`);
             designerInfo = await findDesigner(geminiKey, `${brandFound[0].value} ${modelFound[0].value}`);
+            console.log(`[DESIGNER] Result:`, designerInfo);
             if (designerInfo?.designers && designerInfo.designers.length > 0) {
+              console.log(`[DESIGNER] Found ${designerInfo.designers.length} designers:`, designerInfo.designers);
               designerInfo.designers.forEach(name => {
                 const designerPath = smartCategorize({ value: name, type: 'designer' });
                 processedKws.push({
@@ -1495,6 +1509,26 @@
                 value: designerInfo.designer, confidence: 0.8,
                 type: 'designer', path: designerPath, rootCategory: 'Creator'
               });
+            }
+          }
+
+          // Try to find photographer/3D artist (for product photos and renders)
+          if (debugUseDesignerLookup) {
+            const brandContext = brandFound.length > 0 ? brandFound.map(b => b.value).join(' ') : '';
+            const creatorInfo = await findImageCreator(geminiKey, base64, img.file.type, brandContext);
+            if (creatorInfo?.creator) {
+              const creatorType = creatorInfo.type === '3d-artist' ? 'artist' : 'photographer';
+              const creatorPath = smartCategorize({ value: creatorInfo.creator, type: creatorType });
+              processedKws.push({
+                id: `creator-${Math.random().toString(36).slice(2)}`,
+                value: creatorInfo.creator,
+                confidence: creatorInfo.confidence,
+                type: creatorType,
+                path: creatorPath,
+                rootCategory: 'Creator',
+                source: 'gemini'
+              });
+              console.log(`[CREATOR] Added ${creatorType}: ${creatorInfo.creator} (confidence: ${creatorInfo.confidence})`);
             }
           }
 
@@ -2996,6 +3030,58 @@
                             </div>
                           </div>
                         )}
+
+                        <button
+                          onClick={async () => {
+                            const toReanalyze = isMultiSelect
+                              ? queue.filter(q => selectedIds.includes(q.id))
+                              : [selectedImg];
+
+                            if (toReanalyze.length > 0 && confirm(`Re-analyze ${toReanalyze.length} image${toReanalyze.length > 1 ? 's' : ''}? This will clear cached analysis and start over.`)) {
+                              // Clear IndexedDB cache
+                              try {
+                                for (const img of toReanalyze) {
+                                  await deleteAnalysis(img.hash);
+                                }
+                                console.log('[REANALYZE] Cleared cache for', toReanalyze.length, 'images');
+                              } catch (e) { console.error('[REANALYZE] Cache clear failed:', e); }
+
+                              // Reset to pending
+                              setQueue(q => q.map(i => {
+                                const shouldReanalyze = toReanalyze.find(img => img.id === i.id);
+                                return shouldReanalyze ? { ...i, status: 'pending', keywords: [], pending: [] } : i;
+                              }));
+
+                              // Start analysis
+                              setTimeout(() => {
+                                toReanalyze.forEach(img => {
+                                  analyzeImage({ ...img, status: 'pending', keywords: [], pending: [] });
+                                });
+                                console.log('[REANALYZE] Started analysis for', toReanalyze.length, 'images');
+                              }, 200);
+                            }
+                          }}
+                          disabled={!geminiKey}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: 8,
+                            padding: '10px 12px',
+                            background: s.bgMid,
+                            color: s.text,
+                            border: `1px solid ${s.border}`,
+                            borderRadius: s.radius,
+                            cursor: geminiKey ? 'pointer' : 'not-allowed',
+                            fontSize: s.fontSize,
+                            fontWeight: s.fontWeight,
+                            opacity: geminiKey ? 1 : 0.5,
+                            width: '100%'
+                          }}
+                        >
+                          <Icon name="refresh" size={18} />
+                          Re-Analyze {isMultiSelect ? `${selectedIds.length} Images` : 'Image'}
+                        </button>
 
                         {keywords.length > 0 && (
                           <div style={{ padding: 12 }}>

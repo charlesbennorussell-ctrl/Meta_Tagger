@@ -137,6 +137,56 @@ const findDesigner = async (apiKey, productInfo) => {
   } catch { return null; }
 };
 
+// Find photographer/3D artist from image (for product photos and renders)
+const findImageCreator = async (apiKey, imageBase64, mimeType, context = '') => {
+  console.log('[CREATOR] Looking for photographer/3D artist...');
+  try {
+    const prompt = `Analyze this ${context} image. If this is a product photograph or 3D rendering, who likely created it? Look for:
+- Photography credits/watermarks
+- Known photographer/studio style
+- 3D artist signatures
+- Recognizable commercial photo styles
+
+Return JSON: {"creator": "Full Name" or null, "type": "photographer" or "3d-artist" or null, "confidence": 0.0-1.0}
+
+Only return a creator if you're confident (>0.6). Return null if unknown.`;
+
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{
+          parts: [
+            { text: prompt },
+            { inlineData: { mimeType, data: imageBase64 } }
+          ]
+        }],
+        generationConfig: { temperature: 0.1, maxOutputTokens: 256 },
+        tools: [{ googleSearch: {} }]
+      })
+    });
+
+    if (!response.ok) return null;
+    const text = (await response.json()).candidates?.[0]?.content?.parts?.[0]?.text || '';
+    console.log('[CREATOR] Raw response:', text);
+    const match = text.match(/\{[\s\S]*\}/);
+    if (!match) return null;
+
+    const result = JSON.parse(match[0]);
+    console.log('[CREATOR] Parsed result:', result);
+
+    // Only return if confidence is high enough
+    if (result.confidence && result.confidence >= 0.6 && result.creator) {
+      return result;
+    }
+
+    return null;
+  } catch (err) {
+    console.error('[CREATOR] Error:', err);
+    return null;
+  }
+};
+
 // Categorize uncategorized keywords using Gemini
 const categorizeKeywords = async (apiKey, keywords) => {
   if (!apiKey || keywords.length === 0) return [];
@@ -778,6 +828,7 @@ const researchUncategorizedKeywords = async (apiKey, keywords, onResult = null) 
 window.TaggerAPI = {
   analyzeWithGemini,
   findDesigner,
+  findImageCreator,
   categorizeKeywords,
   consolidateKeywords,
   analyzeWithVision,
