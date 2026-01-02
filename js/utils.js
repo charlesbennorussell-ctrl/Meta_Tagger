@@ -628,6 +628,16 @@ const getBaseName = (filename) => {
     return base.toLowerCase();
   }
 
+  // Handle timestamp-based filenames with long variable numbers (e.g., "2025-07-05 11.54.51 367019776969657_45661317803")
+  // Pattern: timestamp followed by space and long number (10+ digits), possibly followed by underscore and another number
+  // Extract just the timestamp + suffix part, removing the variable middle number
+  const timestampPattern = /^(\d{4}-\d{2}-\d{2}\s+\d{2}\.\d{2}\.\d{2})\s+\d{10,}(_\d+)?$/;
+  const timestampMatch = base.match(timestampPattern);
+  if (timestampMatch) {
+    // Return timestamp + suffix (if present), which groups images from same time
+    return (timestampMatch[1] + (timestampMatch[2] || '')).toLowerCase();
+  }
+
   // Only strip VERY specific sequence patterns to avoid false matches
   // Match patterns like: _01, _001, -02, (1), (2), _v2, _final, _copy
   // but ONLY if they come at the very end and are clearly sequence markers

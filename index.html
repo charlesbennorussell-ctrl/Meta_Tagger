@@ -2777,6 +2777,17 @@
                     Hidden ({hiddenCount})
                   </button>
                 </div>
+                <div style={{ display: 'inline-flex', background: s.bgDark, borderRadius: 20, padding: 4 }}>
+                  <button onClick={() => setAutoSelectSimilar(!autoSelectSimilar)}
+                    className={autoSelectSimilar ? '' : 'no-hover'}
+                    onMouseEnter={(e) => { if (!autoSelectSimilar) e.currentTarget.style.color = s.text; }}
+                    onMouseLeave={(e) => { if (!autoSelectSimilar) e.currentTarget.style.color = s.textMuted; }}
+                    title={similarCount > 0 ? `Auto-select ${similarCount} similar image${similarCount > 1 ? 's' : ''} when clicking` : 'Auto-select similar images when detected'}
+                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 16px', background: autoSelectSimilar ? s.text : 'transparent', color: autoSelectSimilar ? s.bgDark : s.textMuted, border: 'none', borderRadius: 16, cursor: 'pointer', fontSize: s.fontSize, fontWeight: s.fontWeight }}>
+                    <Icon name={autoSelectSimilar ? "link" : "link_off"} size={16} />
+                    {similarCount > 0 ? `Similar (${similarCount})` : 'Similar'}
+                  </button>
+                </div>
                 <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
                   <div style={{ display: 'inline-flex', background: s.bgDark, borderRadius: 20, padding: 4 }}>
                     <button onClick={async () => {
