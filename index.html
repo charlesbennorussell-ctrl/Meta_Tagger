@@ -484,6 +484,7 @@
       const [gridWidth, setGridWidth] = useState(() => parseInt(localStorage.getItem('grid_width')) || 50); // percentage
       const [isDraggingDivider, setIsDraggingDivider] = useState(false);
       const [autoScan, setAutoScan] = useState(true); // Auto-scan toggle (default: paused)
+      const [autoSelectSimilar, setAutoSelectSimilar] = useState(false); // Auto-select similar images toggle
       const [batchProgress, setBatchProgress] = useState(null); // Batch processing progress
 
       const fileRef = useRef(null);
@@ -1304,12 +1305,9 @@
             }
           }, 100);
 
-          // Only sync to similar images if not explicitly skipped (to avoid cascades in multi-select)
-          if (!skipSync) {
-            await syncToSimilarAndSave(img, kws, des);
-          }
+          // Removed auto-sync functionality - now using auto-select instead
         } catch (e) { console.error('[SAVE] Failed:', e); }
-      }, [saveMode, outputDir, syncToSimilarAndSave, showHidden, showDone, showAnalyzing, showPending, selectedId]);
+      }, [saveMode, outputDir, showHidden, showDone, showAnalyzing, showPending, selectedId]);
 
       // Analysis
       const analyzeImage = useCallback(async (img) => {
@@ -1633,7 +1631,7 @@
             setSelectedId(id); // This becomes the new primary selection
           }
         } else {
-          // Normal click: Single selection
+          // Normal click: Single selection (or multi-select if autoSelectSimilar is on)
           // Auto-save multi-select before changing selection
           if (selectedIds.length > 1 && isEditing && modified) {
             const selectedImages = queue.filter(q => selectedIds.includes(q.id));
@@ -1679,11 +1677,30 @@
             });
           }
 
-          setSelectedIds([id]);
-          setLastClickedId(id);
-          selectImage(id, true); // skipAutoSave=true since we already handled it above
+          // Auto-select similar images if toggle is on
+          if (autoSelectSimilar) {
+            const clickedImg = queue.find(q => q.id === id);
+            if (clickedImg) {
+              const similarImages = getSimilarImages(clickedImg);
+              const similarIds = similarImages.map(img => img.id);
+              const newSelection = [id, ...similarIds];
+              console.log('[AUTO-SELECT] Selecting', newSelection.length, 'images (1 primary +', similarIds.length, 'similar)');
+              setSelectedIds(newSelection);
+              setSelectedId(id);
+              setLastClickedId(id);
+              selectImage(id, true); // skipAutoSave=true since we already handled it above
+            } else {
+              setSelectedIds([id]);
+              setLastClickedId(id);
+              selectImage(id, true);
+            }
+          } else {
+            setSelectedIds([id]);
+            setLastClickedId(id);
+            selectImage(id, true); // skipAutoSave=true since we already handled it above
+          }
         }
-      }, [selectedIds, selectedId, lastClickedId, filteredQueue, selectImage, isEditing, modified, keywords, designer, queue, saveImage]);
+      }, [selectedIds, selectedId, lastClickedId, filteredQueue, selectImage, isEditing, modified, keywords, designer, queue, saveImage, autoSelectSimilar, getSimilarImages]);
 
       // Deduplicate keywords in an image (keep first occurrence of each value)
       const deduplicateKeywords = useCallback((keywords) => {
@@ -2934,10 +2951,20 @@
                     {(selectedImg.status === 'ready' || selectedImg.status === 'done' || selectedImg.status === 'editing' || isEditing) && (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                         {similarCount > 0 && (
-                          <div style={{ background: s.bgMid, padding: '10px 12px', borderRadius: s.radius, border: `1px solid ${s.bgMid}` }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: s.text, fontSize: s.fontSize }}>
-                              <Icon name="link" size={18} />
-                              {similarCount} similar image{similarCount > 1 ? 's' : ''} will sync
+                          <div
+                            onClick={() => setAutoSelectSimilar(!autoSelectSimilar)}
+                            style={{
+                              background: autoSelectSimilar ? s.primary : s.bgMid,
+                              padding: '10px 12px',
+                              borderRadius: s.radius,
+                              border: `1px solid ${autoSelectSimilar ? s.primary : s.bgMid}`,
+                              cursor: 'pointer',
+                              transition: 'all 0.2s ease'
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: autoSelectSimilar ? '#fff' : s.text, fontSize: s.fontSize }}>
+                              <Icon name={autoSelectSimilar ? "check_circle" : "link"} size={18} />
+                              {autoSelectSimilar ? 'Auto-select' : 'Click to auto-select'} {similarCount} similar image{similarCount > 1 ? 's' : ''}
                             </div>
                           </div>
                         )}
@@ -3192,7 +3219,7 @@
                             fontSize: s.fontSize, fontWeight: s.fontWeight
                           }}>
                           {keywords.length > 0 && keywords.some(k => REQUIRED_CATEGORIES.includes(k.value))
-                            ? `Save${selectedIds.length > 1 ? ` (${selectedIds.length} images)` : similarCount > 0 ? ` + ${similarCount} similar` : ''}`
+                            ? `Save${selectedIds.length > 1 ? ` (${selectedIds.length} images)` : ''}`
                             : keywords.length === 0 ? 'Nothing to save' : 'Select primary category'}
                         </button>
                         </div>
