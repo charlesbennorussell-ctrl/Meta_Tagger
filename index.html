@@ -1694,49 +1694,67 @@
           }
         } else {
           // Normal click: Single selection (or multi-select if autoSelectSimilar is on)
-          // Auto-save multi-select before changing selection
-          if (selectedIds.length > 1 && isEditing && modified) {
-            const selectedImages = queue.filter(q => selectedIds.includes(q.id));
-            // Filter to only images that have keywords to save
-            const imagesToSave = selectedImages.filter(img => img.keywords && img.keywords.length > 0);
+          // Auto-save before changing selection
+          if (isEditing && modified && selectedImg && keywords.length > 0) {
+            if (selectedIds.length > 1) {
+              // Multi-select: save all selected images
+              const selectedImages = queue.filter(q => selectedIds.includes(q.id));
+              // Filter to only images that have keywords to save
+              const imagesToSave = selectedImages.filter(img => img.keywords && img.keywords.length > 0);
 
-            console.log('[MULTI-SELECT] Auto-save triggered:', {
-              selectedCount: selectedIds.length,
-              isEditing,
-              modified,
-              aggregatedKeywordsCount: keywords.length,
-              imagesToSaveCount: imagesToSave.length,
-              imagesWithKeywords: selectedImages.map(i => ({ name: i.name, kwCount: (i.keywords || []).length }))
-            });
+              console.log('[MULTI-SELECT] Auto-save triggered:', {
+                selectedCount: selectedIds.length,
+                isEditing,
+                modified,
+                aggregatedKeywordsCount: keywords.length,
+                imagesToSaveCount: imagesToSave.length,
+                imagesWithKeywords: selectedImages.map(i => ({ name: i.name, kwCount: (i.keywords || []).length }))
+              });
 
-            if (imagesToSave.length > 0) {
-              // Save each image with its OWN keywords (deduplicated), not the aggregated keywords
-              Promise.all(imagesToSave.map(img => {
-                const deduped = deduplicateKeywords(img.keywords);
-                if (deduped.length !== img.keywords.length) {
-                  console.log('[MULTI-SELECT] Deduped', img.name, 'from', img.keywords.length, 'to', deduped.length, 'keywords');
-                  // Update the queue with deduplicated keywords
-                  setQueue(q => q.map(item => item.id === img.id ? { ...item, keywords: deduped } : item));
-                }
-                console.log('[MULTI-SELECT] Saving', img.name, 'with', deduped.length, 'keywords');
-                return saveImage(img, deduped, img.designer || designer, true);
-              }))
+              if (imagesToSave.length > 0) {
+                // Save each image with its OWN keywords (deduplicated), not the aggregated keywords
+                Promise.all(imagesToSave.map(img => {
+                  const deduped = deduplicateKeywords(img.keywords);
+                  if (deduped.length !== img.keywords.length) {
+                    console.log('[MULTI-SELECT] Deduped', img.name, 'from', img.keywords.length, 'to', deduped.length, 'keywords');
+                    // Update the queue with deduplicated keywords
+                    setQueue(q => q.map(item => item.id === img.id ? { ...item, keywords: deduped } : item));
+                  }
+                  console.log('[MULTI-SELECT] Saving', img.name, 'with', deduped.length, 'keywords');
+                  return saveImage(img, deduped, img.designer || designer, true);
+                }))
+                  .then(() => {
+                    console.log('[MULTI-SELECT] Auto-save complete - saved', imagesToSave.length, 'images');
+                    // If autoApply is enabled, mark all saved images as done
+                    if (autoApply) {
+                      console.log('[AUTO APPLY] Marking', imagesToSave.length, 'images as done');
+                      setQueue(q => q.map(i => imagesToSave.some(img => img.id === i.id) ? { ...i, status: 'done' } : i));
+                    }
+                    setModified(false);
+                    setIsEditing(false);
+                  })
+                  .catch(err => console.error('[MULTI-SELECT] Auto-save failed:', err));
+              } else {
+                console.log('[MULTI-SELECT] No images with keywords to save');
+              }
+            } else {
+              // Single image: save the current image
+              console.log('[SINGLE-SELECT] Auto-save triggered:', selectedImg.name);
+              saveImage(selectedImg, keywords, designer)
                 .then(() => {
-                  console.log('[MULTI-SELECT] Auto-save complete - saved', imagesToSave.length, 'images');
-                  // If autoApply is enabled, mark all saved images as done
+                  console.log('[SINGLE-SELECT] Auto-save complete');
+                  // If autoApply is enabled, mark the image as done
                   if (autoApply) {
-                    console.log('[AUTO APPLY] Marking', imagesToSave.length, 'images as done');
-                    setQueue(q => q.map(i => imagesToSave.some(img => img.id === i.id) ? { ...i, status: 'done' } : i));
+                    console.log('[AUTO APPLY] Marking image as done:', selectedImg.name);
+                    setQueue(q => q.map(i => i.id === selectedImg.id ? { ...i, status: 'done' } : i));
                   }
                   setModified(false);
                   setIsEditing(false);
                 })
-                .catch(err => console.error('[MULTI-SELECT] Auto-save failed:', err));
-            } else {
-              console.log('[MULTI-SELECT] No images with keywords to save');
+                .catch(err => console.error('[SINGLE-SELECT] Auto-save failed:', err));
             }
           } else {
-            console.log('[MULTI-SELECT] Auto-save skipped:', {
+            console.log('[AUTO-SAVE] Skipped:', {
               selectedCount: selectedIds.length,
               isEditing,
               modified,
