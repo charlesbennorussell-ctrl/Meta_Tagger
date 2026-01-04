@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>CTRL Keyword TM</title>
+  <title>CTRL Keyword</title>
   <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -306,9 +306,17 @@
 
       return (
         <div style={{ marginLeft: depth > 0 ? 16 : 0, marginTop: depth === 0 ? 32 : 0, marginBottom: depth === 0 ? 32 : 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: depth === 0 ? 0 : 8, padding: '6px 16px', borderRadius: depth === 0 ? 16 : 6, background: depth === 0 ? s.bgDark : 'transparent', width: depth === 0 ? '100%' : 'auto', border: 'none', cursor: 'default', fontSize: s.fontSize, fontWeight: s.fontWeight, boxSizing: 'border-box' }}>
-            {depth > 0 && <span style={{ color: s.textMuted, fontSize: s.fontSize, marginRight: 4 }}>└</span>}
-            <span style={{ flex: depth === 0 ? 1 : 0, color: depth === 0 ? s.text : s.textMuted, fontSize: s.fontSize, whiteSpace: 'nowrap' }}>{name}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: depth === 0 ? 0 : 8, padding: depth === 0 ? 4 : '6px 16px', borderRadius: depth === 0 ? 20 : 6, background: depth === 0 ? s.bgDark : 'transparent', width: depth === 0 ? '100%' : 'auto', border: 'none', cursor: 'default', fontSize: s.fontSize, fontWeight: s.fontWeight, boxSizing: 'border-box' }}>
+            {depth === 0 ? (
+              <div style={{ padding: '6px 16px', borderRadius: 16, width: '100%', display: 'flex', alignItems: 'center', gap: 0 }}>
+                <span style={{ flex: 1, color: s.text, fontSize: s.fontSize, whiteSpace: 'nowrap' }}>{name}</span>
+              </div>
+            ) : (
+              <>
+                <span style={{ color: s.textMuted, fontSize: s.fontSize, marginRight: 4 }}>└</span>
+                <span style={{ color: s.textMuted, fontSize: s.fontSize, whiteSpace: 'nowrap' }}>{name}</span>
+              </>
+            )}
           </div>
           {isExpanded && keywords.length > 0 && (
             <div style={{ marginLeft: depth > 0 ? 48 : 28, color: s.text, fontSize: s.fontSize, lineHeight: s.lineHeight }}>
@@ -2823,7 +2831,7 @@
                 })()}
               </span>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <span style={{ color: s.text, fontWeight: s.fontWeight, fontSize: s.fontSize }}>CTRL Keyword TM</span>
+                <span style={{ color: s.text, fontWeight: s.fontWeight, fontSize: s.fontSize }}>CTRL Keyword</span>
               </div>
               <button onClick={() => setShowSettings(true)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 40, height: 40, background: 'transparent', color: s.muted, border: 'none', borderRadius: s.radius, cursor: 'pointer' }}>
                 <Icon name="tune" size={22} />
@@ -2854,7 +2862,7 @@
                     onMouseEnter={(e) => { if (!autoApply) e.currentTarget.style.color = s.text; }}
                     onMouseLeave={(e) => { if (!autoApply) e.currentTarget.style.color = s.textMuted; }}
                     title="Auto-apply changes and mark as done when switching images"
-                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 16px', background: autoApply ? s.text : 'transparent', color: autoApply ? s.bgDark : s.textMuted, border: 'none', borderRadius: 16, cursor: 'pointer', fontSize: s.fontSize, fontWeight: s.fontWeight }}>
+                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 16px', background: autoApply ? '#2D2D2D' : 'transparent', color: autoApply ? s.text : s.textMuted, border: 'none', borderRadius: 16, cursor: 'pointer', fontSize: s.fontSize, fontWeight: s.fontWeight }}>
                     <Icon name={autoApply ? "check_circle" : "radio_button_unchecked"} size={16} />
                     Auto Apply
                   </button>
@@ -2950,7 +2958,7 @@
                       <button
                         onClick={async () => {
                           try {
-                            // Use the modern File System Access API for better file/folder browsing
+                            // Try file picker first (shows files and folders)
                             if (window.showOpenFilePicker) {
                               const fileHandles = await window.showOpenFilePicker({
                                 multiple: true,
@@ -2961,18 +2969,34 @@
                                   }
                                 }]
                               });
-                              const files = await Promise.all(fileHandles.map(handle => handle.getFile()));
+
+                              // If user selected files, process them
+                              if (fileHandles && fileHandles.length > 0) {
+                                const files = await Promise.all(fileHandles.map(handle => handle.getFile()));
+                                processFilesRef.current?.(files);
+                              }
+                            } else if (window.showDirectoryPicker) {
+                              // Fallback to directory picker if file picker not available
+                              const dirHandle = await window.showDirectoryPicker({ mode: 'read' });
+                              const files = [];
+                              for await (const entry of dirHandle.values()) {
+                                if (entry.kind === 'file') {
+                                  const file = await entry.getFile();
+                                  if (file.type.startsWith('image/')) {
+                                    files.push(file);
+                                  }
+                                }
+                              }
                               if (files.length > 0) {
                                 processFilesRef.current?.(files);
                               }
                             } else {
-                              // Fallback to traditional file input
+                              // Final fallback to traditional file input
                               fileRef.current?.click();
                             }
                           } catch (err) {
                             if (err.name !== 'AbortError') {
-                              console.log('[BROWSE] File picker cancelled or failed, trying fallback');
-                              fileRef.current?.click();
+                              console.log('[BROWSE] Picker cancelled or failed');
                             }
                           }
                         }}
