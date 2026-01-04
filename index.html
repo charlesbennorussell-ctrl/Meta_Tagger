@@ -306,18 +306,18 @@
 
       return (
         <div style={{ marginLeft: depth > 0 ? 16 : 0, marginTop: depth === 0 ? 32 : 0, marginBottom: depth === 0 ? 32 : 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: depth === 0 ? 0 : 8, padding: depth === 0 ? 4 : '6px 16px', borderRadius: depth === 0 ? 20 : 6, background: depth === 0 ? s.bgDark : 'transparent', width: depth === 0 ? '100%' : 'auto', border: 'none', cursor: 'default', fontSize: s.fontSize, fontWeight: s.fontWeight, boxSizing: 'border-box' }}>
-            {depth === 0 ? (
-              <div style={{ padding: '6px 16px', borderRadius: 16, width: '100%', display: 'flex', alignItems: 'center', gap: 0 }}>
-                <span style={{ flex: 1, color: s.text, fontSize: s.fontSize, whiteSpace: 'nowrap' }}>{name}</span>
+          {depth === 0 ? (
+            <div style={{ display: 'inline-flex', background: s.bgDark, borderRadius: 20, padding: 4, width: '100%' }}>
+              <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '6px 16px', background: 'transparent', color: s.textMuted, border: 'none', borderRadius: 16, cursor: 'default', fontSize: s.fontSize, fontWeight: s.fontWeight }}>
+                {name}
               </div>
-            ) : (
-              <>
-                <span style={{ color: s.textMuted, fontSize: s.fontSize, marginRight: 4 }}>└</span>
-                <span style={{ color: s.textMuted, fontSize: s.fontSize, whiteSpace: 'nowrap' }}>{name}</span>
-              </>
-            )}
-          </div>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 16px', borderRadius: 6, background: 'transparent', fontSize: s.fontSize, fontWeight: s.fontWeight, lineHeight: 1 }}>
+              <span style={{ color: s.textMuted, fontSize: s.fontSize, marginRight: 4 }}>└</span>
+              <span style={{ color: s.textMuted, fontSize: s.fontSize, whiteSpace: 'nowrap' }}>{name}</span>
+            </div>
+          )}
           {isExpanded && keywords.length > 0 && (
             <div style={{ marginLeft: depth > 0 ? 48 : 28, color: s.text, fontSize: s.fontSize, lineHeight: s.lineHeight }}>
               {keywords.map((kw, idx) => (
@@ -359,23 +359,18 @@
 
       return (
         <div style={{ marginLeft: depth > 0 ? 16 : 0, marginTop: depth === 0 ? 32 : 0, marginBottom: depth === 0 ? 32 : 0 }}>
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: depth === 0 ? 0 : 8,
-            padding: '6px 16px',
-            borderRadius: depth === 0 ? 16 : 6,
-            background: depth === 0 ? s.bgDark : 'transparent',
-            width: depth === 0 ? '100%' : 'auto',
-            border: 'none',
-            cursor: 'default',
-            fontSize: s.fontSize,
-            fontWeight: s.fontWeight,
-            boxSizing: 'border-box'
-          }}>
-            {depth > 0 && <span style={{ color: s.textMuted, fontSize: s.fontSize, marginRight: 4 }}>└</span>}
-            <span style={{ color: depth === 0 ? s.text : s.textMuted, whiteSpace: 'nowrap' }}>{name}</span>
-          </div>
+          {depth === 0 ? (
+            <div style={{ display: 'inline-flex', background: s.bgDark, borderRadius: 20, padding: 4, width: '100%' }}>
+              <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '6px 16px', background: 'transparent', color: s.textMuted, border: 'none', borderRadius: 16, cursor: 'default', fontSize: s.fontSize, fontWeight: s.fontWeight }}>
+                {name}
+              </div>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 16px', borderRadius: 6, background: 'transparent', fontSize: s.fontSize, fontWeight: s.fontWeight, lineHeight: 1 }}>
+              <span style={{ color: s.textMuted, fontSize: s.fontSize, marginRight: 4 }}>└</span>
+              <span style={{ color: s.textMuted, whiteSpace: 'nowrap' }}>{name}</span>
+            </div>
+          )}
           {isExpanded && hasItems && (
             <div style={{ marginLeft: depth > 0 ? 48 : 28, color: s.text, fontSize: s.fontSize, lineHeight: s.lineHeight }}>
               {items.map((item, idx) => (
@@ -2955,67 +2950,96 @@
                       <Icon name="folder_open" size={22} style={{ opacity: 0.3, display: 'block', margin: '0 auto 16px', color: s.textMuted }} />
                       <div style={{ fontSize: s.fontSize, color: s.text, marginBottom: 8 }}>Drag and Drop Images or Folders Here</div>
                       <div style={{ fontSize: s.fontSize, color: s.textMuted, marginBottom: 16 }}>Or</div>
-                      <button
-                        onClick={async () => {
-                          try {
-                            // Try file picker first (shows files and folders)
-                            if (window.showOpenFilePicker) {
-                              const fileHandles = await window.showOpenFilePicker({
-                                multiple: true,
-                                types: [{
-                                  description: 'Images',
-                                  accept: {
-                                    'image/*': ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.tiff', '.heic', '.heif', '.raw', '.cr2', '.nef', '.arw', '.dng']
-                                  }
-                                }]
-                              });
-
-                              // If user selected files, process them
-                              if (fileHandles && fileHandles.length > 0) {
-                                const files = await Promise.all(fileHandles.map(handle => handle.getFile()));
-                                processFilesRef.current?.(files);
-                              }
-                            } else if (window.showDirectoryPicker) {
-                              // Fallback to directory picker if file picker not available
-                              const dirHandle = await window.showDirectoryPicker({ mode: 'read' });
-                              const files = [];
-                              for await (const entry of dirHandle.values()) {
-                                if (entry.kind === 'file') {
-                                  const file = await entry.getFile();
-                                  if (file.type.startsWith('image/')) {
-                                    files.push(file);
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button
+                          onClick={async () => {
+                            try {
+                              if (window.showDirectoryPicker) {
+                                const dirHandle = await window.showDirectoryPicker({ mode: 'read' });
+                                const files = [];
+                                for await (const entry of dirHandle.values()) {
+                                  if (entry.kind === 'file') {
+                                    const file = await entry.getFile();
+                                    if (file.type.startsWith('image/')) {
+                                      files.push(file);
+                                    }
                                   }
                                 }
+                                if (files.length > 0) {
+                                  processFilesRef.current?.(files);
+                                } else {
+                                  console.log('[BROWSE FOLDER] No images found in selected folder');
+                                }
+                              } else {
+                                fileRef.current?.click();
                               }
-                              if (files.length > 0) {
-                                processFilesRef.current?.(files);
+                            } catch (err) {
+                              if (err.name !== 'AbortError') {
+                                console.log('[BROWSE FOLDER] Picker cancelled or failed');
                               }
-                            } else {
-                              // Final fallback to traditional file input
-                              fileRef.current?.click();
                             }
-                          } catch (err) {
-                            if (err.name !== 'AbortError') {
-                              console.log('[BROWSE] Picker cancelled or failed');
+                          }}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: 6,
+                            padding: '6px 16px',
+                            background: s.text,
+                            color: s.bgDark,
+                            border: 'none',
+                            borderRadius: 16,
+                            cursor: 'pointer',
+                            fontSize: s.fontSize,
+                            fontWeight: s.fontWeight
+                          }}>
+                          <Icon name="folder" size={16} />
+                          Browse Folders
+                        </button>
+                        <button
+                          onClick={async () => {
+                            try {
+                              if (window.showOpenFilePicker) {
+                                const fileHandles = await window.showOpenFilePicker({
+                                  multiple: true,
+                                  types: [{
+                                    description: 'Images',
+                                    accept: {
+                                      'image/*': ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.tiff', '.heic', '.heif', '.raw', '.cr2', '.nef', '.arw', '.dng']
+                                    }
+                                  }]
+                                });
+                                if (fileHandles && fileHandles.length > 0) {
+                                  const files = await Promise.all(fileHandles.map(handle => handle.getFile()));
+                                  processFilesRef.current?.(files);
+                                }
+                              } else {
+                                fileRef.current?.click();
+                              }
+                            } catch (err) {
+                              if (err.name !== 'AbortError') {
+                                console.log('[BROWSE FILES] Picker cancelled or failed');
+                              }
                             }
-                          }
-                        }}
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: 6,
-                          padding: '6px 16px',
-                          background: s.text,
-                          color: s.bgDark,
-                          border: 'none',
-                          borderRadius: 16,
-                          cursor: 'pointer',
-                          fontSize: s.fontSize,
-                          fontWeight: s.fontWeight
-                        }}>
-                        Browse
-                      </button>
+                          }}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: 6,
+                            padding: '6px 16px',
+                            background: s.text,
+                            color: s.bgDark,
+                            border: 'none',
+                            borderRadius: 16,
+                            cursor: 'pointer',
+                            fontSize: s.fontSize,
+                            fontWeight: s.fontWeight
+                          }}>
+                          <Icon name="image" size={16} />
+                          Browse Images
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ) : (
