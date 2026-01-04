@@ -355,7 +355,7 @@
             display: 'flex',
             alignItems: 'center',
             gap: depth === 0 ? 0 : 8,
-            padding: depth === 0 ? '4px 16px' : '6px 16px',
+            padding: '6px 16px',
             borderRadius: depth === 0 ? 16 : 6,
             background: depth === 0 ? s.bgDark : 'transparent',
             width: depth === 0 ? '100%' : 'auto',
@@ -363,8 +363,7 @@
             cursor: 'default',
             fontSize: s.fontSize,
             fontWeight: s.fontWeight,
-            boxSizing: 'border-box',
-            height: depth === 0 ? 28 : 'auto'
+            boxSizing: 'border-box'
           }}>
             {depth > 0 && <span style={{ color: s.textMuted, fontSize: s.fontSize, marginRight: 4 }}>└</span>}
             <span style={{ color: depth === 0 ? s.text : s.textMuted, whiteSpace: 'nowrap' }}>{name}</span>
@@ -2712,6 +2711,40 @@
 
           {/* TOOLBAR */}
           <div style={{ height: 56, background: s.panel, display: 'flex', alignItems: 'center', padding: '0 16px', gap: 12, borderBottom: `1px solid ${s.border}`, flexShrink: 0 }}>
+            {/* Status filter buttons */}
+            <div style={{ display: 'inline-flex', background: s.bgDark, borderRadius: 20, padding: 4, gap: 4 }}>
+              <button onClick={() => { setShowPending(true); setShowAnalyzing(false); setShowDone(false); setShowHidden(false); }}
+                className={showPending ? 'no-hover' : ''}
+                onMouseEnter={(e) => { if (!showPending) e.currentTarget.style.color = s.text; }}
+                onMouseLeave={(e) => { if (!showPending) e.currentTarget.style.color = s.textMuted; }}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 16px', background: showPending ? '#4147FF' : 'transparent', color: showPending ? '#FFFFFF' : s.textMuted, border: 'none', borderRadius: 16, cursor: 'pointer', fontSize: s.fontSize, fontWeight: s.fontWeight }}>
+                Ready ({readyCount})
+              </button>
+              {analyzingCount > 0 && (
+                <button onClick={() => { setShowPending(false); setShowAnalyzing(true); setShowDone(false); setShowHidden(false); }}
+                  className={showAnalyzing ? 'no-hover' : ''}
+                  onMouseEnter={(e) => { if (!showAnalyzing) e.currentTarget.style.color = '#000000'; }}
+                  onMouseLeave={(e) => { if (!showAnalyzing) e.currentTarget.style.color = s.textMuted; }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 16px', background: showAnalyzing ? '#fbbf24' : 'transparent', color: showAnalyzing ? '#000000' : s.textMuted, border: 'none', borderRadius: 16, cursor: 'pointer', fontSize: s.fontSize, fontWeight: s.fontWeight }}>
+                  Analyzing ({analyzingCount})
+                </button>
+              )}
+              <button onClick={() => { setShowPending(false); setShowAnalyzing(false); setShowDone(true); setShowHidden(false); }}
+                className={showDone ? 'no-hover' : ''}
+                onMouseEnter={(e) => { if (!showDone) e.currentTarget.style.color = '#000000'; }}
+                onMouseLeave={(e) => { if (!showDone) e.currentTarget.style.color = s.textMuted; }}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 16px', background: showDone ? '#68B757' : 'transparent', color: showDone ? '#000000' : s.textMuted, border: 'none', borderRadius: 16, cursor: 'pointer', fontSize: s.fontSize, fontWeight: s.fontWeight }}>
+                Done ({doneCount})
+              </button>
+              <button onClick={() => { setShowPending(false); setShowAnalyzing(false); setShowDone(false); setShowHidden(true); }}
+                className={showHidden ? 'no-hover' : ''}
+                onMouseEnter={(e) => { if (!showHidden) e.currentTarget.style.color = s.text; }}
+                onMouseLeave={(e) => { if (!showHidden) e.currentTarget.style.color = s.textMuted; }}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 16px', background: showHidden ? s.bgMid : 'transparent', color: showHidden ? s.text : s.textMuted, border: 'none', borderRadius: 16, cursor: 'pointer', fontSize: s.fontSize, fontWeight: s.fontWeight }}>
+                Hidden ({hiddenCount})
+              </button>
+            </div>
+
             {/* Action buttons */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               {showPending && readyCount > 0 && (
@@ -2804,38 +2837,6 @@
             {/* LEFT - GRID */}
             <div style={{ width: `${gridWidth}%`, minWidth: 250, background: s.bgMedium, display: 'flex', flexDirection: 'column', transition: isDraggingDivider ? 'none' : 'width 0.2s ease-out', borderRight: `2px solid ${s.border}` }}>
               <div style={{ padding: '10px 12px', borderBottom: `2px solid ${s.border}`, display: 'flex', gap: 4, alignItems: 'center', flexWrap: 'wrap' }}>
-                <div style={{ display: 'inline-flex', background: s.bgDark, borderRadius: 20, padding: 4, gap: 4 }}>
-                  <button onClick={() => { setShowPending(true); setShowAnalyzing(false); setShowDone(false); setShowHidden(false); }}
-                    className={showPending ? 'no-hover' : ''}
-                    onMouseEnter={(e) => { if (!showPending) e.currentTarget.style.color = s.text; }}
-                    onMouseLeave={(e) => { if (!showPending) e.currentTarget.style.color = s.textMuted; }}
-                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 16px', background: showPending ? '#4147FF' : 'transparent', color: showPending ? '#FFFFFF' : s.textMuted, border: 'none', borderRadius: 16, cursor: 'pointer', fontSize: s.fontSize, fontWeight: s.fontWeight }}>
-                    Ready ({readyCount})
-                  </button>
-                  {analyzingCount > 0 && (
-                    <button onClick={() => { setShowPending(false); setShowAnalyzing(true); setShowDone(false); setShowHidden(false); }}
-                      className={showAnalyzing ? 'no-hover' : ''}
-                      onMouseEnter={(e) => { if (!showAnalyzing) e.currentTarget.style.color = '#000000'; }}
-                      onMouseLeave={(e) => { if (!showAnalyzing) e.currentTarget.style.color = s.textMuted; }}
-                      style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 16px', background: showAnalyzing ? '#fbbf24' : 'transparent', color: showAnalyzing ? '#000000' : s.textMuted, border: 'none', borderRadius: 16, cursor: 'pointer', fontSize: s.fontSize, fontWeight: s.fontWeight }}>
-                      Analyzing ({analyzingCount})
-                    </button>
-                  )}
-                  <button onClick={() => { setShowPending(false); setShowAnalyzing(false); setShowDone(true); setShowHidden(false); }}
-                    className={showDone ? 'no-hover' : ''}
-                    onMouseEnter={(e) => { if (!showDone) e.currentTarget.style.color = '#000000'; }}
-                    onMouseLeave={(e) => { if (!showDone) e.currentTarget.style.color = s.textMuted; }}
-                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 16px', background: showDone ? '#68B757' : 'transparent', color: showDone ? '#000000' : s.textMuted, border: 'none', borderRadius: 16, cursor: 'pointer', fontSize: s.fontSize, fontWeight: s.fontWeight }}>
-                    Done ({doneCount})
-                  </button>
-                  <button onClick={() => { setShowPending(false); setShowAnalyzing(false); setShowDone(false); setShowHidden(true); }}
-                    className={showHidden ? 'no-hover' : ''}
-                    onMouseEnter={(e) => { if (!showHidden) e.currentTarget.style.color = s.text; }}
-                    onMouseLeave={(e) => { if (!showHidden) e.currentTarget.style.color = s.textMuted; }}
-                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 16px', background: showHidden ? s.bgMid : 'transparent', color: showHidden ? s.text : s.textMuted, border: 'none', borderRadius: 16, cursor: 'pointer', fontSize: s.fontSize, fontWeight: s.fontWeight }}>
-                    Hidden ({hiddenCount})
-                  </button>
-                </div>
                 <div style={{ display: 'inline-flex', background: s.bgDark, borderRadius: 20, padding: 4 }}>
                   <button onClick={() => setAutoSelectSimilar(!autoSelectSimilar)}
                     className={autoSelectSimilar ? '' : 'no-hover'}
@@ -2943,48 +2944,54 @@
                 {filteredQueue.length === 0 ? (
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
                     <div style={{ textAlign: 'center', color: s.muted }}>
-                      <Icon name="folder_open" size={80} style={{ opacity: 0.3, display: 'block', margin: '0 auto 24px', color: s.textMuted }} />
+                      <Icon name="folder_open" size={22} style={{ opacity: 0.3, display: 'block', margin: '0 auto 16px', color: s.textMuted }} />
+                      <div style={{ fontSize: s.fontSize, color: s.text, marginBottom: 8 }}>Drag and Drop Images or Folders Here</div>
+                      <div style={{ fontSize: s.fontSize, color: s.textMuted, marginBottom: 16 }}>Or</div>
                       <button
                         onClick={async () => {
                           try {
-                            // Try directory picker first
-                            const dirHandle = await window.showDirectoryPicker();
-                            const files = [];
-                            for await (const entry of dirHandle.values()) {
-                              if (entry.kind === 'file' && entry.name.match(/\.(jpg|jpeg|png|gif|webp|bmp|tiff|heic|heif|raw|cr2|nef|arw|dng)$/i)) {
-                                const file = await entry.getFile();
-                                files.push(file);
+                            // Use the modern File System Access API for better file/folder browsing
+                            if (window.showOpenFilePicker) {
+                              const fileHandles = await window.showOpenFilePicker({
+                                multiple: true,
+                                types: [{
+                                  description: 'Images',
+                                  accept: {
+                                    'image/*': ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.tiff', '.heic', '.heif', '.raw', '.cr2', '.nef', '.arw', '.dng']
+                                  }
+                                }]
+                              });
+                              const files = await Promise.all(fileHandles.map(handle => handle.getFile()));
+                              if (files.length > 0) {
+                                processFilesRef.current?.(files);
                               }
-                            }
-                            if (files.length > 0) {
-                              processFilesRef.current?.(files);
+                            } else {
+                              // Fallback to traditional file input
+                              fileRef.current?.click();
                             }
                           } catch (err) {
-                            // If directory picker fails or user cancels, fall back to file picker
                             if (err.name !== 'AbortError') {
-                              console.log('[BROWSE] Directory picker not supported or cancelled, using file picker');
+                              console.log('[BROWSE] File picker cancelled or failed, trying fallback');
+                              fileRef.current?.click();
                             }
-                            fileRef.current?.click();
                           }
                         }}
                         style={{
                           display: 'inline-flex',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          gap: 8,
-                          padding: '14px 32px',
-                          background: '#4147FF',
-                          color: '#FFFFFF',
+                          gap: 6,
+                          padding: '6px 16px',
+                          background: s.text,
+                          color: s.bgDark,
                           border: 'none',
-                          borderRadius: s.radius,
+                          borderRadius: 16,
                           cursor: 'pointer',
                           fontSize: s.fontSize,
-                          fontWeight: s.fontWeight,
-                          boxShadow: '0 2px 8px rgba(65, 71, 255, 0.3)'
+                          fontWeight: s.fontWeight
                         }}>
                         Browse
                       </button>
-                      <div style={{ fontSize: s.fontSize, color: s.textMuted, marginTop: 16 }}>Select a folder or images to get started</div>
                     </div>
                   </div>
                 ) : (
