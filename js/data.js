@@ -50,10 +50,11 @@ const DEFAULT_TAXONOMY = {
     "Misc": []
   },
   "Photography": {
+    "Product Photography": ["Studio Product", "Catalog", "E-commerce", "Advertising Product"],
     "Portrait": ["Studio Portrait", "Environmental Portrait", "Editorial Portrait"],
     "Landscape": ["Nature", "Urban Landscape", "Seascape", "Aerial"],
     "Documentary": ["Street", "Photojournalism", "Travel", "Social Documentary"],
-    "Commercial": ["Fashion", "Product", "Architecture", "Food", "Advertising"],
+    "Commercial": ["Fashion", "Architecture", "Food", "Advertising"],
     "Fine Art": ["Conceptual", "Abstract", "Black and White", "Experimental"],
     "Misc": []
   },

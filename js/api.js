@@ -36,13 +36,19 @@ IMPORTANT RULES:
    - If image shows posters, logos, typography, layouts, branding, print design, book covers, packaging, or editorial design → ALWAYS tag "Graphic Design"
    - If it's 2D visual communication designed for reproduction → it's Graphic Design
    - Common graphic design artifacts: posters, album covers, magazine layouts, corporate identity, signage, book jackets, packaging
+6. PRODUCT PHOTOGRAPHY DETECTION:
+   - If this is a professional product photograph (clean background, studio lighting, commercial presentation) → ALWAYS tag "Product Photography" with path ["Photography", "Product Photography"]
+   - Look for: white/neutral backgrounds, controlled lighting, marketing/catalog style, clean product shots
+   - Common indicators: isolated products, studio setup, commercial photography aesthetics
+   - This is HIGH PRIORITY - product photography is very common in design archives
 
 Return JSON array: [{"value": "keyword", "confidence": 0.9, "type": "brand|model|era|country|category|style|material|color", "path": ["RootCategory", "SubCategory"]}]
 
-Categories: Design, Architecture, Art, Style (including Origin for countries), Brand, Creator, Product, Era (decades like "1960s"), Material, Color.
+Categories: Design, Architecture, Art, Photography, Style (including Origin for countries), Brand, Creator, Product, Era (decades like "1960s"), Material, Color.
 
 REQUIRED: Always include at least one Era keyword with the decade when this was likely designed/produced.
 REQUIRED: If this is graphic design work (posters, logos, typography, layouts, etc.), include "Graphic Design" with path ["Design", "Graphic Design"].
+REQUIRED: If this is product photography (studio shot, commercial product photo), include "Product Photography" with path ["Photography", "Product Photography"].
 
 Return 10-20 specific, useful keywords. Only return the JSON array.`;
 

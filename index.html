@@ -305,10 +305,10 @@
       const color = ROOT_COLORS[node._path?.[0]] || s.text;
 
       return (
-        <div style={{ marginLeft: depth > 0 ? 16 : 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', borderRadius: depth === 0 ? 20 : 6, background: depth === 0 ? 'rgba(255,255,255,0.03)' : 'transparent' }}>
+        <div style={{ marginLeft: depth > 0 ? 16 : 0, marginTop: depth === 0 ? 32 : 0, marginBottom: depth === 0 ? 32 : 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: depth === 0 ? 0 : 8, padding: '6px 16px', borderRadius: depth === 0 ? 16 : 6, background: depth === 0 ? s.bgDark : 'transparent', width: depth === 0 ? '100%' : 'auto', border: 'none', cursor: 'default', fontSize: s.fontSize, fontWeight: s.fontWeight, boxSizing: 'border-box' }}>
             {depth > 0 && <span style={{ color: s.textMuted, fontSize: s.fontSize, marginRight: 4 }}>└</span>}
-            <span style={{ flex: 1, color: depth === 0 ? '#777777' : '#777777', fontSize: s.fontSize }}>{name}</span>
+            <span style={{ flex: depth === 0 ? 1 : 0, color: depth === 0 ? s.text : s.textMuted, fontSize: s.fontSize, whiteSpace: 'nowrap' }}>{name}</span>
           </div>
           {isExpanded && keywords.length > 0 && (
             <div style={{ marginLeft: depth > 0 ? 48 : 28, color: s.text, fontSize: s.fontSize, lineHeight: s.lineHeight }}>
@@ -2900,10 +2900,38 @@
                     </button>
                   </div>
                   <div style={{ display: 'inline-flex', background: s.bgDark, borderRadius: 20, padding: 4 }}>
-                    <button onClick={() => setAutoScan(!autoScan)} disabled={!geminiKey}
-                      className={autoScan ? '' : 'no-hover'}
-                      style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '6px 16px', background: autoScan ? s.bgMid : 'transparent', color: autoScan ? s.text : s.textMuted, border: 'none', borderRadius: 16, cursor: 'pointer', fontSize: s.fontSize, fontWeight: s.fontWeight, opacity: !geminiKey ? 0.5 : 1 }}>
-                      Auto
+                    <button onClick={async () => {
+                      const toReanalyze = isMultiSelect
+                        ? queue.filter(q => selectedIds.includes(q.id))
+                        : (selectedImg ? [selectedImg] : []);
+
+                      if (toReanalyze.length > 0 && confirm(`Re-analyze ${toReanalyze.length} image${toReanalyze.length > 1 ? 's' : ''}? This will clear cached analysis and start over.`)) {
+                        // Clear IndexedDB cache
+                        try {
+                          for (const img of toReanalyze) {
+                            await deleteAnalysis(img.hash);
+                          }
+                          console.log('[REANALYZE SELECTED] Cleared cache for', toReanalyze.length, 'images');
+                        } catch (e) { console.error('[REANALYZE SELECTED] Cache clear failed:', e); }
+
+                        // Reset to pending
+                        setQueue(q => q.map(i => {
+                          const shouldReanalyze = toReanalyze.find(img => img.id === i.id);
+                          return shouldReanalyze ? { ...i, status: 'pending', keywords: [], pending: [] } : i;
+                        }));
+
+                        // Start analysis
+                        setTimeout(() => {
+                          toReanalyze.forEach(img => {
+                            analyzeImage({ ...img, status: 'pending', keywords: [], pending: [] });
+                          });
+                          console.log('[REANALYZE SELECTED] Started analysis for', toReanalyze.length, 'images');
+                        }, 200);
+                      }
+                    }} disabled={!geminiKey || (!isMultiSelect && !selectedImg) || (isMultiSelect && selectedIds.length === 0)}
+                      className='no-hover'
+                      style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '6px 16px', background: 'transparent', color: s.textMuted, border: 'none', borderRadius: 16, cursor: (geminiKey && ((isMultiSelect && selectedIds.length > 0) || (!isMultiSelect && selectedImg))) ? 'pointer' : 'not-allowed', fontSize: s.fontSize, fontWeight: s.fontWeight, opacity: (geminiKey && ((isMultiSelect && selectedIds.length > 0) || (!isMultiSelect && selectedImg))) ? 1 : 0.5 }}>
+                      Re-Analyze {isMultiSelect && selectedIds.length > 0 ? `(${selectedIds.length})` : 'Selected'}
                     </button>
                   </div>
                   <div style={{ display: 'inline-flex', background: s.bgDark, borderRadius: 20, padding: 4, gap: 0 }}>
@@ -3074,58 +3102,6 @@
                             </div>
                           </div>
                         )}
-
-                        <button
-                          onClick={async () => {
-                            const toReanalyze = isMultiSelect
-                              ? queue.filter(q => selectedIds.includes(q.id))
-                              : [selectedImg];
-
-                            if (toReanalyze.length > 0 && confirm(`Re-analyze ${toReanalyze.length} image${toReanalyze.length > 1 ? 's' : ''}? This will clear cached analysis and start over.`)) {
-                              // Clear IndexedDB cache
-                              try {
-                                for (const img of toReanalyze) {
-                                  await deleteAnalysis(img.hash);
-                                }
-                                console.log('[REANALYZE] Cleared cache for', toReanalyze.length, 'images');
-                              } catch (e) { console.error('[REANALYZE] Cache clear failed:', e); }
-
-                              // Reset to pending
-                              setQueue(q => q.map(i => {
-                                const shouldReanalyze = toReanalyze.find(img => img.id === i.id);
-                                return shouldReanalyze ? { ...i, status: 'pending', keywords: [], pending: [] } : i;
-                              }));
-
-                              // Start analysis
-                              setTimeout(() => {
-                                toReanalyze.forEach(img => {
-                                  analyzeImage({ ...img, status: 'pending', keywords: [], pending: [] });
-                                });
-                                console.log('[REANALYZE] Started analysis for', toReanalyze.length, 'images');
-                              }, 200);
-                            }
-                          }}
-                          disabled={!geminiKey}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: 8,
-                            padding: '10px 12px',
-                            background: s.bgMid,
-                            color: s.text,
-                            border: `1px solid ${s.border}`,
-                            borderRadius: s.radius,
-                            cursor: geminiKey ? 'pointer' : 'not-allowed',
-                            fontSize: s.fontSize,
-                            fontWeight: s.fontWeight,
-                            opacity: geminiKey ? 1 : 0.5,
-                            width: '100%'
-                          }}
-                        >
-                          <Icon name="refresh" size={18} />
-                          Re-Analyze {isMultiSelect ? `${selectedIds.length} Images` : 'Image'}
-                        </button>
 
                         {keywords.length > 0 && (
                           <div style={{ padding: 12 }}>

@@ -179,10 +179,11 @@ const smartCategorize = (kw, contextBrand = null) => {
 
   // Handle Photography sub-categories
   const photographyCategories = {
+    'Product Photography': ['product photography', 'product photo', 'studio product', 'catalog photography', 'e-commerce photography', 'commercial product'],
     'Portrait': ['portrait', 'studio portrait', 'environmental portrait', 'headshot'],
     'Landscape': ['landscape', 'nature photography', 'seascape', 'aerial photography'],
     'Documentary': ['street photography', 'photojournalism', 'documentary', 'travel photography'],
-    'Commercial': ['fashion photography', 'product photography', 'food photography', 'advertising photography'],
+    'Commercial': ['fashion photography', 'food photography', 'advertising photography', 'commercial photography'],
     'Fine Art': ['fine art photography', 'conceptual photography', 'black and white', 'experimental']
   };
   for (const [subcat, terms] of Object.entries(photographyCategories)) {
@@ -532,15 +533,15 @@ const splitBrandModel = (text) => {
     }
   }
 
-  // Check for known brands (exact match)
+  // Check for known brands (exact match with word boundary)
   let foundBrand = null;
   let brandCategory = null;
   for (const brand of KNOWN_BRANDS) {
-    const regex = new RegExp(`^${brand.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*`, 'i');
+    const regex = new RegExp(`^${brand.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:\\s+|$)`, 'i');
     if (regex.test(remaining)) {
       foundBrand = brand;
       brandCategory = BRAND_CATEGORIES[brand.toLowerCase()];
-      remaining = remaining.replace(regex, '').trim();
+      remaining = remaining.replace(new RegExp(`^${brand.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*`, 'i'), '').trim();
       break;
     }
   }
