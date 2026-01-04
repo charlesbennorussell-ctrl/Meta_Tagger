@@ -492,6 +492,7 @@
       const [isDraggingDivider, setIsDraggingDivider] = useState(false);
       const [autoScan, setAutoScan] = useState(true); // Auto-scan toggle (default: paused)
       const [autoSelectSimilar, setAutoSelectSimilar] = useState(false); // Auto-select similar images toggle
+      const [autoApply, setAutoApply] = useState(false); // Auto-apply changes when switching images
       const [batchProgress, setBatchProgress] = useState(null); // Batch processing progress
 
       const fileRef = useRef(null);
@@ -1611,9 +1612,19 @@
               // Use the current keywords for all selected images
               await saveImage(img, keywords, designer, true); // skipSync=true for batch
             }
+            // If autoApply is enabled, mark all selected images as done
+            if (autoApply) {
+              console.log('[AUTO APPLY] Marking', selectedIds.length, 'images as done');
+              setQueue(q => q.map(i => selectedIds.includes(i.id) ? { ...i, status: 'done' } : i));
+            }
           } else {
             console.log('[NAV] Auto-saving before navigation:', selectedImg.name);
             await saveImage(selectedImg, keywords, designer);
+            // If autoApply is enabled, mark the image as done
+            if (autoApply) {
+              console.log('[AUTO APPLY] Marking image as done:', selectedImg.name);
+              setQueue(q => q.map(i => i.id === selectedImg.id ? { ...i, status: 'done' } : i));
+            }
           }
         }
 
@@ -1641,7 +1652,7 @@
             setKeywords([]); setPending([]); setDesigner(null); setVisionData(null); setIgnored([]); setModified(false);
           }
         }
-      }, [queue, isEditing, modified, selectedImg, selectedIds, keywords, designer, analyzeImage, saveImage]);
+      }, [queue, isEditing, modified, selectedImg, selectedIds, keywords, designer, analyzeImage, saveImage, autoApply]);
 
       // Multi-select handler with Ctrl-click and Shift-click support
       const handleThumbnailClick = useCallback((id, event) => {
@@ -1712,6 +1723,11 @@
               }))
                 .then(() => {
                   console.log('[MULTI-SELECT] Auto-save complete - saved', imagesToSave.length, 'images');
+                  // If autoApply is enabled, mark all saved images as done
+                  if (autoApply) {
+                    console.log('[AUTO APPLY] Marking', imagesToSave.length, 'images as done');
+                    setQueue(q => q.map(i => imagesToSave.some(img => img.id === i.id) ? { ...i, status: 'done' } : i));
+                  }
                   setModified(false);
                   setIsEditing(false);
                 })
@@ -1751,7 +1767,7 @@
             selectImage(id, true); // skipAutoSave=true since we already handled it above
           }
         }
-      }, [selectedIds, selectedId, lastClickedId, filteredQueue, selectImage, isEditing, modified, keywords, designer, queue, saveImage, autoSelectSimilar, getSimilarImages]);
+      }, [selectedIds, selectedId, lastClickedId, filteredQueue, selectImage, isEditing, modified, keywords, designer, queue, saveImage, autoSelectSimilar, getSimilarImages, autoApply]);
 
       // Deduplicate keywords in an image (keep first occurrence of each value)
       const deduplicateKeywords = useCallback((keywords) => {
@@ -1863,8 +1879,7 @@
           // Store aggregated keywords - combine all and some for now, UI will display separately
           setKeywords(combinedKeywords);
           setPending(combinedPending);
-          setModified(false);
-          setIsEditing(false);
+          // Don't reset modified/isEditing here - let the user's edits persist until auto-save
         }
       }, [selectedIds, queue, deduplicateKeywords]);
 
@@ -2820,6 +2835,17 @@
                     style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 16px', background: autoSelectSimilar ? s.text : 'transparent', color: autoSelectSimilar ? s.bgDark : s.textMuted, border: 'none', borderRadius: 16, cursor: 'pointer', fontSize: s.fontSize, fontWeight: s.fontWeight }}>
                     <Icon name={autoSelectSimilar ? "link" : "link_off"} size={16} />
                     {similarCount > 0 ? `Similar (${similarCount})` : 'Similar'}
+                  </button>
+                </div>
+                <div style={{ display: 'inline-flex', background: s.bgDark, borderRadius: 20, padding: 4 }}>
+                  <button onClick={() => setAutoApply(!autoApply)}
+                    className={autoApply ? '' : 'no-hover'}
+                    onMouseEnter={(e) => { if (!autoApply) e.currentTarget.style.color = s.text; }}
+                    onMouseLeave={(e) => { if (!autoApply) e.currentTarget.style.color = s.textMuted; }}
+                    title="Auto-apply changes and mark as done when switching images"
+                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 16px', background: autoApply ? s.text : 'transparent', color: autoApply ? s.bgDark : s.textMuted, border: 'none', borderRadius: 16, cursor: 'pointer', fontSize: s.fontSize, fontWeight: s.fontWeight }}>
+                    <Icon name={autoApply ? "check_circle" : "radio_button_unchecked"} size={16} />
+                    Auto Apply
                   </button>
                 </div>
                 <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
