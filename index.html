@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>MegaTagger</title>
+  <title>CTRL Keyword TM</title>
   <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -2712,17 +2712,6 @@
 
           {/* TOOLBAR */}
           <div style={{ height: 56, background: s.panel, display: 'flex', alignItems: 'center', padding: '0 16px', gap: 12, borderBottom: `1px solid ${s.border}`, flexShrink: 0 }}>
-            {/* Left side - Import buttons */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ color: s.textMuted, fontSize: s.fontSize, fontWeight: s.fontWeight }}>Import:</span>
-              <button onClick={() => folderRef.current?.click()} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: 'transparent', color: s.text, border: 'none', borderRadius: s.radius, cursor: 'pointer', fontSize: s.fontSize }}>
-                <Icon name="folder_open" size={18} /> Folder
-              </button>
-              <button onClick={() => fileRef.current?.click()} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: 'transparent', color: s.text, border: 'none', borderRadius: s.radius, cursor: 'pointer', fontSize: s.fontSize }}>
-                <Icon name="add_photo_alternate" size={18} /> Files
-              </button>
-            </div>
-
             {/* Action buttons */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               {showPending && readyCount > 0 && (
@@ -2801,8 +2790,7 @@
                 })()}
               </span>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ width: 20, height: 20, background: `linear-gradient(135deg, ${s.text}, ${s.textMuted})`, borderRadius: 5 }} />
-                <span style={{ color: s.text, fontWeight: s.fontWeight, fontSize: s.fontSize }}>MegaTagger</span>
+                <span style={{ color: s.text, fontWeight: s.fontWeight, fontSize: s.fontSize }}>CTRL Keyword TM</span>
               </div>
               <button onClick={() => setShowSettings(true)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 40, height: 40, background: 'transparent', color: s.muted, border: 'none', borderRadius: s.radius, cursor: 'pointer' }}>
                 <Icon name="tune" size={22} />
@@ -2953,10 +2941,51 @@
               </div>
               <div style={{ flex: 1, overflow: 'auto', padding: 12 }}>
                 {filteredQueue.length === 0 ? (
-                  <div style={{ padding: 60, textAlign: 'center', color: s.muted }}>
-                    <Icon name="add_photo_alternate" size={64} style={{ opacity: 0.3, display: 'block', margin: '0 auto 16px' }} />
-                    <div style={{ fontSize: s.fontSize, marginBottom: 32 }}>Drop images here</div>
-                    <div style={{ fontSize: s.fontSize, color: s.textMuted }}>Use arrow keys to navigate</div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+                    <div style={{ textAlign: 'center', color: s.muted }}>
+                      <Icon name="folder_open" size={80} style={{ opacity: 0.3, display: 'block', margin: '0 auto 24px', color: s.textMuted }} />
+                      <button
+                        onClick={async () => {
+                          try {
+                            // Try directory picker first
+                            const dirHandle = await window.showDirectoryPicker();
+                            const files = [];
+                            for await (const entry of dirHandle.values()) {
+                              if (entry.kind === 'file' && entry.name.match(/\.(jpg|jpeg|png|gif|webp|bmp|tiff|heic|heif|raw|cr2|nef|arw|dng)$/i)) {
+                                const file = await entry.getFile();
+                                files.push(file);
+                              }
+                            }
+                            if (files.length > 0) {
+                              processFilesRef.current?.(files);
+                            }
+                          } catch (err) {
+                            // If directory picker fails or user cancels, fall back to file picker
+                            if (err.name !== 'AbortError') {
+                              console.log('[BROWSE] Directory picker not supported or cancelled, using file picker');
+                            }
+                            fileRef.current?.click();
+                          }
+                        }}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: 8,
+                          padding: '14px 32px',
+                          background: '#4147FF',
+                          color: '#FFFFFF',
+                          border: 'none',
+                          borderRadius: s.radius,
+                          cursor: 'pointer',
+                          fontSize: s.fontSize,
+                          fontWeight: s.fontWeight,
+                          boxShadow: '0 2px 8px rgba(65, 71, 255, 0.3)'
+                        }}>
+                        Browse
+                      </button>
+                      <div style={{ fontSize: s.fontSize, color: s.textMuted, marginTop: 16 }}>Select a folder or images to get started</div>
+                    </div>
                   </div>
                 ) : (
                   <>
@@ -3512,25 +3541,40 @@
                     <div style={{ marginTop: 16, paddingTop: 16, borderTop: `1px solid ${s.border}` }}>
                       <div style={{ marginBottom: 12, color: s.text, fontSize: s.fontSize, fontWeight: s.fontWeight }}>API Debug Toggles</div>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                        <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', padding: '8px 12px', background: s.bg, borderRadius: s.radiusSm }}>
-                          <input type="checkbox" checked={debugUseGeminiAnalysis} onChange={e => setDebugUseGeminiAnalysis(e.target.checked)} style={{ width: 16, height: 16, accentColor: s.text }} />
-                          <span style={{ fontSize: s.fontSize, color: s.bright }}>Gemini Image Analysis</span>
+                        <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, cursor: 'pointer', padding: '8px 12px', background: s.bg, borderRadius: s.radiusSm }}>
+                          <input type="checkbox" checked={debugUseGeminiAnalysis} onChange={e => setDebugUseGeminiAnalysis(e.target.checked)} style={{ width: 16, height: 16, marginTop: 2, accentColor: s.text }} />
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontSize: s.fontSize, color: s.bright }}>Gemini Image Analysis</div>
+                            <div style={{ fontSize: s.fontSize, color: s.muted, marginTop: 2 }}>Core AI analysis for keyword extraction</div>
+                          </div>
                         </label>
-                        <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', padding: '8px 12px', background: s.bg, borderRadius: s.radiusSm }}>
-                          <input type="checkbox" checked={debugUseVisionLabels} onChange={e => setDebugUseVisionLabels(e.target.checked)} style={{ width: 16, height: 16, accentColor: s.text }} />
-                          <span style={{ fontSize: s.fontSize, color: s.bright }}>Vision API Labels ($10.81/mo)</span>
+                        <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, cursor: 'pointer', padding: '8px 12px', background: s.bg, borderRadius: s.radiusSm }}>
+                          <input type="checkbox" checked={debugUseVisionLabels} onChange={e => setDebugUseVisionLabels(e.target.checked)} style={{ width: 16, height: 16, marginTop: 2, accentColor: s.text }} />
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontSize: s.fontSize, color: s.bright }}>Vision API Labels ($10.81/mo)</div>
+                            <div style={{ fontSize: s.fontSize, color: s.muted, marginTop: 2 }}>Detects objects, scenes, and activities in images</div>
+                          </div>
                         </label>
-                        <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', padding: '8px 12px', background: s.bg, borderRadius: s.radiusSm }}>
-                          <input type="checkbox" checked={debugUseVisionLogos} onChange={e => setDebugUseVisionLogos(e.target.checked)} style={{ width: 16, height: 16, accentColor: s.text }} />
-                          <span style={{ fontSize: s.fontSize, color: s.bright }}>Vision API Logos ($10.80/mo)</span>
+                        <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, cursor: 'pointer', padding: '8px 12px', background: s.bg, borderRadius: s.radiusSm }}>
+                          <input type="checkbox" checked={debugUseVisionLogos} onChange={e => setDebugUseVisionLogos(e.target.checked)} style={{ width: 16, height: 16, marginTop: 2, accentColor: s.text }} />
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontSize: s.fontSize, color: s.bright }}>Vision API Logos ($10.80/mo)</div>
+                            <div style={{ fontSize: s.fontSize, color: s.muted, marginTop: 2 }}>Identifies brand logos and trademarks in images</div>
+                          </div>
                         </label>
-                        <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', padding: '8px 12px', background: s.bg, borderRadius: s.radiusSm }}>
-                          <input type="checkbox" checked={debugUseGeminiCategorize} onChange={e => setDebugUseGeminiCategorize(e.target.checked)} style={{ width: 16, height: 16, accentColor: s.text }} />
-                          <span style={{ fontSize: s.fontSize, color: s.bright }}>Gemini Auto-Categorization</span>
+                        <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, cursor: 'pointer', padding: '8px 12px', background: s.bg, borderRadius: s.radiusSm }}>
+                          <input type="checkbox" checked={debugUseGeminiCategorize} onChange={e => setDebugUseGeminiCategorize(e.target.checked)} style={{ width: 16, height: 16, marginTop: 2, accentColor: s.text }} />
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontSize: s.fontSize, color: s.bright }}>Gemini Auto-Categorization</div>
+                            <div style={{ fontSize: s.fontSize, color: s.muted, marginTop: 2 }}>Auto-categorizes custom keywords into taxonomy</div>
+                          </div>
                         </label>
-                        <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', padding: '8px 12px', background: s.bg, borderRadius: s.radiusSm }}>
-                          <input type="checkbox" checked={debugUseDesignerLookup} onChange={e => setDebugUseDesignerLookup(e.target.checked)} style={{ width: 16, height: 16, accentColor: s.text }} />
-                          <span style={{ fontSize: s.fontSize, color: s.bright }}>Designer Lookup</span>
+                        <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, cursor: 'pointer', padding: '8px 12px', background: s.bg, borderRadius: s.radiusSm }}>
+                          <input type="checkbox" checked={debugUseDesignerLookup} onChange={e => setDebugUseDesignerLookup(e.target.checked)} style={{ width: 16, height: 16, marginTop: 2, accentColor: s.text }} />
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontSize: s.fontSize, color: s.bright }}>Designer Lookup</div>
+                            <div style={{ fontSize: s.fontSize, color: s.muted, marginTop: 2 }}>Identifies product designers and photographers</div>
+                          </div>
                         </label>
                       </div>
                     </div>
