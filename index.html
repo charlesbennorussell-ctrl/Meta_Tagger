@@ -355,7 +355,7 @@
             display: 'flex',
             alignItems: 'center',
             gap: depth === 0 ? 0 : 8,
-            padding: '6px 16px',
+            padding: depth === 0 ? '4px 16px' : '6px 16px',
             borderRadius: depth === 0 ? 16 : 6,
             background: depth === 0 ? s.bgDark : 'transparent',
             width: depth === 0 ? '100%' : 'auto',
@@ -363,7 +363,8 @@
             cursor: 'default',
             fontSize: s.fontSize,
             fontWeight: s.fontWeight,
-            boxSizing: 'border-box'
+            boxSizing: 'border-box',
+            height: depth === 0 ? 28 : 'auto'
           }}>
             {depth > 0 && <span style={{ color: s.textMuted, fontSize: s.fontSize, marginRight: 4 }}>└</span>}
             <span style={{ color: depth === 0 ? s.text : s.textMuted, whiteSpace: 'nowrap' }}>{name}</span>
@@ -1602,6 +1603,9 @@
       useEffect(() => { designerRef.current = designer; }, [designer]);
 
       const selectImage = useCallback(async (id, skipAutoSave = false) => {
+        // Check if navigating outside the multi-selected group
+        const isNavigatingOutsideGroup = selectedIds.length > 1 && !selectedIds.includes(id);
+
         // Only auto-save if actually modified and not skipped
         if (!skipAutoSave && isEditing && modified && selectedImg && keywords.length > 0) {
           // Check if multi-select is active - save ALL selected images
@@ -1612,9 +1616,9 @@
               // Use the current keywords for all selected images
               await saveImage(img, keywords, designer, true); // skipSync=true for batch
             }
-            // If autoApply is enabled, mark all selected images as done
-            if (autoApply) {
-              console.log('[AUTO APPLY] Marking', selectedIds.length, 'images as done');
+            // If autoApply is enabled AND navigating outside the group, mark all selected images as done
+            if (autoApply && isNavigatingOutsideGroup) {
+              console.log('[AUTO APPLY] Marking', selectedIds.length, 'images as done (navigating outside group)');
               setQueue(q => q.map(i => selectedIds.includes(i.id) ? { ...i, status: 'done' } : i));
             }
           } else {
@@ -3408,26 +3412,6 @@
                     </div>
                   </div>
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                  <div style={{ display: 'inline-flex', background: s.bgDark, borderRadius: 20, padding: 4 }}>
-                    <button
-                      onClick={handleOrganizeTaxonomy}
-                      disabled={!geminiKey || isOrganizing}
-                      title="Organize taxonomy - research and categorize custom keywords"
-                      tabIndex={-1}
-                      className="no-hover"
-                      style={{
-                        display: 'flex', alignItems: 'center', gap: 6,
-                        padding: '6px 16px', background: s.bgMid,
-                        color: s.text, border: 'none',
-                        borderRadius: 16, cursor: isOrganizing ? 'default' : 'pointer',
-                        fontSize: s.fontSize, fontWeight: s.fontWeight
-                      }}
-                    >
-                      {isOrganizing ? 'Organizing...' : 'Organize'}
-                    </button>
-                  </div>
-                </div>
               </div>
               <div style={{ flex: 1, padding: 12, overflowY: 'auto' }}>
                 {showMasterTaxonomy ? (
@@ -3486,7 +3470,10 @@
                   </div>
                   <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 20 }}>
                     <div>
-                      <div style={{ marginBottom: 32, color: s.text, fontSize: s.fontSize, fontWeight: s.fontWeight }}>Gemini API Key</div>
+                      <div style={{ marginBottom: 4, color: s.text, fontSize: s.fontSize, fontWeight: s.fontWeight }}>Gemini API Key</div>
+                      <div style={{ marginBottom: 10, color: s.muted, fontSize: s.fontSize, lineHeight: 1.5 }}>
+                        Required for AI-powered image analysis. Analyzes images to extract keywords, identifies brands, designers, eras, and categorizes design work.
+                      </div>
                       <input type="password" value={geminiKey} onChange={e => setGeminiKey(e.target.value)}
                         style={{ width: '100%', padding: '10px 14px', background: s.bg, border: `1px solid ${s.border}`, borderRadius: s.radius, color: s.bright, fontSize: s.fontSize, outline: 'none' }} />
                       <a href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: s.text, fontSize: s.fontSize, marginTop: 6, textDecoration: 'none' }}>
@@ -3494,7 +3481,10 @@
                       </a>
                     </div>
                     <div>
-                      <div style={{ marginBottom: 32, color: s.text, fontSize: s.fontSize, fontWeight: s.fontWeight }}>Vision API Key (optional)</div>
+                      <div style={{ marginBottom: 4, color: s.text, fontSize: s.fontSize, fontWeight: s.fontWeight }}>Vision API Key (optional)</div>
+                      <div style={{ marginBottom: 10, color: s.muted, fontSize: s.fontSize, lineHeight: 1.5 }}>
+                        Optional. Enables reverse image search to find web matches, similar images, and detect logos/labels. Helps identify products and discover higher-resolution versions.
+                      </div>
                       <input type="password" value={visionKey} onChange={e => setVisionKey(e.target.value)}
                         style={{ width: '100%', padding: '10px 14px', background: s.bg, border: `1px solid ${s.border}`, borderRadius: s.radius, color: s.bright, fontSize: s.fontSize, outline: 'none' }} />
                       <a href="https://console.cloud.google.com/apis/library/vision.googleapis.com" target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: s.text, fontSize: s.fontSize, marginTop: 6, textDecoration: 'none' }}>
@@ -3570,6 +3560,32 @@
                       <Icon name={outputDir ? "check_circle" : (outputDirName ? "warning" : "folder_open")} size={20} />
                       {outputDir ? `Output: ${outputDir.name}` : (outputDirName ? `Re-select: ${outputDirName}` : 'Choose output folder')}
                     </button>
+
+                    <div style={{ marginTop: 16, paddingTop: 16, borderTop: `1px solid ${s.border}` }}>
+                      <div style={{ marginBottom: 12, color: s.text, fontSize: s.fontSize, fontWeight: s.fontWeight }}>Taxonomy</div>
+                      <button
+                        onClick={handleOrganizeTaxonomy}
+                        disabled={!geminiKey || isOrganizing}
+                        title="Research and categorize custom keywords in your master taxonomy"
+                        style={{
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                          width: '100%', padding: '12px 16px',
+                          background: s.bgMid, color: s.text,
+                          border: `1px solid ${s.border}`, borderRadius: s.radius,
+                          cursor: (geminiKey && !isOrganizing) ? 'pointer' : 'not-allowed',
+                          fontSize: s.fontSize, fontWeight: s.fontWeight,
+                          opacity: (geminiKey && !isOrganizing) ? 1 : 0.5
+                        }}
+                      >
+                        <Icon name={isOrganizing ? "hourglass_empty" : "auto_fix_high"} size={20} />
+                        {isOrganizing ? 'Organizing taxonomy...' : 'Organize Taxonomy'}
+                      </button>
+                      {organizeProgress && (
+                        <div style={{ marginTop: 8, padding: '8px 12px', background: s.bg, borderRadius: s.radiusSm, fontSize: s.fontSize, color: s.text }}>
+                          {organizeProgress.message}
+                        </div>
+                      )}
+                    </div>
                   </div>
                   <div style={{ padding: '16px 20px', borderTop: `1px solid ${s.border}`, display: 'flex', justifyContent: 'flex-end' }}>
                     <button onClick={() => setShowSettings(false)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px 20px', background: s.textMuted, color: 'white', border: 'none', borderRadius: s.radius, cursor: 'pointer', fontSize: s.fontSize, fontWeight: s.fontWeight }}>
