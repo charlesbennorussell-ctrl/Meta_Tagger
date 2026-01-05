@@ -1386,11 +1386,13 @@
               // - In master taxonomy
               // - From embedded XMP metadata (user's own tags)
               // - Identified as brand, creator, or country of origin
+              // - Is a required category (Graphic Design, Industrial Design, etc.)
               const inMaster = masterTerms.has(key);
               const isEmbedded = kw.source === 'xmp' || kw.source === 'existing';
               const isBrandOrCreator = ['brand', 'designer', 'artist', 'photographer', 'architect', 'creator'].includes(kw.type);
               const isCountry = kw.type === 'country' || (kw.path && kw.path.includes('Origin'));
-              if (inMaster || isEmbedded || isBrandOrCreator || isCountry) {
+              const isRequiredCategory = REQUIRED_CATEGORIES.includes(kw.value);
+              if (inMaster || isEmbedded || isBrandOrCreator || isCountry || isRequiredCategory) {
                 auto.push(kw);
               } else {
                 review.push(kw);
@@ -1572,11 +1574,13 @@
             // - In master taxonomy
             // - From embedded XMP metadata (user's own tags)
             // - Identified as brand, creator, or country of origin
+            // - Is a required category (Graphic Design, Industrial Design, etc.)
             const inMaster = masterTerms.has(key);
             const isEmbedded = kw.source === 'xmp' || kw.source === 'existing';
             const isBrandOrCreator = ['brand', 'designer', 'artist', 'photographer', 'architect', 'creator'].includes(kw.type);
             const isCountry = kw.type === 'country' || (kw.path && kw.path.includes('Origin'));
-            if (inMaster || isEmbedded || isBrandOrCreator || isCountry) {
+            const isRequiredCategory = REQUIRED_CATEGORIES.includes(kw.value);
+            if (inMaster || isEmbedded || isBrandOrCreator || isCountry || isRequiredCategory) {
               auto.push(kw);
             } else {
               review.push(kw);
