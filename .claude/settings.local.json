@@ -26,7 +26,8 @@
       "Bash(start \"\" \"C:\\Users\\benno\\.claude-worktrees\\Meta_Tagger\\admiring-albattani\\index.html\")",
       "Bash(git pull:*)",
       "Bash(start \"\" \"C:\\Users\\benno\\.claude-worktrees\\Meta_Tagger\\serene-wright\\index.html\")",
-      "Bash(start \"\" \"C:\\Users\\benno\\.claude-worktrees\\Meta_Tagger\\quizzical-keller\\index.html\")"
+      "Bash(start \"\" \"C:\\Users\\benno\\.claude-worktrees\\Meta_Tagger\\quizzical-keller\\index.html\")",
+      "Bash(start \"\" \"C:\\Users\\benno\\.claude-worktrees\\Meta_Tagger\\blissful-euclid\\index.html\")"
     ]
   }
 }
