@@ -131,12 +131,12 @@
         <button
           onClick={() => !disabled && onChange(false)}
           disabled={disabled}
-          onMouseEnter={(e) => { if (checked) e.currentTarget.style.color = '#5D5D5D'; }}
-          onMouseLeave={(e) => { if (checked) e.currentTarget.style.color = '#2D2D2D'; }}
+          onMouseEnter={(e) => { if (checked) e.currentTarget.style.color = '#6A6A6A'; }}
+          onMouseLeave={(e) => { if (checked) e.currentTarget.style.color = '#404040'; }}
           style={{
             padding: '8px 32px',
             background: !checked ? s.bgMid : 'transparent',
-            color: !checked ? '#FFFFFF' : '#2D2D2D',
+            color: !checked ? '#FFFFFF' : '#404040',
             border: 'none',
             borderRadius: 16,
             cursor: disabled ? 'not-allowed' : 'pointer',
@@ -151,12 +151,12 @@
         <button
           onClick={() => !disabled && onChange(true)}
           disabled={disabled}
-          onMouseEnter={(e) => { if (!checked) e.currentTarget.style.color = '#5D5D5D'; }}
-          onMouseLeave={(e) => { if (!checked) e.currentTarget.style.color = '#2D2D2D'; }}
+          onMouseEnter={(e) => { if (!checked) e.currentTarget.style.color = '#6A6A6A'; }}
+          onMouseLeave={(e) => { if (!checked) e.currentTarget.style.color = '#404040'; }}
           style={{
             padding: '8px 32px',
             background: checked ? s.bgMid : 'transparent',
-            color: checked ? '#FFFFFF' : '#2D2D2D',
+            color: checked ? '#FFFFFF' : '#404040',
             border: 'none',
             borderRadius: 16,
             cursor: disabled ? 'not-allowed' : 'pointer',
@@ -2720,32 +2720,32 @@
             <div style={{ display: 'inline-flex', background: s.bgDark, borderRadius: 20, padding: 4, gap: 4 }}>
               <button onClick={() => { setShowPending(true); setShowAnalyzing(false); setShowDone(false); setShowHidden(false); }}
                 className={showPending ? 'no-hover' : ''}
-                onMouseEnter={(e) => { if (!showPending) e.currentTarget.style.color = s.text; }}
-                onMouseLeave={(e) => { if (!showPending) e.currentTarget.style.color = s.textMuted; }}
-                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 16px', background: showPending ? '#4147FF' : 'transparent', color: showPending ? '#FFFFFF' : s.textMuted, border: 'none', borderRadius: 16, cursor: 'pointer', fontSize: s.fontSize, fontWeight: s.fontWeight }}>
+                onMouseEnter={(e) => { if (!showPending) e.currentTarget.style.color = '#6A6A6A'; }}
+                onMouseLeave={(e) => { if (!showPending) e.currentTarget.style.color = '#404040'; }}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 16px', background: showPending ? '#4147FF' : 'transparent', color: showPending ? '#FFFFFF' : '#404040', border: 'none', borderRadius: 16, cursor: 'pointer', fontSize: s.fontSize, fontWeight: s.fontWeight }}>
                 Ready ({readyCount})
               </button>
               {analyzingCount > 0 && (
                 <button onClick={() => { setShowPending(false); setShowAnalyzing(true); setShowDone(false); setShowHidden(false); }}
                   className={showAnalyzing ? 'no-hover' : ''}
-                  onMouseEnter={(e) => { if (!showAnalyzing) e.currentTarget.style.color = '#000000'; }}
-                  onMouseLeave={(e) => { if (!showAnalyzing) e.currentTarget.style.color = s.textMuted; }}
-                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 16px', background: showAnalyzing ? '#fbbf24' : 'transparent', color: showAnalyzing ? '#000000' : s.textMuted, border: 'none', borderRadius: 16, cursor: 'pointer', fontSize: s.fontSize, fontWeight: s.fontWeight }}>
+                  onMouseEnter={(e) => { if (!showAnalyzing) e.currentTarget.style.color = '#6A6A6A'; }}
+                  onMouseLeave={(e) => { if (!showAnalyzing) e.currentTarget.style.color = '#404040'; }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 16px', background: showAnalyzing ? '#fbbf24' : 'transparent', color: showAnalyzing ? '#000000' : '#404040', border: 'none', borderRadius: 16, cursor: 'pointer', fontSize: s.fontSize, fontWeight: s.fontWeight }}>
                   Analyzing ({analyzingCount})
                 </button>
               )}
               <button onClick={() => { setShowPending(false); setShowAnalyzing(false); setShowDone(true); setShowHidden(false); }}
                 className={showDone ? 'no-hover' : ''}
-                onMouseEnter={(e) => { if (!showDone) e.currentTarget.style.color = '#000000'; }}
-                onMouseLeave={(e) => { if (!showDone) e.currentTarget.style.color = s.textMuted; }}
-                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 16px', background: showDone ? '#68B757' : 'transparent', color: showDone ? '#000000' : s.textMuted, border: 'none', borderRadius: 16, cursor: 'pointer', fontSize: s.fontSize, fontWeight: s.fontWeight }}>
+                onMouseEnter={(e) => { if (!showDone) e.currentTarget.style.color = '#6A6A6A'; }}
+                onMouseLeave={(e) => { if (!showDone) e.currentTarget.style.color = '#404040'; }}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 16px', background: showDone ? '#68B757' : 'transparent', color: showDone ? '#000000' : '#404040', border: 'none', borderRadius: 16, cursor: 'pointer', fontSize: s.fontSize, fontWeight: s.fontWeight }}>
                 Done ({doneCount})
               </button>
               <button onClick={() => { setShowPending(false); setShowAnalyzing(false); setShowDone(false); setShowHidden(true); }}
                 className={showHidden ? 'no-hover' : ''}
-                onMouseEnter={(e) => { if (!showHidden) e.currentTarget.style.color = s.text; }}
-                onMouseLeave={(e) => { if (!showHidden) e.currentTarget.style.color = s.textMuted; }}
-                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 16px', background: showHidden ? s.bgMid : 'transparent', color: showHidden ? s.text : s.textMuted, border: 'none', borderRadius: 16, cursor: 'pointer', fontSize: s.fontSize, fontWeight: s.fontWeight }}>
+                onMouseEnter={(e) => { if (!showHidden) e.currentTarget.style.color = '#6A6A6A'; }}
+                onMouseLeave={(e) => { if (!showHidden) e.currentTarget.style.color = '#404040'; }}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 16px', background: showHidden ? s.bgMid : 'transparent', color: showHidden ? s.text : '#404040', border: 'none', borderRadius: 16, cursor: 'pointer', fontSize: s.fontSize, fontWeight: s.fontWeight }}>
                 Hidden ({hiddenCount})
               </button>
             </div>
@@ -2753,6 +2753,7 @@
             {/* Action buttons */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               {showPending && readyCount > 0 && (
+                <div style={{ display: 'inline-flex', background: '#0F0F0F', borderRadius: 20, padding: 4 }}>
                 <button onClick={() => {
                   if (confirm(`Mark all ${readyCount} ready images as done?`)) {
                     // Update queue status
@@ -2779,11 +2780,14 @@
                 }} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 16px', background: '#4147FF', color: '#FFFFFF', border: 'none', borderRadius: 16, cursor: 'pointer', fontSize: s.fontSize, fontWeight: s.fontWeight }}>
                   Mark all as Done
                 </button>
+                </div>
               )}
               {showDone && readyToSaveCount > 0 && (
+                <div style={{ display: 'inline-flex', background: '#0F0F0F', borderRadius: 20, padding: 4 }}>
                 <button onClick={saveAll} disabled={isSavingAll} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 16px', background: '#68B757', color: '#000000', border: 'none', borderRadius: 16, cursor: isSavingAll ? 'default' : 'pointer', fontSize: s.fontSize, fontWeight: s.fontWeight }}>
                   {isSavingAll ? 'Exporting...' : `Export All (${readyToSaveCount})`}
                 </button>
+                </div>
               )}
               {showDone && (
                 <div style={{ display: 'inline-flex', background: s.bgDark, borderRadius: 20, padding: 4 }}>
@@ -2806,7 +2810,9 @@
                     }
                   }}
                     className={continuousSaveEnabled ? '' : 'no-hover'}
-                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 16px', background: continuousSaveEnabled ? s.bgMid : 'transparent', color: continuousSaveEnabled ? s.text : s.textMuted, border: 'none', borderRadius: 16, cursor: 'pointer', fontSize: s.fontSize, fontWeight: s.fontWeight }}>
+                    onMouseEnter={(e) => { if (!continuousSaveEnabled) e.currentTarget.style.color = '#6A6A6A'; }}
+                    onMouseLeave={(e) => { if (!continuousSaveEnabled) e.currentTarget.style.color = '#404040'; }}
+                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 16px', background: continuousSaveEnabled ? s.bgMid : 'transparent', color: continuousSaveEnabled ? s.text : '#404040', border: 'none', borderRadius: 16, cursor: 'pointer', fontSize: s.fontSize, fontWeight: s.fontWeight }}>
                     Continuous Save
                   </button>
                 </div>
@@ -2845,10 +2851,10 @@
                 <div style={{ display: 'inline-flex', background: s.bgDark, borderRadius: 20, padding: 4 }}>
                   <button onClick={() => setAutoSelectSimilar(!autoSelectSimilar)}
                     className={autoSelectSimilar ? '' : 'no-hover'}
-                    onMouseEnter={(e) => { if (!autoSelectSimilar) e.currentTarget.style.color = s.text; }}
-                    onMouseLeave={(e) => { if (!autoSelectSimilar) e.currentTarget.style.color = s.textMuted; }}
+                    onMouseEnter={(e) => { if (!autoSelectSimilar) e.currentTarget.style.color = '#6A6A6A'; }}
+                    onMouseLeave={(e) => { if (!autoSelectSimilar) e.currentTarget.style.color = '#404040'; }}
                     title={similarCount > 0 ? `Auto-select ${similarCount} similar image${similarCount > 1 ? 's' : ''} when clicking` : 'Auto-select similar images when detected'}
-                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 16px', background: autoSelectSimilar ? s.text : 'transparent', color: autoSelectSimilar ? s.bgDark : s.textMuted, border: 'none', borderRadius: 16, cursor: 'pointer', fontSize: s.fontSize, fontWeight: s.fontWeight }}>
+                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 16px', background: autoSelectSimilar ? '#2D2D2D' : 'transparent', color: autoSelectSimilar ? s.text : '#404040', border: 'none', borderRadius: 16, cursor: 'pointer', fontSize: s.fontSize, fontWeight: s.fontWeight }}>
                     <Icon name={autoSelectSimilar ? "link" : "link_off"} size={16} />
                     {similarCount > 0 ? `Similar (${similarCount})` : 'Similar'}
                   </button>
@@ -2856,10 +2862,10 @@
                 <div style={{ display: 'inline-flex', background: s.bgDark, borderRadius: 20, padding: 4 }}>
                   <button onClick={() => setAutoApply(!autoApply)}
                     className={autoApply ? '' : 'no-hover'}
-                    onMouseEnter={(e) => { if (!autoApply) e.currentTarget.style.color = s.text; }}
-                    onMouseLeave={(e) => { if (!autoApply) e.currentTarget.style.color = s.textMuted; }}
+                    onMouseEnter={(e) => { if (!autoApply) e.currentTarget.style.color = '#6A6A6A'; }}
+                    onMouseLeave={(e) => { if (!autoApply) e.currentTarget.style.color = '#404040'; }}
                     title="Auto-apply changes and mark as done when switching images"
-                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 16px', background: autoApply ? '#2D2D2D' : 'transparent', color: autoApply ? s.text : s.textMuted, border: 'none', borderRadius: 16, cursor: 'pointer', fontSize: s.fontSize, fontWeight: s.fontWeight }}>
+                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 16px', background: autoApply ? '#2D2D2D' : 'transparent', color: autoApply ? s.text : '#404040', border: 'none', borderRadius: 16, cursor: 'pointer', fontSize: s.fontSize, fontWeight: s.fontWeight }}>
                     <Icon name={autoApply ? "check_circle" : "radio_button_unchecked"} size={16} />
                     Auto Apply
                   </button>
@@ -2893,9 +2899,9 @@
                       }
                     }} disabled={!geminiKey}
                       className='no-hover'
-                      onMouseEnter={(e) => { e.currentTarget.style.color = '#5D5D5D'; }}
-                      onMouseLeave={(e) => { e.currentTarget.style.color = '#2D2D2D'; }}
-                      style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '6px 16px', background: 'transparent', color: '#2D2D2D', border: 'none', borderRadius: 16, cursor: geminiKey ? 'pointer' : 'not-allowed', fontSize: s.fontSize, fontWeight: s.fontWeight }}>
+                      onMouseEnter={(e) => { e.currentTarget.style.color = '#6A6A6A'; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.color = '#404040'; }}
+                      style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '6px 16px', background: 'transparent', color: '#404040', border: 'none', borderRadius: 16, cursor: geminiKey ? 'pointer' : 'not-allowed', fontSize: s.fontSize, fontWeight: s.fontWeight }}>
                       Re-Analyze All
                     </button>
                   </div>
@@ -2930,9 +2936,9 @@
                       }
                     }} disabled={!geminiKey || (!isMultiSelect && !selectedImg) || (isMultiSelect && selectedIds.length === 0)}
                       className='no-hover'
-                      onMouseEnter={(e) => { e.currentTarget.style.color = '#5D5D5D'; }}
-                      onMouseLeave={(e) => { e.currentTarget.style.color = '#2D2D2D'; }}
-                      style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '6px 16px', background: 'transparent', color: '#2D2D2D', border: 'none', borderRadius: 16, cursor: (geminiKey && ((isMultiSelect && selectedIds.length > 0) || (!isMultiSelect && selectedImg))) ? 'pointer' : 'not-allowed', fontSize: s.fontSize, fontWeight: s.fontWeight }}>
+                      onMouseEnter={(e) => { e.currentTarget.style.color = '#6A6A6A'; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.color = '#404040'; }}
+                      style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '6px 16px', background: 'transparent', color: '#404040', border: 'none', borderRadius: 16, cursor: (geminiKey && ((isMultiSelect && selectedIds.length > 0) || (!isMultiSelect && selectedImg))) ? 'pointer' : 'not-allowed', fontSize: s.fontSize, fontWeight: s.fontWeight }}>
                       Re-Analyze {isMultiSelect && selectedIds.length > 0 ? `(${selectedIds.length})` : 'Selected'}
                     </button>
                   </div>
@@ -2940,9 +2946,9 @@
                     {['S', 'M', 'L'].map((label, i) => (
                       <button key={label} onClick={() => setThumbSize(i)}
                         className={thumbSize === i ? 'no-hover' : ''}
-                        onMouseEnter={(e) => { if (thumbSize !== i) e.currentTarget.style.color = s.text; }}
-                        onMouseLeave={(e) => { if (thumbSize !== i) e.currentTarget.style.color = s.textMuted; }}
-                        style={{ padding: '6px 16px', background: thumbSize === i ? s.bgMid : 'transparent', color: thumbSize === i ? s.text : s.textMuted, border: 'none', borderRadius: 16, cursor: 'pointer', fontSize: s.fontSize, fontWeight: s.fontWeight }}>
+                        onMouseEnter={(e) => { if (thumbSize !== i) e.currentTarget.style.color = '#6A6A6A'; }}
+                        onMouseLeave={(e) => { if (thumbSize !== i) e.currentTarget.style.color = '#404040'; }}
+                        style={{ padding: '6px 16px', background: thumbSize === i ? s.bgMid : 'transparent', color: thumbSize === i ? s.text : '#404040', border: 'none', borderRadius: 16, cursor: 'pointer', fontSize: s.fontSize, fontWeight: s.fontWeight }}>
                         {label}
                       </button>
                     ))}
@@ -2957,6 +2963,7 @@
                       <div style={{ fontSize: s.fontSize, color: s.text, marginBottom: 8 }}>Drag and Drop Images or Folders Here</div>
                       <div style={{ fontSize: s.fontSize, color: s.textMuted, marginBottom: 16 }}>Or</div>
                       <div style={{ display: 'flex', gap: 8 }}>
+                        <div style={{ display: 'inline-flex', background: s.bgDark, borderRadius: 20, padding: 4 }}>
                         <button
                           onClick={async () => {
                             try {
@@ -2991,8 +2998,8 @@
                             justifyContent: 'center',
                             gap: 6,
                             padding: '6px 16px',
-                            background: s.text,
-                            color: s.bgDark,
+                            background: '#4147FF',
+                            color: '#FFFFFF',
                             border: 'none',
                             borderRadius: 16,
                             cursor: 'pointer',
@@ -3002,6 +3009,8 @@
                           <Icon name="folder" size={16} />
                           Browse Folders
                         </button>
+                        </div>
+                        <div style={{ display: 'inline-flex', background: s.bgDark, borderRadius: 20, padding: 4 }}>
                         <button
                           onClick={async () => {
                             try {
@@ -3034,8 +3043,8 @@
                             justifyContent: 'center',
                             gap: 6,
                             padding: '6px 16px',
-                            background: s.text,
-                            color: s.bgDark,
+                            background: '#4147FF',
+                            color: '#FFFFFF',
                             border: 'none',
                             borderRadius: 16,
                             cursor: 'pointer',
@@ -3045,6 +3054,7 @@
                           <Icon name="image" size={16} />
                           Browse Images
                         </button>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -3305,9 +3315,9 @@
                               placeholder="Add custom tag..."
                               style={{ flex: 1, padding: '6px 16px', background: 'transparent', border: 'none', borderRadius: 16, color: s.text, fontSize: s.fontSize, outline: 'none' }} />
                             <button onClick={addCustom} disabled={!customInput.trim()} tabIndex={-1}
-                              onMouseEnter={(e) => { if (!customInput.trim()) e.currentTarget.style.color = '#5D5D5D'; }}
-                              onMouseLeave={(e) => { if (!customInput.trim()) e.currentTarget.style.color = '#2D2D2D'; }}
-                              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, padding: '6px 16px', background: customInput.trim() ? '#1D1D1D' : 'transparent', color: customInput.trim() ? s.text : '#2D2D2D', border: 'none', borderRadius: 16, cursor: customInput.trim() ? 'pointer' : 'default', fontSize: s.fontSize, fontWeight: s.fontWeight }}>
+                              onMouseEnter={(e) => { if (!customInput.trim()) e.currentTarget.style.color = '#6A6A6A'; }}
+                              onMouseLeave={(e) => { if (!customInput.trim()) e.currentTarget.style.color = '#404040'; }}
+                              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, padding: '6px 16px', background: customInput.trim() ? '#1D1D1D' : 'transparent', color: customInput.trim() ? s.text : '#404040', border: 'none', borderRadius: 16, cursor: customInput.trim() ? 'pointer' : 'default', fontSize: s.fontSize, fontWeight: s.fontWeight }}>
                               <Icon name="add" size={16} /> Add
                             </button>
                           </div>
@@ -3418,6 +3428,7 @@
 
                         {/* Save button - pill shaped */}
                         <div style={{ padding: '0 12px', display: 'flex', justifyContent: 'center' }}>
+                          <div style={{ display: 'inline-flex', background: '#0F0F0F', borderRadius: 20, padding: 4 }}>
                           <button
                           onClick={async () => {
                             // Check for required category
@@ -3453,6 +3464,7 @@
                             : keywords.length === 0 ? 'Nothing to save' : 'Select primary category'}
                         </button>
                         </div>
+                        </div>
                       </div>
                     )}
 
@@ -3467,13 +3479,49 @@
                   </div>
                 </>
               ) : (
-                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: s.muted }}>
-                  <div style={{ textAlign: 'center' }}>
-                    <Icon name="image" size={64} style={{ opacity: 0.2, display: 'block', margin: '0 auto 16px' }} />
-                    <div style={{ fontSize: s.fontSize }}>Select an image</div>
-                    <div style={{ fontSize: s.fontSize, marginTop: 8, color: s.textMuted }}>Use arrow keys to navigate</div>
+                <>
+                  <div style={{ height: '35%', minHeight: 140, background: '#0F0F0F', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+                    <div style={{ textAlign: 'center', color: s.muted }}>
+                      <Icon name="image" size={40} style={{ opacity: 0.2, display: 'block', margin: '0 auto 12px' }} />
+                      <div style={{ fontSize: s.fontSize, color: s.textMuted }}>Select an image</div>
+                    </div>
                   </div>
-                </div>
+
+                  <div style={{ flex: 1, overflow: 'auto', padding: 14 }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                      {/* Custom tag input - dark pill style */}
+                      <div style={{ padding: '0 12px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#0F0F0F', borderRadius: 20, padding: 4 }}>
+                          <input type="text" disabled
+                            placeholder="Add custom tag..."
+                            style={{ flex: 1, padding: '6px 16px', background: 'transparent', border: 'none', borderRadius: 16, color: s.text, fontSize: s.fontSize, outline: 'none' }} />
+                          <button disabled tabIndex={-1}
+                            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, padding: '6px 16px', background: 'transparent', color: '#404040', border: 'none', borderRadius: 16, cursor: 'default', fontSize: s.fontSize, fontWeight: s.fontWeight }}>
+                            <Icon name="add" size={16} /> Add
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Save button - pill shaped */}
+                      <div style={{ padding: '0 12px', display: 'flex', justifyContent: 'center' }}>
+                        <div style={{ display: 'inline-flex', background: '#0F0F0F', borderRadius: 20, padding: 4 }}>
+                          <button disabled tabIndex={-1}
+                            style={{
+                              minWidth: '25%',
+                              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '6px 16px',
+                              background: s.bgMid,
+                              color: s.textMuted,
+                              border: 'none', borderRadius: 16,
+                              cursor: 'not-allowed',
+                              fontSize: s.fontSize, fontWeight: s.fontWeight
+                            }}>
+                            Nothing to save
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </>
               )}
             </div>
 
@@ -3487,9 +3535,9 @@
                   <div style={{ display: 'flex', gap: 6 }}>
                     {customCount > 0 && showMasterTaxonomy && (
                       <button onClick={runCategorization} disabled={isCategorizing || !geminiKey} tabIndex={-1}
-                        onMouseEnter={(e) => { if (isCategorizing || !geminiKey) e.currentTarget.style.color = '#5D5D5D'; }}
-                        onMouseLeave={(e) => { if (isCategorizing || !geminiKey) e.currentTarget.style.color = '#2D2D2D'; }}
-                        style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 10px', background: (isCategorizing || !geminiKey) ? s.bgDark : s.text, color: (isCategorizing || !geminiKey) ? '#2D2D2D' : s.bgDark, border: 'none', borderRadius: s.radiusSm, cursor: (isCategorizing || !geminiKey) ? 'default' : 'pointer', fontSize: s.fontSize }}>
+                        onMouseEnter={(e) => { if (isCategorizing || !geminiKey) e.currentTarget.style.color = '#6A6A6A'; }}
+                        onMouseLeave={(e) => { if (isCategorizing || !geminiKey) e.currentTarget.style.color = '#404040'; }}
+                        style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 10px', background: (isCategorizing || !geminiKey) ? s.bgDark : s.text, color: (isCategorizing || !geminiKey) ? '#404040' : s.bgDark, border: 'none', borderRadius: s.radiusSm, cursor: (isCategorizing || !geminiKey) ? 'default' : 'pointer', fontSize: s.fontSize }}>
                         <Icon name={isCategorizing ? "hourglass_empty" : "auto_fix_high"} size={16} /> {customCount}
                       </button>
                     )}
@@ -3497,9 +3545,9 @@
                       {[{ label: 'Session', value: false }, { label: 'Master', value: true }].map(({ label, value }) => (
                         <button key={label} onClick={() => setShowMasterTaxonomy(value)} tabIndex={-1}
                           className={showMasterTaxonomy === value ? 'no-hover' : ''}
-                          onMouseEnter={(e) => { if (showMasterTaxonomy !== value) e.currentTarget.style.color = s.text; }}
-                          onMouseLeave={(e) => { if (showMasterTaxonomy !== value) e.currentTarget.style.color = s.textMuted; }}
-                          style={{ padding: '6px 16px', background: showMasterTaxonomy === value ? s.bgMid : 'transparent', color: showMasterTaxonomy === value ? s.text : s.textMuted, border: 'none', borderRadius: 16, cursor: 'pointer', fontSize: s.fontSize, fontWeight: s.fontWeight }}>
+                          onMouseEnter={(e) => { if (showMasterTaxonomy !== value) e.currentTarget.style.color = '#6A6A6A'; }}
+                          onMouseLeave={(e) => { if (showMasterTaxonomy !== value) e.currentTarget.style.color = '#404040'; }}
+                          style={{ padding: '6px 16px', background: showMasterTaxonomy === value ? s.bgMid : 'transparent', color: showMasterTaxonomy === value ? s.text : '#404040', border: 'none', borderRadius: 16, cursor: 'pointer', fontSize: s.fontSize, fontWeight: s.fontWeight }}>
                           {label}
                         </button>
                       ))}
@@ -3518,10 +3566,12 @@
                     ))}
                   </div>
                 ) : Object.keys(tree).length === 0 ? (
-                  <div style={{ textAlign: 'center', padding: 32, color: s.muted }}>
-                    <Icon name="folder_open" size={40} style={{ opacity: 0.3, display: 'block', margin: '0 auto 12px' }} />
-                    <div style={{ fontSize: s.fontSize, marginBottom: 32 }}>Empty</div>
-                    <div style={{ fontSize: s.fontSize, color: s.textMuted }}>Analyze images to build taxonomy</div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+                    <div style={{ textAlign: 'center', color: s.muted }}>
+                      <Icon name="folder_open" size={22} style={{ opacity: 0.3, display: 'block', margin: '0 auto 16px', color: s.textMuted }} />
+                      <div style={{ fontSize: s.fontSize, color: s.text, marginBottom: 8 }}>Empty</div>
+                      <div style={{ fontSize: s.fontSize, color: s.textMuted }}>Analyze images to build taxonomy</div>
+                    </div>
                   </div>
                 ) : (
                   // Sort to put Custom/Uncategorized at top (grey), then alphabetically
@@ -3676,12 +3726,12 @@
                         onClick={handleOrganizeTaxonomy}
                         disabled={!geminiKey || isOrganizing}
                         title="Research and categorize custom keywords in your master taxonomy"
-                        onMouseEnter={(e) => { if (!geminiKey || isOrganizing) e.currentTarget.style.color = '#5D5D5D'; }}
-                        onMouseLeave={(e) => { if (!geminiKey || isOrganizing) e.currentTarget.style.color = '#2D2D2D'; }}
+                        onMouseEnter={(e) => { if (!geminiKey || isOrganizing) e.currentTarget.style.color = '#6A6A6A'; }}
+                        onMouseLeave={(e) => { if (!geminiKey || isOrganizing) e.currentTarget.style.color = '#404040'; }}
                         style={{
                           display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                           width: '100%', padding: '12px 16px',
-                          background: s.bgMid, color: (geminiKey && !isOrganizing) ? s.text : '#2D2D2D',
+                          background: s.bgMid, color: (geminiKey && !isOrganizing) ? s.text : '#404040',
                           border: `1px solid ${s.border}`, borderRadius: s.radius,
                           cursor: (geminiKey && !isOrganizing) ? 'pointer' : 'not-allowed',
                           fontSize: s.fontSize, fontWeight: s.fontWeight,
