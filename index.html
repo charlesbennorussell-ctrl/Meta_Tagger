@@ -1382,37 +1382,17 @@
             allKws.forEach(kw => {
               const key = kw.value.toLowerCase().trim();
               if (currentBlocked.has(key)) return;
-
               // Auto-accept if:
               // - In master taxonomy
               // - From embedded XMP metadata (user's own tags)
-              // - Identified as brand/model with good confidence (≥0.65)
-              // - Identified as creator with good confidence (≥0.65)
-              // - Identified as country of origin
+              // - Identified as brand, creator, or country of origin
               const inMaster = masterTerms.has(key);
               const isEmbedded = kw.source === 'xmp' || kw.source === 'existing';
-              const confidence = kw.confidence || 0.8; // Default to 0.8 if not specified
-
-              // Brand and model require good confidence to auto-accept (65% or higher)
-              const isBrandOrModel = (['brand', 'model'].includes(kw.type)) && confidence >= 0.65;
-
-              // Creators require good confidence to auto-accept (65% or higher)
-              const isCreator = (['designer', 'artist', 'photographer', 'architect', 'creator'].includes(kw.type)) && confidence >= 0.65;
-
+              const isBrandOrCreator = ['brand', 'designer', 'artist', 'photographer', 'architect', 'creator'].includes(kw.type);
               const isCountry = kw.type === 'country' || (kw.path && kw.path.includes('Origin'));
-
-              // Debug logging for brands and models
-              if (kw.type === 'brand' || kw.type === 'model') {
-                console.log(`[AUTO-ACCEPT] ${kw.type}: "${kw.value}" confidence: ${confidence} -> ${isBrandOrModel ? 'AUTO' : 'REVIEW'}`);
-              }
-
-              if (inMaster || isEmbedded || isBrandOrModel || isCreator || isCountry) {
+              if (inMaster || isEmbedded || isBrandOrCreator || isCountry) {
                 auto.push(kw);
               } else {
-                // Log keywords going to review to help debug
-                if (['saab', 'plymouth', 'dolomite', 'skyline', 'gtr', '900', 'roadrunner'].includes(key)) {
-                  console.log(`[REVIEW] "${kw.value}" (type: ${kw.type}, confidence: ${confidence}) - inMaster: ${inMaster}, isEmbedded: ${isEmbedded}, isBrandOrModel: ${isBrandOrModel}, isCreator: ${isCreator}`);
-                }
                 review.push(kw);
               }
             });
@@ -1503,35 +1483,24 @@
           const brandFound = [], modelFound = [];
 
           rawKws.forEach(k => {
-            // If Gemini already identified this as brand/model, preserve that type
-            const originalType = k.type;
-            const isGeminiBrandOrModel = ['brand', 'model'].includes(originalType);
-
             splitBrandModel(k.value).forEach(part => {
-              // Preserve Gemini's brand/model type if it detected one
-              let finalType = part.type;
-              if (isGeminiBrandOrModel && part.type === 'keyword') {
-                finalType = originalType;
-                console.log(`[TYPE-FIX] Preserving Gemini type: "${k.value}" as ${originalType} (splitBrandModel returned keyword)`);
-              }
-
               // Always use smartCategorize for better accuracy, unless it's an explicitly known brand/model with good path
               let path = part.path;
-              const needsRecategorization = part.path[0] === 'Custom' || finalType === 'keyword' ||
-                (part.path.length === 1 && part.path[0] === 'Brand' && finalType !== 'brand');
+              const needsRecategorization = part.path[0] === 'Custom' || part.type === 'keyword' ||
+                (part.path.length === 1 && part.path[0] === 'Brand' && part.type !== 'brand');
 
               if (needsRecategorization) {
-                path = findPath(part.value, finalType);
+                path = findPath(part.value, part.type);
               }
 
               const kw = {
                 id: `${img.id}-${Math.random().toString(36).slice(2)}`,
                 value: part.value, confidence: k.confidence || 0.8,
-                type: finalType, path: path, rootCategory: path[0],
+                type: part.type, path: path, rootCategory: path[0],
                 source: k.source || 'gemini'
               };
-              if (finalType === 'brand') brandFound.push(kw);
-              else if (finalType === 'model') modelFound.push(kw);
+              if (part.type === 'brand') brandFound.push(kw);
+              else if (part.type === 'model') modelFound.push(kw);
               processedKws.push(kw);
             });
           });
@@ -1543,50 +1512,27 @@
           if (brandFound.length > 0) console.log(`[DESIGNER] Brand: ${brandFound[0].value}`);
           if (modelFound.length > 0) console.log(`[DESIGNER] Model: ${modelFound[0].value}`);
 
-          // Only look up product designers when we have BOTH brand AND model with good confidence
-          // This ensures brand names like "Aphex Twin" or "Saab" are prioritized and not replaced with designer names
           if (debugUseDesignerLookup && brandFound.length > 0 && modelFound.length > 0) {
-            const brandConfidence = brandFound[0].confidence || 0;
-            const modelConfidence = modelFound[0].confidence || 0;
-
-            // Only look up designer if both brand and model have reasonable confidence (>= 0.7)
-            // This prevents designer lookup on uncertain identifications
-            if (brandConfidence >= 0.7 && modelConfidence >= 0.7) {
-              console.log(`[DESIGNER] Looking up designer for: ${brandFound[0].value} ${modelFound[0].value}`);
-              designerInfo = await findDesigner(geminiKey, `${brandFound[0].value} ${modelFound[0].value}`);
-              console.log(`[DESIGNER] Result:`, designerInfo);
-
-              // Only add designer if we got a confident result AND it's different from the brand name
-              // This prevents "Aphex Twin" from being replaced with "Richard D. James" when we want to keep the brand
-              if (designerInfo?.designers && designerInfo.designers.length > 0) {
-                console.log(`[DESIGNER] Found ${designerInfo.designers.length} designers:`, designerInfo.designers);
-                designerInfo.designers.forEach(name => {
-                  const nameLower = name.toLowerCase();
-                  const brandLower = brandFound[0].value.toLowerCase();
-                  // Don't add designer if it's the same as the brand (avoids duplicates)
-                  if (nameLower !== brandLower) {
-                    const designerPath = smartCategorize({ value: name, type: 'designer' });
-                    processedKws.push({
-                      id: `designer-${Math.random().toString(36).slice(2)}`,
-                      value: name, confidence: 0.8,
-                      type: 'designer', path: designerPath, rootCategory: 'Creator'
-                    });
-                  }
+            console.log(`[DESIGNER] Looking up designer for: ${brandFound[0].value} ${modelFound[0].value}`);
+            designerInfo = await findDesigner(geminiKey, `${brandFound[0].value} ${modelFound[0].value}`);
+            console.log(`[DESIGNER] Result:`, designerInfo);
+            if (designerInfo?.designers && designerInfo.designers.length > 0) {
+              console.log(`[DESIGNER] Found ${designerInfo.designers.length} designers:`, designerInfo.designers);
+              designerInfo.designers.forEach(name => {
+                const designerPath = smartCategorize({ value: name, type: 'designer' });
+                processedKws.push({
+                  id: `designer-${Math.random().toString(36).slice(2)}`,
+                  value: name, confidence: 0.8,
+                  type: 'designer', path: designerPath, rootCategory: 'Creator'
                 });
-              } else if (designerInfo?.designer) {
-                const nameLower = designerInfo.designer.toLowerCase();
-                const brandLower = brandFound[0].value.toLowerCase();
-                if (nameLower !== brandLower) {
-                  const designerPath = smartCategorize({ value: designerInfo.designer, type: 'designer' });
-                  processedKws.push({
-                    id: `designer-${Math.random().toString(36).slice(2)}`,
-                    value: designerInfo.designer, confidence: 0.8,
-                    type: 'designer', path: designerPath, rootCategory: 'Creator'
-                  });
-                }
-              }
-            } else {
-              console.log(`[DESIGNER] Skipping designer lookup - confidence too low (brand: ${brandConfidence}, model: ${modelConfidence})`);
+              });
+            } else if (designerInfo?.designer) {
+              const designerPath = smartCategorize({ value: designerInfo.designer, type: 'designer' });
+              processedKws.push({
+                id: `designer-${Math.random().toString(36).slice(2)}`,
+                value: designerInfo.designer, confidence: 0.8,
+                type: 'designer', path: designerPath, rootCategory: 'Creator'
+              });
             }
           }
 
@@ -1619,37 +1565,17 @@
           processedKws.forEach(kw => {
             const key = kw.value.toLowerCase().trim();
             if (currentBlocked.has(key)) return;
-
             // Auto-accept if:
             // - In master taxonomy
             // - From embedded XMP metadata (user's own tags)
-            // - Identified as brand/model with good confidence (≥0.65)
-            // - Identified as creator with good confidence (≥0.65)
-            // - Identified as country of origin
+            // - Identified as brand, creator, or country of origin
             const inMaster = masterTerms.has(key);
             const isEmbedded = kw.source === 'xmp' || kw.source === 'existing';
-            const confidence = kw.confidence || 0.8; // Default to 0.8 if not specified
-
-            // Brand and model require good confidence to auto-accept (65% or higher)
-            const isBrandOrModel = (['brand', 'model'].includes(kw.type)) && confidence >= 0.65;
-
-            // Creators require good confidence to auto-accept (65% or higher)
-            const isCreator = (['designer', 'artist', 'photographer', 'architect', 'creator'].includes(kw.type)) && confidence >= 0.65;
-
+            const isBrandOrCreator = ['brand', 'designer', 'artist', 'photographer', 'architect', 'creator'].includes(kw.type);
             const isCountry = kw.type === 'country' || (kw.path && kw.path.includes('Origin'));
-
-            // Debug logging for brands and models
-            if (kw.type === 'brand' || kw.type === 'model') {
-              console.log(`[AUTO-ACCEPT] ${kw.type}: "${kw.value}" confidence: ${confidence} -> ${isBrandOrModel ? 'AUTO' : 'REVIEW'}`);
-            }
-
-            if (inMaster || isEmbedded || isBrandOrModel || isCreator || isCountry) {
+            if (inMaster || isEmbedded || isBrandOrCreator || isCountry) {
               auto.push(kw);
             } else {
-              // Log keywords going to review to help debug
-              if (['saab', 'plymouth', 'dolomite', 'skyline', 'gtr', '900', 'roadrunner'].includes(key)) {
-                console.log(`[REVIEW] "${kw.value}" (type: ${kw.type}, confidence: ${confidence}) - inMaster: ${inMaster}, isEmbedded: ${isEmbedded}, isBrandOrModel: ${isBrandOrModel}, isCreator: ${isCreator}`);
-              }
               review.push(kw);
             }
           });
