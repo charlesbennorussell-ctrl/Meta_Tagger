@@ -413,6 +413,7 @@
       const [saveMode, setSaveMode] = useState(localStorage.getItem('save_mode') || 'embed');
       const [outputDir, setOutputDir] = useState(null);
       const [outputDirName, setOutputDirName] = useState(localStorage.getItem('output_dir_name') || '');
+      const [lastBrowseDir, setLastBrowseDir] = useState(null); // Last browsed directory handle
       const [thumbSize, setThumbSize] = useState(parseInt(localStorage.getItem('thumb_size')) || 1);
       const [continuousSaveEnabled, setContinuousSaveEnabled] = useState(false);
 
@@ -500,6 +501,7 @@
       const [autoSelectSimilar, setAutoSelectSimilar] = useState(false); // Auto-select similar images toggle
       const [autoApply, setAutoApply] = useState(false); // Auto-apply changes when switching images
       const [batchProgress, setBatchProgress] = useState(null); // Batch processing progress
+      const [batchPaused, setBatchPaused] = useState(false); // Batch processing paused state
 
       const fileRef = useRef(null);
       const folderRef = useRef(null);
@@ -510,6 +512,7 @@
 
       // Batch processor for analysis
       const analysisBatchRef = useRef(null);
+      const progressIntervalRef = useRef(null);
       useEffect(() => {
         if (!analysisBatchRef.current) {
           analysisBatchRef.current = new BatchProcessor(
@@ -967,17 +970,31 @@
                 // Use batch processor for large sets
                 if (toAnalyze.length > 10) {
                   setBatchProgress({ current: 0, total: toAnalyze.length });
+                  // Switch to analyzing tab to show progress bar
+                  setShowPending(false);
+                  setShowAnalyzing(true);
+                  setShowDone(false);
+                  setShowHidden(false);
                   analysisBatchRef.current.addBatch(toAnalyze);
 
                   // Monitor batch progress
-                  const checkProgress = setInterval(() => {
+                  progressIntervalRef.current = setInterval(() => {
                     const pending = analysisBatchRef.current.pending;
                     const processed = toAnalyze.length - pending;
                     setBatchProgress({ current: processed, total: toAnalyze.length });
 
-                    if (pending === 0) {
-                      clearInterval(checkProgress);
-                      setTimeout(() => setBatchProgress(null), 2000);
+                    // Only hide when fully complete AND not paused
+                    if (pending === 0 && !analysisBatchRef.current.paused) {
+                      clearInterval(progressIntervalRef.current);
+                      progressIntervalRef.current = null;
+                      // Only hide progress bar if there are no more pending items in the queue
+                      const stillPending = queue.filter(q => q.status === 'pending' && !q.hidden).length;
+                      if (stillPending === 0) {
+                        setTimeout(() => {
+                          setBatchProgress(null);
+                          setBatchPaused(false);
+                        }, 2000);
+                      }
                     }
                   }, 500);
                 } else {
@@ -2957,6 +2974,74 @@
                 </div>
               </div>
               <div style={{ flex: 1, overflow: 'auto', padding: '0 12px 12px 12px' }}>
+                {/* Progress bar - always show when analyzing */}
+                {batchProgress && showAnalyzing && (
+                  <div style={{ marginTop: 10, marginBottom: 32, display: 'inline-flex', background: s.bgDark, borderRadius: 20, padding: 4, gap: 4, width: '100%', height: 36 }}>
+                    {/* Processing text */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 16px', background: 'transparent', color: s.text, border: 'none', borderRadius: 16, fontSize: s.fontSize, fontWeight: s.fontWeight, whiteSpace: 'nowrap' }}>
+                      Processing...
+                    </div>
+
+                    {/* Progress counter */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 16px', background: 'transparent', color: s.textMuted, border: 'none', borderRadius: 16, fontSize: s.fontSize, fontWeight: s.fontWeight, whiteSpace: 'nowrap' }}>
+                      {batchProgress.current}/{batchProgress.total}
+                    </div>
+
+                    {/* Thin progress bar - centered */}
+                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', padding: '0 8px' }}>
+                      <div style={{ width: '100%', height: 4, background: s.bgMid, borderRadius: 2, overflow: 'hidden' }}>
+                        <div style={{
+                          height: '100%',
+                          background: s.text,
+                          width: `${(batchProgress.current / batchProgress.total) * 100}%`,
+                          transition: 'width 0.3s ease'
+                        }} />
+                      </div>
+                    </div>
+
+                    {/* Percentage */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 16px', background: 'transparent', color: s.text, border: 'none', borderRadius: 16, fontSize: s.fontSize, fontWeight: s.fontWeight, whiteSpace: 'nowrap' }}>
+                      {Math.round((batchProgress.current / batchProgress.total) * 100)}%
+                    </div>
+
+                    {/* Pause button */}
+                    <button
+                      onClick={() => {
+                        if (batchPaused) {
+                          // Resume - restart batch processing with remaining items
+                          setBatchPaused(false);
+                          if (analysisBatchRef.current && analysisBatchRef.current.queue.length > 0) {
+                            analysisBatchRef.current.paused = false;
+                            analysisBatchRef.current.process();
+                          }
+                        } else {
+                          // Pause batch processing
+                          setBatchPaused(true);
+                          if (analysisBatchRef.current) {
+                            analysisBatchRef.current.paused = true;
+                          }
+                        }
+                      }}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 6,
+                        padding: '6px 16px',
+                        background: s.bgMid,
+                        color: s.text,
+                        border: 'none',
+                        borderRadius: 16,
+                        cursor: 'pointer',
+                        fontSize: s.fontSize,
+                        fontWeight: s.fontWeight
+                      }}
+                    >
+                      <Icon name={batchPaused ? "play_arrow" : "pause"} size={16} />
+                    </button>
+                  </div>
+                )}
+
                 {filteredQueue.length === 0 ? (
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
                     <div style={{ textAlign: 'center', color: s.muted }}>
@@ -2970,21 +3055,18 @@
                             try {
                               if (window.showDirectoryPicker) {
                                 const options = { mode: 'read' };
-                                const lastDirHandle = localStorage.getItem('lastBrowseDir');
-                                if (lastDirHandle) {
+                                // Use last browsed directory as starting point if available
+                                if (lastBrowseDir) {
                                   try {
-                                    options.startIn = lastDirHandle;
+                                    options.startIn = lastBrowseDir;
                                   } catch (e) {
-                                    // Ignore if startIn not supported
+                                    console.log('[BROWSE FOLDER] Could not start in last directory:', e);
                                   }
                                 }
                                 const dirHandle = await window.showDirectoryPicker(options);
-                                // Save the directory for next time
-                                try {
-                                  localStorage.setItem('lastBrowseDir', dirHandle.name);
-                                } catch (e) {
-                                  // Ignore storage errors
-                                }
+                                // Save the directory handle for next time
+                                setLastBrowseDir(dirHandle);
+
                                 const files = [];
                                 for await (const entry of dirHandle.values()) {
                                   if (entry.kind === 'file') {
@@ -3075,41 +3157,23 @@
                     </div>
                   </div>
                 ) : (
-                  <>
-                    {batchProgress && (
-                      <div style={{ marginBottom: 32, background: s.bgDark, padding: 12, borderRadius: s.radius }}>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 32 }}>
-                          <span style={{ fontSize: s.fontSize, color: s.text }}>
-                            <Icon name="hourglass_empty" size={16} style={{ marginRight: 6, verticalAlign: 'middle' }} />
-                            Processing batch {batchProgress.current}/{batchProgress.total}
-                          </span>
-                          <span style={{ fontSize: s.fontSize, color: s.text }}>
-                            {Math.round((batchProgress.current / batchProgress.total) * 100)}%
-                          </span>
-                        </div>
-                        <div style={{ height: 4, background: s.bgMid, borderRadius: 2, overflow: 'hidden' }}>
-                          <div style={{ height: '100%', background: s.text, width: `${(batchProgress.current / batchProgress.total) * 100}%`, transition: 'width 0.3s ease' }} />
-                        </div>
-                      </div>
-                    )}
-                    <div style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(${currentThumbSize}px, 1fr))`, gap: 8 }}>
-                      {filteredQueue.map(item => (
-                        <ThumbnailImage
-                          key={item.id}
-                          item={item}
-                          isSelected={selectedIds.includes(item.id)}
-                          onSelect={handleThumbnailClick}
-                          onHide={hideImage}
-                          onUnhide={unhideImage}
-                          thumbSize={currentThumbSize}
-                          showPending={showPending}
-                          showDone={showDone}
-                          showAnalyzing={showAnalyzing}
-                          s={s}
-                        />
-                      ))}
-                    </div>
-                  </>
+                  <div style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(${currentThumbSize}px, 1fr))`, gap: 8 }}>
+                    {filteredQueue.map(item => (
+                      <ThumbnailImage
+                        key={item.id}
+                        item={item}
+                        isSelected={selectedIds.includes(item.id)}
+                        onSelect={handleThumbnailClick}
+                        onHide={hideImage}
+                        onUnhide={unhideImage}
+                        thumbSize={currentThumbSize}
+                        showPending={showPending}
+                        showDone={showDone}
+                        showAnalyzing={showAnalyzing}
+                        s={s}
+                      />
+                    ))}
+                  </div>
                 )}
               </div>
             </div>

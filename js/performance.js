@@ -349,6 +349,7 @@ class BatchProcessor {
     this.delayMs = delayMs;
     this.queue = [];
     this.processing = false;
+    this.paused = false;
   }
 
   add(item) {
@@ -369,8 +370,9 @@ class BatchProcessor {
     if (this.processing || this.queue.length === 0) return;
 
     this.processing = true;
+    this.paused = false;
 
-    while (this.queue.length > 0) {
+    while (this.queue.length > 0 && !this.paused) {
       const batch = this.queue.splice(0, this.batchSize);
 
       try {
@@ -379,7 +381,7 @@ class BatchProcessor {
         console.error('[BATCH] Processing error:', e);
       }
 
-      if (this.queue.length > 0) {
+      if (this.queue.length > 0 && !this.paused) {
         await new Promise(resolve => setTimeout(resolve, this.delayMs));
       }
     }
