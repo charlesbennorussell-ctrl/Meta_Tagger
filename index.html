@@ -131,14 +131,15 @@
         <button
           onClick={() => !disabled && onChange(false)}
           disabled={disabled}
+          onMouseEnter={(e) => { if (checked) e.currentTarget.style.color = '#5D5D5D'; }}
+          onMouseLeave={(e) => { if (checked) e.currentTarget.style.color = '#2D2D2D'; }}
           style={{
             padding: '8px 32px',
             background: !checked ? s.bgMid : 'transparent',
-            color: !checked ? '#FFFFFF' : s.textMuted,
+            color: !checked ? '#FFFFFF' : '#2D2D2D',
             border: 'none',
             borderRadius: 16,
             cursor: disabled ? 'not-allowed' : 'pointer',
-            opacity: disabled ? 0.5 : 1,
             fontSize: s.fontSize,
             fontWeight: s.fontWeight,
             transition: 'all 0.2s ease',
@@ -150,14 +151,15 @@
         <button
           onClick={() => !disabled && onChange(true)}
           disabled={disabled}
+          onMouseEnter={(e) => { if (!checked) e.currentTarget.style.color = '#5D5D5D'; }}
+          onMouseLeave={(e) => { if (!checked) e.currentTarget.style.color = '#2D2D2D'; }}
           style={{
             padding: '8px 32px',
             background: checked ? s.bgMid : 'transparent',
-            color: checked ? '#FFFFFF' : s.textMuted,
+            color: checked ? '#FFFFFF' : '#2D2D2D',
             border: 'none',
             borderRadius: 16,
             cursor: disabled ? 'not-allowed' : 'pointer',
-            opacity: disabled ? 0.5 : 1,
             fontSize: s.fontSize,
             fontWeight: s.fontWeight,
             transition: 'all 0.2s ease',
@@ -2891,7 +2893,9 @@
                       }
                     }} disabled={!geminiKey}
                       className='no-hover'
-                      style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '6px 16px', background: 'transparent', color: s.textMuted, border: 'none', borderRadius: 16, cursor: geminiKey ? 'pointer' : 'not-allowed', fontSize: s.fontSize, fontWeight: s.fontWeight, opacity: !geminiKey ? 0.5 : 1 }}>
+                      onMouseEnter={(e) => { e.currentTarget.style.color = '#5D5D5D'; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.color = '#2D2D2D'; }}
+                      style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '6px 16px', background: 'transparent', color: '#2D2D2D', border: 'none', borderRadius: 16, cursor: geminiKey ? 'pointer' : 'not-allowed', fontSize: s.fontSize, fontWeight: s.fontWeight }}>
                       Re-Analyze All
                     </button>
                   </div>
@@ -2926,7 +2930,9 @@
                       }
                     }} disabled={!geminiKey || (!isMultiSelect && !selectedImg) || (isMultiSelect && selectedIds.length === 0)}
                       className='no-hover'
-                      style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '6px 16px', background: 'transparent', color: s.textMuted, border: 'none', borderRadius: 16, cursor: (geminiKey && ((isMultiSelect && selectedIds.length > 0) || (!isMultiSelect && selectedImg))) ? 'pointer' : 'not-allowed', fontSize: s.fontSize, fontWeight: s.fontWeight, opacity: (geminiKey && ((isMultiSelect && selectedIds.length > 0) || (!isMultiSelect && selectedImg))) ? 1 : 0.5 }}>
+                      onMouseEnter={(e) => { e.currentTarget.style.color = '#5D5D5D'; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.color = '#2D2D2D'; }}
+                      style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '6px 16px', background: 'transparent', color: '#2D2D2D', border: 'none', borderRadius: 16, cursor: (geminiKey && ((isMultiSelect && selectedIds.length > 0) || (!isMultiSelect && selectedImg))) ? 'pointer' : 'not-allowed', fontSize: s.fontSize, fontWeight: s.fontWeight }}>
                       Re-Analyze {isMultiSelect && selectedIds.length > 0 ? `(${selectedIds.length})` : 'Selected'}
                     </button>
                   </div>
@@ -3299,7 +3305,9 @@
                               placeholder="Add custom tag..."
                               style={{ flex: 1, padding: '6px 16px', background: 'transparent', border: 'none', borderRadius: 16, color: s.text, fontSize: s.fontSize, outline: 'none' }} />
                             <button onClick={addCustom} disabled={!customInput.trim()} tabIndex={-1}
-                              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, padding: '6px 16px', background: customInput.trim() ? '#1D1D1D' : 'transparent', color: customInput.trim() ? s.text : s.textMuted, border: 'none', borderRadius: 16, cursor: customInput.trim() ? 'pointer' : 'default', fontSize: s.fontSize, fontWeight: s.fontWeight }}>
+                              onMouseEnter={(e) => { if (!customInput.trim()) e.currentTarget.style.color = '#5D5D5D'; }}
+                              onMouseLeave={(e) => { if (!customInput.trim()) e.currentTarget.style.color = '#2D2D2D'; }}
+                              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, padding: '6px 16px', background: customInput.trim() ? '#1D1D1D' : 'transparent', color: customInput.trim() ? s.text : '#2D2D2D', border: 'none', borderRadius: 16, cursor: customInput.trim() ? 'pointer' : 'default', fontSize: s.fontSize, fontWeight: s.fontWeight }}>
                               <Icon name="add" size={16} /> Add
                             </button>
                           </div>
@@ -3479,7 +3487,9 @@
                   <div style={{ display: 'flex', gap: 6 }}>
                     {customCount > 0 && showMasterTaxonomy && (
                       <button onClick={runCategorization} disabled={isCategorizing || !geminiKey} tabIndex={-1}
-                        style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 10px', background: isCategorizing ? s.bgDark : s.text, color: isCategorizing ? s.text : s.bgDark, border: 'none', borderRadius: s.radiusSm, cursor: isCategorizing ? 'default' : 'pointer', fontSize: s.fontSize }}>
+                        onMouseEnter={(e) => { if (isCategorizing || !geminiKey) e.currentTarget.style.color = '#5D5D5D'; }}
+                        onMouseLeave={(e) => { if (isCategorizing || !geminiKey) e.currentTarget.style.color = '#2D2D2D'; }}
+                        style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 10px', background: (isCategorizing || !geminiKey) ? s.bgDark : s.text, color: (isCategorizing || !geminiKey) ? '#2D2D2D' : s.bgDark, border: 'none', borderRadius: s.radiusSm, cursor: (isCategorizing || !geminiKey) ? 'default' : 'pointer', fontSize: s.fontSize }}>
                         <Icon name={isCategorizing ? "hourglass_empty" : "auto_fix_high"} size={16} /> {customCount}
                       </button>
                     )}
@@ -3666,14 +3676,16 @@
                         onClick={handleOrganizeTaxonomy}
                         disabled={!geminiKey || isOrganizing}
                         title="Research and categorize custom keywords in your master taxonomy"
+                        onMouseEnter={(e) => { if (!geminiKey || isOrganizing) e.currentTarget.style.color = '#5D5D5D'; }}
+                        onMouseLeave={(e) => { if (!geminiKey || isOrganizing) e.currentTarget.style.color = '#2D2D2D'; }}
                         style={{
                           display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                           width: '100%', padding: '12px 16px',
-                          background: s.bgMid, color: s.text,
+                          background: s.bgMid, color: (geminiKey && !isOrganizing) ? s.text : '#2D2D2D',
                           border: `1px solid ${s.border}`, borderRadius: s.radius,
                           cursor: (geminiKey && !isOrganizing) ? 'pointer' : 'not-allowed',
                           fontSize: s.fontSize, fontWeight: s.fontWeight,
-                          opacity: (geminiKey && !isOrganizing) ? 1 : 0.5
+                          transition: 'color 0.2s ease'
                         }}
                       >
                         <Icon name={isOrganizing ? "hourglass_empty" : "auto_fix_high"} size={20} />
