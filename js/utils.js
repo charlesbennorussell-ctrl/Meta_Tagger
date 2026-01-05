@@ -23,6 +23,22 @@ const looksLikePersonName = (text) => {
   return false;
 };
 
+// Resolve synonyms to canonical terms
+// Returns the canonical term if a synonym is found, otherwise returns the original value
+const resolveSynonym = (value) => {
+  const { SYNONYM_MAP } = window.TaggerData;
+  const valueLower = value.toLowerCase().trim();
+
+  // Check if this is a known synonym
+  if (SYNONYM_MAP[valueLower]) {
+    const canonical = SYNONYM_MAP[valueLower];
+    console.log(`[SYNONYM] "${value}" → "${canonical}"`);
+    return canonical;
+  }
+
+  return value;
+};
+
 // Smart categorization function for keywords
 const smartCategorize = (kw, contextBrand = null) => {
   const { KNOWN_ARTISTS, KNOWN_ARCHITECTS, DESIGNER_DISCIPLINES, KNOWN_BRANDS, BRAND_CATEGORIES, ERA_PERIODS } = window.TaggerData;
@@ -1336,6 +1352,7 @@ const autoAssignRequiredCategory = (keywords) => {
 
 // Export for use in other modules
 window.TaggerUtils = {
+  resolveSynonym,
   smartCategorize,
   addToTaxonomy,
   removeFromTaxonomy,

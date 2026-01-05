@@ -286,7 +286,7 @@
     // Import from modules
     const { DEFAULT_TAXONOMY, ROOT_COLORS, STORAGE_KEY, TAXONOMY_KEY, REQUIRED_CATEGORIES } = window.TaggerData;
     const {
-      smartCategorize, addToTaxonomy, removeFromTaxonomy, flattenTaxonomy,
+      resolveSynonym, smartCategorize, addToTaxonomy, removeFromTaxonomy, flattenTaxonomy,
       getBrandPath, looksLikeBrand, parseEra, splitBrandModel, deduplicateKeywords,
       buildTree, countKeywords, hashFile, getBaseName, loadMemory, saveMemory,
       getCachedAnalysis, setCachedAnalysis,
@@ -1484,18 +1484,21 @@
 
           rawKws.forEach(k => {
             splitBrandModel(k.value).forEach(part => {
+              // Apply synonym resolution first
+              const resolvedValue = resolveSynonym(part.value);
+
               // Always use smartCategorize for better accuracy, unless it's an explicitly known brand/model with good path
               let path = part.path;
               const needsRecategorization = part.path[0] === 'Custom' || part.type === 'keyword' ||
                 (part.path.length === 1 && part.path[0] === 'Brand' && part.type !== 'brand');
 
               if (needsRecategorization) {
-                path = findPath(part.value, part.type);
+                path = findPath(resolvedValue, part.type);
               }
 
               const kw = {
                 id: `${img.id}-${Math.random().toString(36).slice(2)}`,
-                value: part.value, confidence: k.confidence || 0.8,
+                value: resolvedValue, confidence: k.confidence || 0.8,
                 type: part.type, path: path, rootCategory: path[0],
                 source: k.source || 'gemini'
               };
@@ -2434,8 +2437,10 @@
 
         // Build all keywords first (non-blocking)
         splitBrandModel(val).forEach(part => {
-          const path = part.path[0] === 'Custom' ? findPath(part.value, part.type) : part.path;
-          const kw = { id: `custom-${Date.now()}-${Math.random().toString(36).slice(2)}`, value: part.value, confidence: 1, type: part.type, path, rootCategory: path[0] };
+          // Apply synonym resolution first
+          const resolvedValue = resolveSynonym(part.value);
+          const path = part.path[0] === 'Custom' ? findPath(resolvedValue, part.type) : part.path;
+          const kw = { id: `custom-${Date.now()}-${Math.random().toString(36).slice(2)}`, value: resolvedValue, confidence: 1, type: part.type, path, rootCategory: path[0] };
           newKws.push(kw);
 
           // Track uncategorized keywords for background research

@@ -334,6 +334,99 @@ const REQUIRED_CATEGORIES = [
   'Architecture'
 ];
 
+// Synonym mapping - maps variations to canonical terms
+// Format: { 'synonym1': 'canonical', 'synonym2': 'canonical', ... }
+const SYNONYM_MAP = {
+  // Automotive
+  'auto': 'car',
+  'automobile': 'car',
+  'vehicle': 'car',
+  'sedan': 'car',
+  'coupe': 'car',
+  'suv': 'car',
+  'wagon': 'car',
+  'hatchback': 'car',
+  'bike': 'motorcycle',
+  'motorbike': 'motorcycle',
+  'cycle': 'motorcycle',
+
+  // Furniture
+  'armchair': 'chair',
+  'seat': 'chair',
+  'seating': 'chair',
+  'couch': 'sofa',
+  'settee': 'sofa',
+  'loveseat': 'sofa',
+  'light': 'lighting',
+  'light fixture': 'lighting',
+
+  // Electronics
+  'headphone': 'headphones',
+  'earphone': 'headphones',
+  'earbud': 'earbuds',
+  'speaker system': 'speakers',
+  'loudspeaker': 'speakers',
+  'amp': 'amplifier',
+  'preamp': 'amplifier',
+  'tv': 'television',
+  'monitor': 'television',
+  'display': 'television',
+  'smartphone': 'phone',
+  'mobile phone': 'phone',
+  'cellphone': 'phone',
+  'laptop computer': 'laptop',
+  'notebook': 'laptop',
+  'pc': 'computer',
+  'desktop': 'computer',
+
+  // Design categories
+  'logo design': 'logo',
+  'logotype': 'logo',
+  'brand mark': 'logo',
+  'type': 'typeface',
+  'font family': 'typeface',
+  'web site': 'website',
+  'webpage': 'website',
+  'user interface': 'ui design',
+  'interface design': 'ui design',
+
+  // Photography
+  'photograph': 'photography',
+  'photo': 'photography',
+  'picture': 'photography',
+  'image': 'photography',
+
+  // Architecture
+  'building': 'architecture',
+  'structure': 'architecture',
+  'home': 'house',
+  'residence': 'house',
+  'dwelling': 'house',
+
+  // Materials
+  'aluminium': 'aluminum',
+  'aluminium alloy': 'aluminum',
+  'stainless': 'stainless steel',
+  'steel alloy': 'steel',
+
+  // Styles
+  'modern': 'modernism',
+  'contemporary style': 'contemporary',
+  'minimalist': 'minimalism',
+  'mid-century': 'mid-century modern',
+  'mcm': 'mid-century modern',
+
+  // Common abbreviations
+  'b&w': 'black and white',
+  'bw': 'black and white',
+  'usa': 'united states',
+  'us': 'united states',
+  'uk': 'united kingdom',
+  'u.k.': 'united kingdom',
+  'u.s.': 'united states',
+  'u.s.a.': 'united states'
+};
+
 // Export for use in other modules
 window.TaggerData = {
   DEFAULT_TAXONOMY,
@@ -345,6 +438,7 @@ window.TaggerData = {
   KNOWN_ARCHITECTS,
   ERA_PERIODS,
   NATIONALITY_TO_COUNTRY,
+  SYNONYM_MAP,
   ROOT_COLORS,
   STORAGE_KEY,
   TAXONOMY_KEY,
