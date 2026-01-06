@@ -62,8 +62,7 @@ const DEFAULT_TAXONOMY = {
     "Modernism": ["Bauhaus", "De Stijl", "International Style", "Swiss Style", "Functionalism", "Constructivism"],
     "Contemporary": ["Minimalism", "Brutalism", "Parametric", "Scandinavian", "Japanese Minimalism", "Neo-Futurism"],
     "Historical": ["Art Nouveau", "Art Deco", "Mid-Century Modern", "Victorian", "Retro", "Memphis", "Postmodern"],
-    "Regional": ["Nordic", "Japanese", "Italian", "German", "American", "British", "French", "Dutch"],
-    "Origin": ["Germany", "Italy", "Japan", "Denmark", "Sweden", "United States", "United Kingdom", "France", "Switzerland", "Finland", "Netherlands", "Norway", "Austria", "Belgium", "Spain"]
+    "Origin": ["Germany", "Italy", "Japan", "Denmark", "Sweden", "United States", "United Kingdom", "France", "Switzerland", "Finland", "Netherlands", "Norway", "Austria", "Belgium", "Spain", "Brazil", "Mexico", "Canada", "Australia", "China", "South Korea", "India", "Russia", "Poland", "Portugal"]
   },
   "Brand": {
     "Audio": ["Bang & Olufsen", "Bose", "Sony", "Sennheiser", "Focal", "Beyerdynamic", "Audio-Technica", "Grado", "HiFiMAN", "Audeze", "Master & Dynamic", "KEF", "Bowers & Wilkins", "Teenage Engineering", "Devialet", "Sonos"],
@@ -215,7 +214,15 @@ const BRAND_DATABASE = {
   'Appliances': [
     'Braun', 'Dyson', 'Philips', 'Panasonic', 'Toshiba', 'Sharp', 'Miele', 'Bosch',
     'Smeg', 'KitchenAid', 'Vitamix', 'Breville', 'De\'Longhi', 'Nespresso',
-    'Balmuda', 'Coway', 'Blueair', 'Molekule', 'Roomba', 'iRobot'
+    'Balmuda', 'Coway', 'Blueair', 'Molekule', 'Roomba', 'iRobot',
+    // Bathroom & Kitchen Fixtures
+    'Agape', 'Axor', 'Boffi', 'Dornbracht', 'Duravit', 'Hansgrohe', 'Kohler',
+    'Kaldewei', 'Alessi', 'Vola', 'Grohe', 'Toto', 'American Standard'
+  ],
+  'Stationery': [
+    'Mitsubishi Pencil', 'Pilot', 'Uni', 'Pentel', 'Zebra', 'Sakura',
+    'Staedtler', 'Faber-Castell', 'Caran d\'Ache', 'Lamy', 'Moleskine',
+    'Leuchtturm1917', 'Rhodia', 'Midori', 'Traveler\'s Company'
   ],
   'Watch': [
     'Rolex', 'Omega', 'Patek Philippe', 'Audemars Piguet', 'Cartier', 'IWC',
@@ -424,7 +431,42 @@ const SYNONYM_MAP = {
   'uk': 'united kingdom',
   'u.k.': 'united kingdom',
   'u.s.': 'united states',
-  'u.s.a.': 'united states'
+  'u.s.a.': 'united states',
+
+  // Category variations
+  'cars': 'automotive',
+  'wheels': 'wheel',
+  'graphics': 'graphic design',
+  'graphic': 'graphic design',
+
+  // Automotive parts
+  'alloy wheel': 'wheel',
+  'car wheel': 'wheel',
+  'brake caliper': 'brake',
+  'car body panel': 'body panel',
+  'all terrain vehicle': 'atv',
+
+  // Misc variations
+  'mitsubishi pencil co.': 'mitsubishi pencil',
+  'roadrunner': 'road runner',
+
+  // Regional style to country mapping
+  'nordic': 'scandinavia',
+  'scandinavian': 'scandinavia',
+  'american': 'united states',
+  'british': 'united kingdom',
+  'italian': 'italy',
+  'japanese': 'japan',
+  'german': 'germany',
+  'french': 'france',
+  'dutch': 'netherlands',
+  'swiss': 'switzerland',
+  'austrian': 'austria',
+  'belgian': 'belgium',
+  'spanish': 'spain',
+
+  // Style variations that shouldn't be countries
+  'regional': null  // Drop generic "regional" keyword
 };
 
 // Export for use in other modules

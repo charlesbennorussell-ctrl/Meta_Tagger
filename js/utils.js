@@ -23,20 +23,55 @@ const looksLikePersonName = (text) => {
   return false;
 };
 
+// Clean up malformed keywords (duplicated words, extra spaces, etc.)
+const cleanKeyword = (value) => {
+  let cleaned = value.trim();
+
+  // Remove duplicate consecutive words (e.g., "Interior Design Interior Design" → "Interior Design")
+  const words = cleaned.split(/\s+/);
+  const halfLength = Math.floor(words.length / 2);
+
+  // Check if first half equals second half (handles exact duplicates)
+  if (words.length % 2 === 0 && halfLength > 0) {
+    const firstHalf = words.slice(0, halfLength).join(' ');
+    const secondHalf = words.slice(halfLength).join(' ');
+    if (firstHalf.toLowerCase() === secondHalf.toLowerCase()) {
+      console.log(`[CLEAN] Removed duplicate: "${cleaned}" → "${firstHalf}"`);
+      cleaned = firstHalf;
+    }
+  }
+
+  // Remove duplicate consecutive words (e.g., "Exhibition Exhibition" → "Exhibition")
+  cleaned = cleaned.replace(/\b(\w+(?:\s+\w+)*)\s+\1\b/gi, '$1');
+
+  // Normalize whitespace
+  cleaned = cleaned.replace(/\s+/g, ' ').trim();
+
+  return cleaned;
+};
+
 // Resolve synonyms to canonical terms
 // Returns the canonical term if a synonym is found, otherwise returns the original value
+// Returns null if the keyword should be dropped
 const resolveSynonym = (value) => {
   const { SYNONYM_MAP } = window.TaggerData;
-  const valueLower = value.toLowerCase().trim();
+
+  // Clean the value first
+  const cleaned = cleanKeyword(value);
+  const valueLower = cleaned.toLowerCase().trim();
 
   // Check if this is a known synonym
-  if (SYNONYM_MAP[valueLower]) {
+  if (valueLower in SYNONYM_MAP) {
     const canonical = SYNONYM_MAP[valueLower];
-    console.log(`[SYNONYM] "${value}" → "${canonical}"`);
+    if (canonical === null) {
+      console.log(`[SYNONYM] Dropping keyword: "${cleaned}"`);
+      return null;
+    }
+    console.log(`[SYNONYM] "${cleaned}" → "${canonical}"`);
     return canonical;
   }
 
-  return value;
+  return cleaned;
 };
 
 // Smart categorization function for keywords
@@ -157,9 +192,9 @@ const smartCategorize = (kw, contextBrand = null) => {
     'Furniture': ['chair', 'sofa', 'table', 'desk', 'shelving', 'lamp', 'bench', 'cabinet', 'stool', 'bed', 'furniture'],
     'Audio Equipment': ['headphone', 'speaker', 'amplifier', 'turntable', 'earbud', 'dac', 'receiver', 'radio', 'soundbar', 'audio equipment'],
     'Consumer Electronics': ['phone', 'computer', 'camera', 'wearable', 'tablet', 'laptop', 'monitor', 'television', 'tv', 'remote', 'consumer electronics'],
-    'Automotive': ['car', 'motorcycle', 'concept car', 'electric vehicle', 'bicycle', 'scooter', 'vehicle', 'wheel', 'wheel design', 'automotive'],
+    'Automotive': ['car', 'motorcycle', 'concept car', 'electric vehicle', 'bicycle', 'scooter', 'vehicle', 'wheel', 'wheel design', 'automotive', 'brake', 'alloy wheel', 'bus', 'racing', 'all terrain vehicle', 'atv'],
     'Appliances': ['kitchen', 'vacuum', 'coffee machine', 'toaster', 'blender', 'fan', 'heater', 'appliance'],
-    'Tools': ['power tool', 'hand tool', 'office equipment', 'medical device', 'tool']
+    'Tools': ['power tool', 'hand tool', 'office equipment', 'medical device', 'tool', 'knife', 'hardware', 'rangefinder', 'scientific instrument', 'pressure gauge']
   };
   for (const [subcat, terms] of Object.entries(industrialDesignCategories)) {
     if (terms.some(t => valueLower === t || valueLower.includes(t))) {
@@ -236,6 +271,28 @@ const smartCategorize = (kw, contextBrand = null) => {
   for (const [subcat, terms] of Object.entries(architectureCategories)) {
     if (terms.some(t => valueLower === t || valueLower.includes(t))) {
       return ['Architecture', subcat];
+    }
+  }
+
+  // Handle special categories that don't fit elsewhere
+  const specialCategories = {
+    'aerospace': ['Industrial Design', 'Automotive'],  // Aerospace is related to vehicle design
+    'prototype': ['Industrial Design', 'Misc'],
+    'rendering idea': ['Graphic Design', 'Digital'],
+    'restomod': ['Industrial Design', 'Automotive'],
+    'concept': ['Industrial Design', 'Misc'],
+    'mock up': ['Graphic Design', 'Digital'],
+    '3d': ['Graphic Design', 'Digital'],
+    'cnc machining': ['Industrial Design', 'Tools'],
+    'construction': ['Architecture', 'Industrial'],
+    'engineering': ['Industrial Design', 'Tools'],
+    'laser show': ['Art', 'Digital Art'],
+    'software': ['Graphic Design', 'Digital'],
+    'point-and-shoot': ['Industrial Design', 'Consumer Electronics']
+  };
+  for (const [keyword, path] of Object.entries(specialCategories)) {
+    if (valueLower === keyword || valueLower.includes(keyword)) {
+      return path;
     }
   }
 
@@ -502,6 +559,20 @@ const splitBrandModel = (text) => {
   const { KNOWN_ARTISTS, KNOWN_ARCHITECTS, KNOWN_BRANDS, BRAND_CATEGORIES, NATIONALITY_TO_COUNTRY } = window.TaggerData;
   const results = [];
   let remaining = text.trim();
+
+  // Handle comma-separated lists (e.g., "Painting, Sculpture, Photography")
+  // Only split if there are 3+ items to avoid splitting "Brand, Model" patterns
+  if (remaining.includes(',')) {
+    const parts = remaining.split(',').map(p => p.trim()).filter(p => p.length > 0);
+    if (parts.length >= 3) {
+      console.log(`[SPLIT] Breaking comma list: "${remaining}" → ${parts.length} items`);
+      parts.forEach(part => {
+        const path = smartCategorize({ value: part, type: 'keyword' });
+        results.push({ value: part, type: 'keyword', path });
+      });
+      return results;
+    }
+  }
 
   // Check for "Design: Name", "Designer: Name", "By: Name", "Created by: Name" patterns
   const designerMatch = remaining.match(/^(?:design|designer|designed by|by|created by|author|artist)\s*[:\-]\s*(.+)$/i);

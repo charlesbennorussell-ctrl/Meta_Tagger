@@ -1489,6 +1489,9 @@
               // Apply synonym resolution first
               const resolvedValue = resolveSynonym(part.value);
 
+              // Skip if synonym resolution returned null (keyword should be dropped)
+              if (resolvedValue === null) return;
+
               // Always use smartCategorize for better accuracy, unless it's an explicitly known brand/model with good path
               let path = part.path;
               const needsRecategorization = part.path[0] === 'Custom' || part.type === 'keyword' ||
@@ -2443,6 +2446,10 @@
         splitBrandModel(val).forEach(part => {
           // Apply synonym resolution first
           const resolvedValue = resolveSynonym(part.value);
+
+          // Skip if synonym resolution returned null (keyword should be dropped)
+          if (resolvedValue === null) return;
+
           const path = part.path[0] === 'Custom' ? findPath(resolvedValue, part.type) : part.path;
           const kw = { id: `custom-${Date.now()}-${Math.random().toString(36).slice(2)}`, value: resolvedValue, confidence: 1, type: part.type, path, rootCategory: path[0] };
           newKws.push(kw);
