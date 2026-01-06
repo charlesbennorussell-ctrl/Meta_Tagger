@@ -41,6 +41,13 @@ IMPORTANT RULES:
    - Look for: white/neutral backgrounds, controlled lighting, marketing/catalog style, clean product shots
    - Common indicators: isolated products, studio setup, commercial photography aesthetics
    - This is HIGH PRIORITY - product photography is very common in design archives
+7. CRITICAL FORMATTING RULES:
+   - NEVER use commas, slashes, or semicolons in the "value" field
+   - Return ONE keyword per object
+   - WRONG: {"value": "Residential, Commercial", ...}
+   - RIGHT: [{"value": "Residential", ...}, {"value": "Commercial", ...}]
+   - WRONG: {"value": "Modernism/Contemporary", ...}
+   - RIGHT: [{"value": "Modernism", ...}, {"value": "Contemporary", ...}]
 
 Return JSON array: [{"value": "keyword", "confidence": 0.9, "type": "brand|model|era|country|category|style|material|color", "path": ["RootCategory", "SubCategory"]}]
 
@@ -49,6 +56,7 @@ Categories: Design, Architecture, Art, Photography, Style (including Origin for 
 REQUIRED: Always include at least one Era keyword with the decade when this was likely designed/produced.
 REQUIRED: If this is graphic design work (posters, logos, typography, layouts, etc.), include "Graphic Design" with path ["Design", "Graphic Design"].
 REQUIRED: If this is product photography (studio shot, commercial product photo), include "Product Photography" with path ["Photography", "Product Photography"].
+REQUIRED: Each keyword must be a SINGLE term - no commas, no slashes. Split multi-value terms into separate keywords.
 
 Return 10-20 specific, useful keywords. Only return the JSON array.`;
 
@@ -77,7 +85,26 @@ Return 10-20 specific, useful keywords. Only return the JSON array.`;
       .replace(/:\s*\.(\d)/g, ': 0.$1')  // Fix .9 -> 0.9
       .replace(/,\s*([}\]])/g, '$1');    // Remove trailing commas
     try {
-      return JSON.parse(jsonStr);
+      const parsed = JSON.parse(jsonStr);
+      // Post-process: Split any keywords that contain delimiters
+      const sanitized = [];
+      for (const kw of parsed) {
+        if (!kw.value) continue;
+
+        // Check for comma, slash, or semicolon delimiters
+        const hasDelimiter = /[,\/;]/.test(kw.value);
+        if (hasDelimiter) {
+          // Split on commas, slashes, semicolons
+          const parts = kw.value.split(/[,\/;]/).map(p => p.trim()).filter(p => p);
+          console.log(`[GEMINI] Splitting multi-value keyword "${kw.value}" into:`, parts);
+          for (const part of parts) {
+            sanitized.push({...kw, value: part});
+          }
+        } else {
+          sanitized.push(kw);
+        }
+      }
+      return sanitized;
     } catch (e) {
       // Check if JSON is truncated (doesn't end with ])
       const isTruncated = !jsonStr.trim().endsWith(']');
@@ -90,7 +117,20 @@ Return 10-20 specific, useful keywords. Only return the JSON array.`;
           // Last object seems complete, just add closing bracket
           const salvaged = jsonStr + ']';
           try {
-            return JSON.parse(salvaged);
+            const parsed = JSON.parse(salvaged);
+            // Apply same sanitization
+            const sanitized = [];
+            for (const kw of parsed) {
+              if (!kw.value) continue;
+              const hasDelimiter = /[,\/;]/.test(kw.value);
+              if (hasDelimiter) {
+                const parts = kw.value.split(/[,\/;]/).map(p => p.trim()).filter(p => p);
+                for (const part of parts) sanitized.push({...kw, value: part});
+              } else {
+                sanitized.push(kw);
+              }
+            }
+            return sanitized;
           } catch (e2) {
             console.error('[GEMINI] Salvage failed:', e2.message);
           }
@@ -98,9 +138,21 @@ Return 10-20 specific, useful keywords. Only return the JSON array.`;
           // Remove incomplete last object and close array
           const salvaged = jsonStr.substring(0, lastComma) + ']';
           try {
-            const result = JSON.parse(salvaged);
-            console.log('[GEMINI] Salvaged', result.length, 'items from truncated response');
-            return result;
+            const parsed = JSON.parse(salvaged);
+            // Apply same sanitization
+            const sanitized = [];
+            for (const kw of parsed) {
+              if (!kw.value) continue;
+              const hasDelimiter = /[,\/;]/.test(kw.value);
+              if (hasDelimiter) {
+                const parts = kw.value.split(/[,\/;]/).map(p => p.trim()).filter(p => p);
+                for (const part of parts) sanitized.push({...kw, value: part});
+              } else {
+                sanitized.push(kw);
+              }
+            }
+            console.log('[GEMINI] Salvaged', sanitized.length, 'items from truncated response');
+            return sanitized;
           } catch (e2) {
             console.error('[GEMINI] Salvage failed:', e2.message);
           }
@@ -210,15 +262,20 @@ TAXONOMY STRUCTURE (use exact paths):
    - Creator > Photographer > Portrait, Fashion, Architecture, Documentary
    - Creator > Studio > Design Studio, Architecture Firm, Creative Agency
 
-2. Brand (COMPANIES that make products)
-   - Brand > Audio (Bang & Olufsen, Bose, Sennheiser, Sony, KEF, Sonos)
-   - Brand > Electronics (Apple, Samsung, Google, Microsoft)
-   - Brand > Camera (Canon, Nikon, Leica, Hasselblad, Fujifilm)
-   - Brand > Automotive (BMW, Mercedes-Benz, Porsche, Tesla, Ferrari)
-   - Brand > Furniture (Herman Miller, Knoll, Vitra, Fritz Hansen, HAY)
-   - Brand > Fashion (Gucci, Louis Vuitton, Chanel, Nike, Adidas)
-   - Brand > Appliances (Braun, Dyson, Smeg, Balmuda, Miele)
-   - Brand > Watch (Rolex, Omega, Patek Philippe, Grand Seiko)
+2. Brand (COMPANIES that make products - NOT people)
+   CRITICAL: Brand keywords are COMPANY names, not person names
+   - Brand > Audio (Bang & Olufsen, Bose, Sennheiser, Sony, KEF, Sonos, JBL, Harman Kardon)
+   - Brand > Electronics (Apple, Samsung, Google, Microsoft, HP, Dell, Asus)
+   - Brand > Camera (Canon, Nikon, Leica, Hasselblad, Fujifilm, Pentax, Olympus)
+   - Brand > Automotive (BMW, Mercedes-Benz, Porsche, Tesla, Ferrari, Audi, Volvo)
+   - Brand > Furniture (Herman Miller, Knoll, Vitra, Fritz Hansen, HAY, Cassina, B&B Italia)
+   - Brand > Fashion (Gucci, Louis Vuitton, Chanel, Nike, Adidas, Prada, Hermès)
+   - Brand > Appliances (Braun, Dyson, Smeg, Balmuda, Miele, KitchenAid, Electrolux)
+   - Brand > Watch (Rolex, Omega, Patek Philippe, Grand Seiko, TAG Heuer, Breitling)
+   - Brand > Stationery (Moleskine, Leuchtturm1917, Rhodia, Midori, Muji)
+   - Brand > Tools (DeWalt, Makita, Milwaukee, Bosch, Stanley, Craftsman)
+
+   IMPORTANT: These are brand EXAMPLES. Use web search to verify if unknown terms are brands (companies) or people (creators).
 
 3. Design (design disciplines and styles)
    - Design > Graphic Design (IMPORTANT: 2D visual communication for reproduction)
@@ -261,10 +318,22 @@ Keywords to categorize: ${keywords.join(', ')}
 
 Return JSON array: [{"keyword": "original keyword", "path": ["Category", "Subcategory", "Sub-subcategory"], "type": "designer|architect|artist|photographer|brand|model|category|style|material|color|era"}]
 
-IMPORTANT:
-- Use web search to verify if a term is a person (designer/artist) or company (brand)
-- Person names go under Creator, companies go under Brand
-- Include the discipline for designers (Industrial, Graphic, Fashion, Interior)
+CRITICAL BRAND DETECTION RULES:
+1. Use web search to verify EVERY unknown term
+2. If it's a COMPANY/CORPORATION → Brand category with appropriate subcategory (Audio, Electronics, Furniture, etc.)
+3. If it's a PERSON (First Last name) → Creator category with appropriate role (Designer, Architect, Artist, Photographer)
+4. Brand subcategories based on what they make:
+   - Makes speakers/headphones/audio → Brand > Audio
+   - Makes computers/phones/electronics → Brand > Electronics
+   - Makes chairs/tables/furniture → Brand > Furniture
+   - Makes pens/notebooks/office supplies → Brand > Stationery
+   - Makes power tools/hand tools → Brand > Tools
+   - Makes clothing/shoes → Brand > Fashion
+   - Makes watches/timepieces → Brand > Watch
+   - Makes appliances/household goods → Brand > Appliances
+5. If unsure about brand category, use just ["Brand"] as the path
+6. Include discipline for creators: Industrial, Graphic, Fashion, Interior
+
 Only return the JSON array.` }] }],
         generationConfig: { temperature: 0.1, maxOutputTokens: 2048 },
         tools: [{ googleSearch: {} }]
@@ -561,13 +630,65 @@ const auditTaxonomy = (userTaxonomy, defaultTaxonomy) => {
 
 // Organize taxonomy - full audit and reorganization
 const organizeTaxonomy = async (apiKey, taxonomy, onProgress = null) => {
+  console.log('[ORGANIZE] ===== STARTING TAXONOMY ORGANIZATION =====');
+  console.log('[ORGANIZE] Version: 2.0 - with delimiter splitting and global deduplication');
   if (!apiKey) return { taxonomy, changes: [], audit: null };
 
   const { DEFAULT_TAXONOMY } = window.TaggerData;
 
+  // Step 0: PRE-PROCESS - Split any multi-value keywords (comma/slash delimited)
+  if (onProgress) onProgress({ phase: 'cleanup', message: 'Cleaning up multi-value keywords...' });
+  let cleanedTaxonomy = JSON.parse(JSON.stringify(taxonomy));
+  const splitKeywords = [];
+
+  const splitMultiValueKeywords = (obj, path = []) => {
+    for (const [key, value] of Object.entries(obj)) {
+      if (key === '_items') {
+        if (Array.isArray(value)) {
+          const newItems = [];
+          for (const item of value) {
+            if (/[,\/;]/.test(item)) {
+              // Split this keyword
+              const parts = item.split(/[,\/;]/).map(p => p.trim()).filter(p => p);
+              splitKeywords.push({ original: item, parts, path });
+              newItems.push(...parts);
+              console.log(`[ORGANIZE] Splitting "${item}" into:`, parts);
+            } else {
+              newItems.push(item);
+            }
+          }
+          obj[key] = [...new Set(newItems)]; // Remove duplicates
+        }
+        continue;
+      }
+
+      const currentPath = [...path, key];
+      if (Array.isArray(value)) {
+        const newItems = [];
+        for (const item of value) {
+          if (/[,\/;]/.test(item)) {
+            // Split this keyword
+            const parts = item.split(/[,\/;]/).map(p => p.trim()).filter(p => p);
+            splitKeywords.push({ original: item, parts, path: currentPath });
+            newItems.push(...parts);
+            console.log(`[ORGANIZE] Splitting "${item}" into:`, parts);
+          } else {
+            newItems.push(item);
+          }
+        }
+        obj[key] = [...new Set(newItems)]; // Remove duplicates
+      } else if (typeof value === 'object' && value !== null) {
+        splitMultiValueKeywords(value, currentPath);
+      }
+    }
+  };
+
+  splitMultiValueKeywords(cleanedTaxonomy);
+  console.log(`[ORGANIZE] Split ${splitKeywords.length} multi-value keywords`);
+
   // Step 1: Audit both taxonomies
   if (onProgress) onProgress({ phase: 'audit', message: 'Auditing taxonomies...' });
-  const audit = auditTaxonomy(taxonomy, DEFAULT_TAXONOMY);
+  const audit = auditTaxonomy(cleanedTaxonomy, DEFAULT_TAXONOMY);
 
   console.log(`[ORGANIZE] Audit complete:
     - Total unique keywords: ${audit.total}
@@ -575,8 +696,13 @@ const organizeTaxonomy = async (apiKey, taxonomy, onProgress = null) => {
     - Misplaced: ${audit.misplaced.length}
     - Duplicates: ${audit.duplicates.length}`);
 
-  const changes = [];
-  let newTaxonomy = JSON.parse(JSON.stringify(taxonomy));
+  const changes = splitKeywords.map(sk => ({
+    keyword: sk.original,
+    action: 'split',
+    into: sk.parts,
+    path: sk.path
+  }));
+  let newTaxonomy = cleanedTaxonomy;
 
   // Helper to remove keyword from a path in taxonomy
   const removeFromPath = (tax, path, keyword) => {
@@ -653,6 +779,56 @@ const organizeTaxonomy = async (apiKey, taxonomy, onProgress = null) => {
       }
     }
   }
+
+  // Step 3.5: GLOBAL deduplication - find ALL duplicate keywords across entire taxonomy
+  if (onProgress) onProgress({ phase: 'global-dedupe', message: 'Performing global deduplication...' });
+  const globalDupes = new Map(); // keyword_lower -> [{path, value}]
+
+  const findAllOccurrences = (obj, path = []) => {
+    for (const [key, value] of Object.entries(obj)) {
+      if (key === '_items') {
+        if (Array.isArray(value)) {
+          value.forEach(item => {
+            const lower = item.toLowerCase();
+            if (!globalDupes.has(lower)) globalDupes.set(lower, []);
+            globalDupes.get(lower).push({ path, value: item });
+          });
+        }
+        continue;
+      }
+      const currentPath = [...path, key];
+      if (Array.isArray(value)) {
+        value.forEach(item => {
+          const lower = item.toLowerCase();
+          if (!globalDupes.has(lower)) globalDupes.set(lower, []);
+          globalDupes.get(lower).push({ path: currentPath, value: item });
+        });
+      } else if (typeof value === 'object' && value !== null) {
+        findAllOccurrences(value, currentPath);
+      }
+    }
+  };
+
+  findAllOccurrences(newTaxonomy);
+
+  let globalDupeCount = 0;
+  for (const [lower, occurrences] of globalDupes) {
+    if (occurrences.length > 1) {
+      // Keep first, remove rest
+      for (let i = 1; i < occurrences.length; i++) {
+        removeFromPath(newTaxonomy, occurrences[i].path, occurrences[i].value);
+        globalDupeCount++;
+        changes.push({
+          keyword: occurrences[i].value,
+          action: 'global-deduplicated',
+          from: occurrences[i].path,
+          kept: occurrences[0].path
+        });
+        console.log(`[ORGANIZE] Global dedupe: "${occurrences[i].value}" removed from [${occurrences[i].path.join(' > ')}], kept at [${occurrences[0].path.join(' > ')}]`);
+      }
+    }
+  }
+  console.log(`[ORGANIZE] Global deduplication removed ${globalDupeCount} duplicates`);
 
   // Step 4: Research and categorize unknown keywords
   if (audit.needsResearch.length > 0) {
@@ -830,6 +1006,209 @@ const researchUncategorizedKeywords = async (apiKey, keywords, onResult = null) 
   return results;
 };
 
+// COMPREHENSIVE REBUILD - Analyze every keyword with AI and rebuild taxonomy
+const rebuildTaxonomy = async (apiKey, taxonomy, onProgress = null) => {
+  console.log('[REBUILD] ===== COMPREHENSIVE TAXONOMY REBUILD =====');
+
+  if (!apiKey) {
+    console.error('[REBUILD] API key required');
+    return { taxonomy, changes: [], errors: ['API key required'] };
+  }
+
+  // Step 1: Extract ALL keywords from current taxonomy
+  if (onProgress) onProgress({ phase: 'extract', message: 'Extracting all keywords...' });
+  const allKeywords = [];
+
+  const extractKeywords = (obj, path = []) => {
+    for (const [key, value] of Object.entries(obj)) {
+      if (key === '_items') {
+        if (Array.isArray(value)) {
+          value.forEach(item => {
+            // Split multi-value keywords immediately
+            if (/[,\/;]/.test(item)) {
+              const parts = item.split(/[,\/;]/).map(p => p.trim()).filter(p => p);
+              parts.forEach(part => allKeywords.push({ value: part, oldPath: path }));
+            } else {
+              allKeywords.push({ value: item, oldPath: path });
+            }
+          });
+        }
+        continue;
+      }
+      const currentPath = [...path, key];
+      if (Array.isArray(value)) {
+        value.forEach(item => {
+          if (/[,\/;]/.test(item)) {
+            const parts = item.split(/[,\/;]/).map(p => p.trim()).filter(p => p);
+            parts.forEach(part => allKeywords.push({ value: part, oldPath: currentPath }));
+          } else {
+            allKeywords.push({ value: item, oldPath: currentPath });
+          }
+        });
+      } else if (typeof value === 'object' && value !== null) {
+        extractKeywords(value, currentPath);
+      }
+    }
+  };
+
+  extractKeywords(taxonomy);
+
+  // Deduplicate by lowercase
+  const uniqueMap = new Map();
+  allKeywords.forEach(kw => {
+    const lower = kw.value.toLowerCase();
+    if (!uniqueMap.has(lower)) {
+      uniqueMap.set(lower, kw);
+    }
+  });
+  const uniqueKeywords = Array.from(uniqueMap.values());
+
+  console.log(`[REBUILD] Found ${allKeywords.length} keywords (${uniqueKeywords.length} unique)`);
+
+  // Step 2: Categorize ALL keywords with AI in batches
+  if (onProgress) onProgress({ phase: 'categorize', message: `Categorizing ${uniqueKeywords.length} keywords with AI...`, current: 0, total: uniqueKeywords.length });
+
+  const batchSize = 20;
+  const categorized = [];
+  const errors = [];
+
+  for (let i = 0; i < uniqueKeywords.length; i += batchSize) {
+    const batch = uniqueKeywords.slice(i, i + batchSize);
+    const keywords = batch.map(k => k.value);
+
+    if (onProgress) onProgress({
+      phase: 'categorize',
+      message: `Categorizing keywords ${i + 1}-${Math.min(i + batchSize, uniqueKeywords.length)} of ${uniqueKeywords.length}...`,
+      current: i,
+      total: uniqueKeywords.length
+    });
+
+    try {
+      const results = await categorizeKeywords(apiKey, keywords);
+
+      if (results && results.length > 0) {
+        results.forEach(r => {
+          const original = batch.find(b => b.value.toLowerCase() === r.keyword.toLowerCase());
+          if (original) {
+            categorized.push({
+              value: original.value,
+              oldPath: original.oldPath,
+              newPath: r.path && r.path.length > 0 ? r.path : ['Misc'],
+              type: r.type
+            });
+          }
+        });
+      }
+
+      // For any keywords not categorized, route to Misc
+      batch.forEach(kw => {
+        if (!categorized.some(c => c.value.toLowerCase() === kw.value.toLowerCase())) {
+          console.log(`[REBUILD] Routing uncategorized keyword "${kw.value}" to Misc`);
+          categorized.push({
+            value: kw.value,
+            oldPath: kw.oldPath,
+            newPath: ['Misc'],
+            type: 'unknown'
+          });
+        }
+      });
+
+    } catch (e) {
+      console.error(`[REBUILD] Error categorizing batch ${i / batchSize + 1}:`, e);
+      errors.push(`Batch ${i / batchSize + 1}: ${e.message}`);
+      // Route failed batch to Misc
+      batch.forEach(kw => {
+        categorized.push({
+          value: kw.value,
+          oldPath: kw.oldPath,
+          newPath: ['Misc'],
+          type: 'error'
+        });
+      });
+    }
+
+    // Rate limiting
+    if (i + batchSize < uniqueKeywords.length) {
+      await new Promise(r => setTimeout(r, 500));
+    }
+  }
+
+  // Step 3: Build new taxonomy from categorized keywords
+  if (onProgress) onProgress({ phase: 'build', message: 'Building new taxonomy...' });
+
+  const newTaxonomy = {};
+  const changes = [];
+
+  categorized.forEach(kw => {
+    const path = kw.newPath;
+    let current = newTaxonomy;
+
+    for (let i = 0; i < path.length; i++) {
+      const segment = path[i];
+
+      if (i === path.length - 1) {
+        // Leaf node - add keyword
+        if (!current[segment]) {
+          current[segment] = [];
+        }
+        if (Array.isArray(current[segment])) {
+          if (!current[segment].some(v => v.toLowerCase() === kw.value.toLowerCase())) {
+            current[segment].push(kw.value);
+          }
+        } else {
+          // It's an object, use _items
+          if (!current[segment]._items) current[segment]._items = [];
+          if (!current[segment]._items.some(v => v.toLowerCase() === kw.value.toLowerCase())) {
+            current[segment]._items.push(kw.value);
+          }
+        }
+      } else {
+        // Branch node
+        if (!current[segment]) {
+          current[segment] = {};
+        } else if (Array.isArray(current[segment])) {
+          // Convert array to object with _items
+          current[segment] = { _items: current[segment] };
+        }
+        current = current[segment];
+      }
+    }
+
+    const oldPathStr = kw.oldPath.join(' > ');
+    const newPathStr = kw.newPath.join(' > ');
+    if (oldPathStr !== newPathStr) {
+      changes.push({
+        keyword: kw.value,
+        action: 'recategorized',
+        from: kw.oldPath,
+        to: kw.newPath,
+        type: kw.type
+      });
+    }
+  });
+
+  // Sort all arrays
+  const sortTaxonomy = (obj) => {
+    for (const [key, value] of Object.entries(obj)) {
+      if (key === '_items' && Array.isArray(value)) {
+        value.sort((a, b) => a.localeCompare(b));
+      } else if (Array.isArray(value)) {
+        value.sort((a, b) => a.localeCompare(b));
+      } else if (typeof value === 'object' && value !== null) {
+        sortTaxonomy(value);
+      }
+    }
+  };
+  sortTaxonomy(newTaxonomy);
+
+  console.log(`[REBUILD] Complete: ${categorized.length} keywords categorized, ${changes.length} moved`);
+  if (errors.length > 0) {
+    console.warn(`[REBUILD] ${errors.length} errors occurred:`, errors);
+  }
+
+  return { taxonomy: newTaxonomy, changes, errors };
+};
+
 // Export for use in other modules
 window.TaggerAPI = {
   analyzeWithGemini,
@@ -843,7 +1222,8 @@ window.TaggerAPI = {
   auditTaxonomy,
   organizeTaxonomy,
   researchKeyword,
-  researchUncategorizedKeywords
+  researchUncategorizedKeywords,
+  rebuildTaxonomy
 };
 
 })();

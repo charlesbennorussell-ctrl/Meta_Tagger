@@ -98,10 +98,10 @@
   </script>
 
   <!-- Load data and utilities (plain JS, no JSX) -->
-  <script src="js/data.js"></script>
-  <script src="js/utils.js"></script>
-  <script src="js/api.js"></script>
-  <script src="js/performance.js"></script>
+  <script src="js/data.js?v=5"></script>
+  <script src="js/utils.js?v=5"></script>
+  <script src="js/api.js?v=5"></script>
+  <script src="js/performance.js?v=5"></script>
 
   <script type="text/babel">
     const { useState, useRef, useEffect, useMemo, useCallback, memo, Fragment } = React;
@@ -307,14 +307,37 @@
       const isExpanded = true; // Always expanded
       const color = ROOT_COLORS[node._path?.[0]] || s.text;
 
+      // Helper: Count total keywords in this node and all descendants
+      const countAllKeywords = (n) => {
+        let total = (n._keywords || []).length;
+        const children = n._children || {};
+        for (const child of Object.values(children)) {
+          total += countAllKeywords(child);
+        }
+        return total;
+      };
+
+      // Hide empty categories (no keywords at any level)
+      const totalKeywords = countAllKeywords(node);
+      if (totalKeywords === 0 && depth > 0) {
+        return null;
+      }
+
+      // Filter children to only show non-empty ones
+      const nonEmptyChildren = hasChildren
+        ? Object.entries(children).filter(([n, c]) => countAllKeywords(c) > 0)
+        : [];
+
       return (
         <div style={{ marginLeft: depth > 0 ? 16 : 0, marginTop: depth === 0 ? 0 : 0, marginBottom: depth === 0 ? 16 : 0 }}>
           {depth === 0 ? (
-            <div style={{ display: 'inline-flex', background: s.bgDark, borderRadius: 20, padding: 4, gap: 4, width: '100%', height: 36, marginTop: -6, marginBottom: 10 }}>
-              <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'flex-start', gap: 6, padding: '6px 16px', background: 'transparent', color: s.textMuted, border: 'none', borderRadius: 16, cursor: 'default', fontSize: s.fontSize, fontWeight: s.fontWeight }}>
-                {name}
+            totalKeywords > 0 && (
+              <div style={{ display: 'inline-flex', background: s.bgDark, borderRadius: 20, padding: 4, gap: 4, width: '100%', height: 36, marginTop: -6, marginBottom: 10 }}>
+                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'flex-start', gap: 6, padding: '6px 16px', background: 'transparent', color: s.textMuted, border: 'none', borderRadius: 16, cursor: 'default', fontSize: s.fontSize, fontWeight: s.fontWeight }}>
+                  {name}
+                </div>
               </div>
-            </div>
+            )
           ) : (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 16px', borderRadius: 6, background: 'transparent', fontSize: s.fontSize, fontWeight: s.fontWeight, lineHeight: 1 }}>
               <span style={{ color: s.textMuted, fontSize: s.fontSize, marginRight: 4 }}>└</span>
@@ -334,7 +357,7 @@
               ))}
             </div>
           )}
-          {isExpanded && hasChildren && Object.entries(children).map(([n, c]) => (
+          {isExpanded && nonEmptyChildren.length > 0 && nonEmptyChildren.map(([n, c]) => (
             <TreeNode key={n} name={n} node={c} depth={depth + 1} expanded={expanded} onToggle={onToggle} onDeleteKeyword={onDeleteKeyword} s={s} />
           ))}
         </div>
@@ -882,6 +905,46 @@
         } finally {
           setIsOrganizing(false);
           setOrganizeProgress(null);
+        }
+      }, [geminiKey, isOrganizing, taxonomy]);
+
+      const handleRebuildTaxonomy = useCallback(async () => {
+        if (!geminiKey || isOrganizing) return;
+
+        setIsOrganizing(true);
+        setOrganizeProgress({ phase: 'init', message: 'Starting comprehensive rebuild...' });
+
+        try {
+          const { rebuildTaxonomy } = window.TaggerAPI;
+          if (!taxonomy || typeof taxonomy !== 'object') {
+            console.error('[REBUILD] Invalid taxonomy:', taxonomy);
+            return;
+          }
+
+          const result = await rebuildTaxonomy(geminiKey, taxonomy, (progress) => {
+            setOrganizeProgress(progress);
+          });
+
+          if (result.changes.length > 0 || result.errors.length === 0) {
+            setTaxonomy(result.taxonomy);
+            localStorage.setItem(TAXONOMY_KEY, JSON.stringify(result.taxonomy));
+            console.log('[REBUILD] Applied', result.changes.length, 'changes');
+            setOrganizeProgress({ phase: 'complete', message: `Rebuilt! ${result.changes.length} keywords reorganized.` });
+          } else if (result.errors.length > 0) {
+            console.error('[REBUILD] Errors:', result.errors);
+            setOrganizeProgress({ phase: 'error', message: `Errors occurred: ${result.errors.join(', ')}` });
+          } else {
+            console.log('[REBUILD] No changes needed');
+            setOrganizeProgress({ phase: 'complete', message: 'Taxonomy already optimal!' });
+          }
+        } catch (e) {
+          console.error('[REBUILD] Error:', e);
+          setOrganizeProgress({ phase: 'error', message: 'Error: ' + e.message });
+        } finally {
+          setTimeout(() => {
+            setIsOrganizing(false);
+            setOrganizeProgress(null);
+          }, 2000);
         }
       }, [geminiKey, isOrganizing, taxonomy]);
 
@@ -3818,6 +3881,23 @@
 
                     <div style={{ marginTop: 16, paddingTop: 16, borderTop: `1px solid ${s.border}` }}>
                       <div style={{ marginBottom: 12, color: s.text, fontSize: s.fontSize, fontWeight: s.fontWeight }}>Taxonomy</div>
+                      <button
+                        onClick={handleRebuildTaxonomy}
+                        disabled={!geminiKey || isOrganizing}
+                        title="AI-powered complete taxonomy rebuild - analyzes every keyword and reorganizes entire taxonomy"
+                        style={{
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                          width: '100%', padding: '12px 16px',
+                          background: 'rgba(239,68,68,0.15)', color: (geminiKey && !isOrganizing) ? '#ef4444' : '#404040',
+                          border: `1px solid ${(geminiKey && !isOrganizing) ? 'rgba(239,68,68,0.3)' : s.border}`, borderRadius: s.radius,
+                          cursor: (geminiKey && !isOrganizing) ? 'pointer' : 'not-allowed',
+                          fontSize: s.fontSize, fontWeight: s.fontWeight,
+                          marginBottom: 8
+                        }}
+                      >
+                        <Icon name={isOrganizing ? "hourglass_empty" : "construction"} size={20} />
+                        {isOrganizing ? 'Rebuilding...' : 'Rebuild Taxonomy (AI)'}
+                      </button>
                       <button
                         onClick={handleOrganizeTaxonomy}
                         disabled={!geminiKey || isOrganizing}

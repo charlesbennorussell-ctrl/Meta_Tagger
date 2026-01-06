@@ -350,12 +350,54 @@ const smartCategorize = (kw, contextBrand = null) => {
 };
 
 // Helper to add a keyword to taxonomy structure
+// Helper: Check if keyword already exists anywhere in taxonomy
+const findKeywordInTaxonomy = (taxonomy, keyword, currentPath = []) => {
+  const kwLower = keyword.toLowerCase();
+  for (const [key, value] of Object.entries(taxonomy)) {
+    if (key === '_items') {
+      if (Array.isArray(value) && value.some(v => v.toLowerCase() === kwLower)) {
+        return { found: true, path: currentPath };
+      }
+      continue;
+    }
+    const newPath = [...currentPath, key];
+    if (Array.isArray(value)) {
+      if (value.some(v => v.toLowerCase() === kwLower)) {
+        return { found: true, path: newPath };
+      }
+    } else if (typeof value === 'object' && value !== null) {
+      const result = findKeywordInTaxonomy(value, keyword, newPath);
+      if (result.found) return result;
+    }
+  }
+  return { found: false, path: null };
+};
+
 const addToTaxonomy = (taxonomy, kw) => {
-  if (!kw.path || kw.path.length === 0) return taxonomy;
+  // If no path provided, route to Misc
+  if (!kw.path || kw.path.length === 0) {
+    console.log(`[TAXONOMY] No path for "${kw.value}" - routing to Misc`);
+    kw = { ...kw, path: ['Misc'] };
+  }
+
   const newTax = JSON.parse(JSON.stringify(taxonomy)); // deep clone
-  let current = newTax;
-  const path = kw.path;
   const value = kw.value;
+  const path = kw.path;
+
+  // Check if keyword already exists anywhere in the taxonomy
+  const existing = findKeywordInTaxonomy(newTax, value);
+  if (existing.found) {
+    const existingPathStr = existing.path.join(' > ');
+    const newPathStr = path.join(' > ');
+
+    if (existingPathStr !== newPathStr) {
+      console.log(`[TAXONOMY] Deduplication: "${value}" already exists at [${existingPathStr}], skipping duplicate at [${newPathStr}]`);
+    }
+    // Return unchanged taxonomy - keyword already exists
+    return newTax;
+  }
+
+  let current = newTax;
 
   // Navigate/create path
   for (let i = 0; i < path.length; i++) {
@@ -1428,6 +1470,7 @@ window.TaggerUtils = {
   addToTaxonomy,
   removeFromTaxonomy,
   flattenTaxonomy,
+  findKeywordInTaxonomy,
   getBrandPath,
   looksLikePersonName,
   looksLikeBrand,
