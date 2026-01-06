@@ -1208,6 +1208,9 @@ const rebuildTaxonomy = async (apiKey, taxonomy, onProgress = null) => {
   // Step 2.6: Post-process and validate categorizations with pattern-based intelligence
   if (onProgress) onProgress({ phase: 'validate', message: 'Validating and improving categorizations...' });
 
+  // Import additional databases
+  const { ADDITIONAL_DESIGNERS, ADDITIONAL_BRANDS, PRODUCT_CATEGORIES, DESIGN_STYLES, ORIGIN_STYLES } = window.TaggerDatabases || {};
+
   const improvedCategorized = allCategorized.map(kw => {
     const value = kw.value;
     const valueLower = value.toLowerCase();
@@ -1219,6 +1222,125 @@ const rebuildTaxonomy = async (apiKey, taxonomy, onProgress = null) => {
 
     // Fix generic "Misc > Misc" and other obvious miscategorizations
     if ((path[0] === 'Misc' && path[1] === 'Misc') || path[0] === 'Other categories') {
+
+      // Check ADDITIONAL_DESIGNERS database
+      if (ADDITIONAL_DESIGNERS && ADDITIONAL_DESIGNERS.includes(valueLower)) {
+        console.log(`[VALIDATE] Additional designer "${value}" → Creator > Designer > Industrial`);
+        return { ...kw, newPath: ['Creator', 'Designer', 'Industrial'] };
+      }
+
+      // Check PRODUCT_CATEGORIES database
+      if (PRODUCT_CATEGORIES) {
+        // Architecture spaces
+        if (PRODUCT_CATEGORIES.architecture && PRODUCT_CATEGORIES.architecture.includes(valueLower)) {
+          console.log(`[VALIDATE] Architecture space "${value}" → Architecture > Residential`);
+          return { ...kw, newPath: ['Architecture', 'Residential'] };
+        }
+
+        // Automotive parts/features
+        if (PRODUCT_CATEGORIES.automotive && PRODUCT_CATEGORIES.automotive.includes(valueLower)) {
+          console.log(`[VALIDATE] Automotive product "${value}" → Product > Automotive`);
+          return { ...kw, newPath: ['Product', 'Automotive'] };
+        }
+
+        // Graphic design products
+        if (PRODUCT_CATEGORIES.graphic && PRODUCT_CATEGORIES.graphic.includes(valueLower)) {
+          console.log(`[VALIDATE] Graphic design item "${value}" → Graphic Design > Print`);
+          return { ...kw, newPath: ['Graphic Design', 'Print'] };
+        }
+
+        // Industrial design products
+        if (PRODUCT_CATEGORIES.industrial && PRODUCT_CATEGORIES.industrial.includes(valueLower)) {
+          console.log(`[VALIDATE] Industrial product "${value}" → Industrial Design > Product`);
+          return { ...kw, newPath: ['Industrial Design', 'Product'] };
+        }
+
+        // Fashion products
+        if (PRODUCT_CATEGORIES.fashion && PRODUCT_CATEGORIES.fashion.includes(valueLower)) {
+          console.log(`[VALIDATE] Fashion item "${value}" → Product > Fashion`);
+          return { ...kw, newPath: ['Product', 'Fashion'] };
+        }
+      }
+
+      // Check DESIGN_STYLES database
+      if (DESIGN_STYLES) {
+        for (const [styleName, styles] of Object.entries(DESIGN_STYLES)) {
+          if (styles.includes(valueLower)) {
+            const formattedStyle = styleName.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+            console.log(`[VALIDATE] Design style "${value}" → Style > ${formattedStyle}`);
+            return { ...kw, newPath: ['Style', formattedStyle] };
+          }
+        }
+      }
+
+      // Check ORIGIN_STYLES database
+      if (ORIGIN_STYLES && ORIGIN_STYLES.includes(valueLower)) {
+        const formattedOrigin = valueLower.charAt(0).toUpperCase() + valueLower.slice(1);
+        console.log(`[VALIDATE] Origin style "${value}" → Style > ${formattedOrigin}`);
+        return { ...kw, newPath: ['Style', formattedOrigin] };
+      }
+
+      // Check ADDITIONAL_BRANDS (specific uncategorized brands)
+      if (ADDITIONAL_BRANDS) {
+        // Audio/Music brands
+        if (['telefunken', 'walkman', 'radio', 'receiver', 'tape reel', 'reel-to-reel',
+             'reel-to-reel tape', 'reel-to-reel tape recorder', 'music gear'].includes(valueLower)) {
+          console.log(`[VALIDATE] Audio brand/product "${value}" → Brand > Audio`);
+          return { ...kw, newPath: ['Brand', 'Audio'] };
+        }
+
+        // Synth/Music production
+        if (['modular synthesizer', 'synth', 'synthesiser', 'synthesizer', 'mixing console', 'vst'].includes(valueLower)) {
+          console.log(`[VALIDATE] Music production equipment "${value}" → Product > Audio`);
+          return { ...kw, newPath: ['Product', 'Audio'] };
+        }
+
+        // Automotive brands/models
+        if (['land cruiser', 'mustang', 'roadrunner', 'skyline r33', 'skyline super silhouette',
+             'testarossa'].includes(valueLower)) {
+          console.log(`[VALIDATE] Car model "${value}" → Product > Automotive`);
+          return { ...kw, newPath: ['Product', 'Automotive'] };
+        }
+
+        // Watch brands/products
+        if (['watch', 'watches', 'wristwatch', 'men\'s watch'].includes(valueLower)) {
+          console.log(`[VALIDATE] Watch product "${value}" → Product > Watch`);
+          return { ...kw, newPath: ['Product', 'Watch'] };
+        }
+
+        // Fashion products
+        if (['sneaker', 'sneakers'].includes(valueLower)) {
+          console.log(`[VALIDATE] Fashion product "${value}" → Product > Fashion`);
+          return { ...kw, newPath: ['Product', 'Fashion'] };
+        }
+
+        // Toy/Model brands
+        if (['tamiya', 'lego'].includes(valueLower)) {
+          console.log(`[VALIDATE] Toy/model brand "${value}" → Brand > Toys`);
+          return { ...kw, newPath: ['Brand', 'Toys'] };
+        }
+
+        // Lighting brands/products
+        if (['nemo lighting', 'tail light', 'stage lighting'].includes(valueLower)) {
+          console.log(`[VALIDATE] Lighting brand/product "${value}" → Brand > Lighting`);
+          return { ...kw, newPath: ['Brand', 'Lighting'] };
+        }
+
+        // Furniture brands
+        if (['de sede', 'dedon', 'e15', 'established & sons', 'molteni&c', 'usm haller',
+             'vitra', 'zanotta', 'magis', 'driade', 'vipp', 'venturi', 'verpan', 'vitsoe',
+             'wellco', 'wilde + spieth', 'wittmann', 'wormley'].includes(valueLower)) {
+          console.log(`[VALIDATE] Furniture brand "${value}" → Brand > Furniture`);
+          return { ...kw, newPath: ['Brand', 'Furniture'] };
+        }
+
+        // Tech/Electronic products
+        if (['typewriter', 'calculator', 'timer', 'toggle switch', 'lcd display',
+             'mobile device', 'mobile ui', 'smartwatch', 'server racks'].includes(valueLower)) {
+          console.log(`[VALIDATE] Electronic product "${value}" → Product > Electronics`);
+          return { ...kw, newPath: ['Product', 'Electronics'] };
+        }
+      }
 
       // DESIGNERS - Famous names that should be under Creator
       const famousDesigners = [

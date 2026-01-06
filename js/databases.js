@@ -241,10 +241,188 @@ const DESIGNER_DATABASE = {
   ]
 };
 
+// ====================
+// ADDITIONAL PATTERN DATABASES
+// ====================
+
+// More designers and brands that appear in Misc
+const ADDITIONAL_DESIGNERS = [
+  'angelo mangiarotti', 'antti lovag', 'matteo tronti architetto', 'mette ditmer',
+  'michel charriere', 'mingwang cao', 'minoru hayashi', 'moritz plattner',
+  'nils holger moormann', 'raphael navot', 'rashid', 'reinhold weiss',
+  'rge mogensen', 'rgen gammelgaard', 'rgen greubel', 'rgensen', 'ridley scott',
+  'rodolphe parente', 'ruoyu tang', 'taiga takahashi', 'thierry lemaire',
+  'tove kindt-larsen', 'travis scott', 'valerio olgiati', 'verner', 'wanders',
+  'wegner', 'yibei chen', 'yokoyama taikan', 'luigi colani', 'luciano kruk',
+  'lucie kaas', 'luis laplace', 'luke slater', 'ivaro siza', 'maarten baas',
+  'marc deschamps', 'marcel wanders', 'mario bellini', 'masakazu hayashi',
+  'mathieu lehanneur', 'pierre yovanovitch', 'piet mondrian', 'poul henningsen',
+  'poul kjaerholm', 'ross lovegrove', 'igaard-nielsen', 'jaime hayon',
+  'jean-louis deniot', 'jean-philippe nuel', 'jimin hur', 'jonathan ive',
+  'jony ive', 'joseph achkar', 'justine frischman', 'kaare klint',
+  'kakha kakhadzen', 'katherine gray', 'kazuo shinohara', 'koyama kiyoko',
+  'kristina dam studio', 'kruppa horsk', 'kurutoga', 'lara trump', 'loos',
+  'lissoni', 'helmut lang', 'hella jongerius', 'ikutaro kakehashi',
+  'ignazio gardella', 'ingo maurer', 'frank gehry', 'frank lloyd wright',
+  'floria sigismondi', 'ettore sottsass'
+];
+
+const ADDITIONAL_BRANDS = [
+  // Lighting
+  'nemo lighting', 'tail light', 'stage lighting',
+
+  // Furniture & Design
+  'de sede', 'dedon', 'e15', 'established & sons', 'molteni&c', 'usm haller',
+  'vitra', 'zanotta', 'magis', 'driade', 'secund projects',
+
+  // Automotive
+  'land cruiser', 'mustang', 'roadrunner', 'skyline r33', 'skyline super silhouette',
+
+  // Audio & Music
+  'tape reel', 'reel-to-reel', 'reel-to-reel tape', 'reel-to-reel tape recorder',
+  'telefunken', 'walkman', 'radio', 'receiver', 'music gear', 'mixing console',
+  'modular synthesizer', 'synth', 'synthesiser', 'synthesizer',
+
+  // Electronics
+  'typewriter', 'calculator', 'adding machine', 'timer', 'toggle switch',
+  'lcd display', 'mobile device', 'mobile ui', 'smartwatch',
+
+  // Fashion & Accessories
+  'sneaker', 'sneakers', 'watch', 'watches', 'wristwatch', 'men\'s watch',
+
+  // Toys & Models
+  'tamiya', 'lego', 'model kit',
+
+  // Camera & Photo
+  'contax', 'nikon', 'olympus', 'pentax',
+
+  // Kitchenware
+  'kettal', 'royal botania', 'staub',
+
+  // Stationery & Art Supplies
+  'nine inch nails', 'skrillex',
+
+  // Tech Products
+  'vst', 'server racks', 'o equipment',
+
+  // Misc Brands
+  'muthesius', 'okrm', 'ora ito', 'oury', 'paf', 'testarossa',
+  'vipp', 'venturi', 'verpan', 'vitsoe', 'voga di sopra', 'wellco',
+  'wilde + spieth', 'wittmann', 'wormley'
+];
+
+// Product categories and types
+const PRODUCT_CATEGORIES = {
+  // Architecture/Buildings
+  'architecture': [
+    'monastery', 'museum', 'library', 'office', 'hotel', 'hotel lobby',
+    'restaurant', 'church', 'chapel', 'apartment', 'apartment building',
+    'penthouse', 'loft', 'mansion', 'villa', 'house', 'cabin', 'staircase',
+    'living room', 'bedroom', 'bathroom', 'kitchen', 'home office'
+  ],
+
+  // Automotive parts/features
+  'automotive': [
+    'spoiler', 'rear spoiler', 'hood scoop', 'headlights', 'tail light',
+    'gear shift', 'instrument panel', 'dashboard', 'car interior', 'car body panel',
+    'car wheel', 'rim', 'brake caliper', 'hatchback', 'tractor', 'truck', 'van',
+    'military vehicle', 'tank', 'armored car', 'space ship', 'aircraft', 'drone'
+  ],
+
+  // Graphic Design
+  'graphic': [
+    'book cover', 'book jacket', 'poster', 'leaflet', 'brochure', 'flyer',
+    'business card', 'letterhead', 'vinyl record', 'record sleeve', 'album cover',
+    'magazine cover', 'newspaper', 'packaging', 'label', 'logo', 'icon', 'icons',
+    'iconography', 'typography', 'lettering', 'hand lettering', 'calligraphy',
+    'monogram', 'identity system', 'brand guidelines', 'sketch', 'tags',
+    'print ad', 'print design', 'print', 'editorial', 'editorial portrait',
+    'data visualization', 'infographic', 'flowchart', 'flowcharts', 'diagram'
+  ],
+
+  // Industrial Design Products
+  'industrial': [
+    'typewriter', 'calculator', 'telephone', 'radio', 'clock', 'timer', 'watch',
+    'headphones', 'earbuds', 'speaker', 'loudspeaker', 'amplifier', 'turntable',
+    'cassette player', 'cassette deck', 'cd player', 'sound system', 'hi-fi',
+    'camera', 'lens', 'tripod', 'light fixture', 'lamp', 'flashlight', 'spotlight',
+    'candle', 'lighter', 'ashtray', 'vase', 'bowl', 'plate', 'cup', 'mug',
+    'glass', 'glass bottle', 'bottle', 'can', 'jar', 'container', 'box',
+    'knife', 'fork', 'spoon', 'cutlery', 'utensil', 'kitchen tool', 'gadget',
+    'coffee machine', 'espresso machine', 'kettle', 'toaster', 'blender',
+    'food processor', 'mixer', 'grinder', 'scale', 'measuring cup',
+    'pen', 'pencil', 'marker', 'highlighter', 'eraser', 'ruler', 'compass',
+    'stapler', 'hole punch', 'tape dispenser', 'scissors', 'cutter', 'knife',
+    'screwdriver', 'wrench', 'pliers', 'hammer', 'drill', 'saw', 'tool',
+    'fastener', 'screw', 'bolt', 'nut', 'connector', 'plug', 'socket', 'switch',
+    'toggle switch', 'power switch', 'button', 'knob', 'knobs', 'knurled knob',
+    'handle', 'grip', 'lever', 'hinge', 'latch', 'lock', 'key',
+    'helmet', 'mask', 'goggles', 'glasses', 'eyewear', 'sunglasses',
+    'bag', 'backpack', 'luggage', 'suitcase', 'briefcase', 'wallet', 'purse',
+    'umbrella', 'cane', 'walking stick', 'wheelchair', 'crutch',
+    'toy', 'puzzle', 'game', 'dice', 'cards', 'chess', 'board game',
+    'furniture', 'chair', 'bench', 'stool', 'sofa', 'table', 'desk',
+    'cabinet', 'shelf', 'shelving', 'storage', 'drawer', 'closet', 'wardrobe',
+    'bed', 'mattress', 'pillow', 'blanket', 'rug', 'carpet', 'curtain',
+    'cushion', 'throw', 'textile', 'fabric', 'upholstery'
+  ],
+
+  // Fashion & Apparel
+  'fashion': [
+    't-shirt', 'shirt', 'jacket', 'coat', 'sweater', 'hoodie', 'pants',
+    'jeans', 'shorts', 'skirt', 'dress', 'suit', 'tie', 'scarf', 'hat',
+    'cap', 'beanie', 'gloves', 'belt', 'socks', 'shoes', 'boots', 'sneakers',
+    'sandals', 'slippers', 'heels', 'jewelry', 'necklace', 'bracelet',
+    'ring', 'earrings', 'brooch', 'cufflinks', 'watch band', 'strap'
+  ],
+
+  // Misc products
+  'misc': [
+    'gift set', 'specimen', 'prototype', 'mockup', 'model', 'mock-up',
+    'sample', 'swatch', 'catalog', 'brochure', 'manual', 'guide', 'document',
+    'certificate', 'diploma', 'award', 'trophy', 'medal', 'badge', 'patch',
+    'sticker', 'decal', 'sign', 'banner', 'flag', 'pennant'
+  ]
+};
+
+// Design movements and styles
+const DESIGN_STYLES = {
+  'art deco': ['art deco', 'art nouveau', 'arts and crafts', 'bauhaus'],
+  'modernism': ['modernism', 'modernist', 'modern', 'international style', 'functionalism'],
+  'postmodern': ['postmodern', 'postmodernism', 'memphis', 'memphis group'],
+  'brutalism': ['brutalism', 'brutalist', 'constructivism', 'constructivist'],
+  'minimalism': ['minimalism', 'minimalist', 'minimal', 'reductivism'],
+  'organic': ['organic', 'organic modernism', 'biomimicry', 'biomorphic'],
+  'japanese': ['japanese minimalism', 'wabi-sabi', 'zen'],
+  'scandinavian': ['scandinavian', 'nordic', 'danish modern', 'swedish modern'],
+  'mid-century': ['mid-century', 'mid-century modern', '50s', '60s'],
+  'retro': ['retro', 'vintage', 'nostalgic', 'throwback'],
+  'futurism': ['futurism', 'futuristic', 'sci-fi', 'science fiction', 'cyberpunk'],
+  'industrial': ['industrial', 'industrial chic', 'steampunk'],
+  'pop art': ['pop art', 'pop', 'op art', 'kinetic art'],
+  'punk': ['punk', 'punk rock', 'grunge', 'new wave']
+};
+
+// Origin/nationality styles
+const ORIGIN_STYLES = [
+  'american', 'british', 'italian', 'french', 'german', 'dutch', 'swiss',
+  'scandinavian', 'danish', 'swedish', 'norwegian', 'finnish', 'icelandic',
+  'japanese', 'chinese', 'korean', 'taiwanese', 'indian', 'brazilian',
+  'mexican', 'canadian', 'australian', 'austrian', 'belgian', 'spanish',
+  'portuguese', 'russian', 'polish', 'czech', 'hungarian', 'greek',
+  'turkish', 'israeli', 'south african', 'new zealand', 'irish', 'scottish',
+  'welsh', 'english', 'england', 'french', 'german', 'italian'
+];
+
 // Export to global scope
 window.TaggerDatabases = {
   BRAND_DATABASE,
-  DESIGNER_DATABASE
+  DESIGNER_DATABASE,
+  ADDITIONAL_DESIGNERS,
+  ADDITIONAL_BRANDS,
+  PRODUCT_CATEGORIES,
+  DESIGN_STYLES,
+  ORIGIN_STYLES
 };
 
 })();
