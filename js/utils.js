@@ -77,6 +77,7 @@ const resolveSynonym = (value) => {
 // Smart categorization function for keywords
 const smartCategorize = (kw, contextBrand = null) => {
   const { KNOWN_ARTISTS, KNOWN_ARCHITECTS, DESIGNER_DISCIPLINES, KNOWN_BRANDS, BRAND_CATEGORIES, ERA_PERIODS } = window.TaggerData;
+  const { BRAND_DATABASE, DESIGNER_DATABASE } = window.TaggerDatabases || {};
 
   const value = kw.value;
   const type = kw.type;
@@ -87,12 +88,46 @@ const smartCategorize = (kw, contextBrand = null) => {
     return kw.path;
   }
 
+  // ====================
+  // 1. CHECK COMPREHENSIVE BRAND DATABASE FIRST
+  // ====================
+  if (BRAND_DATABASE) {
+    for (const [category, brands] of Object.entries(BRAND_DATABASE)) {
+      if (brands.includes(valueLower)) {
+        const categoryName = category.charAt(0).toUpperCase() + category.slice(1);
+        console.log(`[SMART-CAT] Brand "${value}" found in database → Brand > ${categoryName}`);
+        return ['Brand', categoryName];
+      }
+    }
+  }
+
+  // ====================
+  // 2. CHECK COMPREHENSIVE DESIGNER DATABASE
+  // ====================
+  if (DESIGNER_DATABASE) {
+    for (const [category, designers] of Object.entries(DESIGNER_DATABASE)) {
+      if (designers.includes(valueLower)) {
+        if (category === 'industrial') {
+          console.log(`[SMART-CAT] Designer "${value}" found in database → Creator > Designer > Industrial`);
+          return ['Creator', 'Designer', 'Industrial'];
+        } else if (category === 'graphic') {
+          console.log(`[SMART-CAT] Designer "${value}" found in database → Creator > Designer > Graphic`);
+          return ['Creator', 'Designer', 'Graphic'];
+        } else if (category === 'architect') {
+          console.log(`[SMART-CAT] Architect "${value}" found in database → Creator > Architect`);
+          return ['Creator', 'Architect'];
+        }
+      }
+    }
+  }
+
+  // ====================
+  // 3. LEGACY CHECKS (for backwards compatibility)
+  // ====================
   // Handle designers - route to Creator > Designer > [discipline]
-  // Check if it's explicitly marked as designer OR is a known artist/designer OR looks like a person name
   if (type === 'designer' || type === 'architect' || type === 'artist' || type === 'photographer' ||
       KNOWN_ARTISTS.some(a => a.toLowerCase() === valueLower) ||
       (looksLikePersonName(value) && !KNOWN_BRANDS.some(b => b.toLowerCase() === valueLower))) {
-    // Handle specific types first
     if (type === 'architect' || KNOWN_ARCHITECTS.some(a => a.toLowerCase() === valueLower)) {
       return ['Creator', 'Architect'];
     }
@@ -102,13 +137,11 @@ const smartCategorize = (kw, contextBrand = null) => {
     if (type === 'artist') {
       return ['Creator', 'Artist'];
     }
-    // Check designer discipline from known list
     for (const [discipline, designers] of Object.entries(DESIGNER_DISCIPLINES)) {
       if (designers.some(d => d.toLowerCase() === valueLower)) {
         return ['Creator', 'Designer', discipline];
       }
     }
-    // Default to Industrial for unknown designers (most common in design archives)
     return ['Creator', 'Designer', 'Industrial'];
   }
 
@@ -118,7 +151,7 @@ const smartCategorize = (kw, contextBrand = null) => {
     if (category) {
       return ['Brand', category];
     }
-    return ['Brand'];
+    return ['Brand', 'Misc'];
   }
 
   // Handle models/products - route to Product > [category based on brand]

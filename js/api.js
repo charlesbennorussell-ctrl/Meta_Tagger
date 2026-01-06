@@ -268,9 +268,10 @@ TAXONOMY STRUCTURE (use exact paths):
    - Brand > Electronics (Apple, Samsung, Google, Microsoft, HP, Dell, Asus)
    - Brand > Camera (Canon, Nikon, Leica, Hasselblad, Fujifilm, Pentax, Olympus)
    - Brand > Automotive (BMW, Mercedes-Benz, Porsche, Tesla, Ferrari, Audi, Volvo)
-   - Brand > Furniture (Herman Miller, Knoll, Vitra, Fritz Hansen, HAY, Cassina, B&B Italia)
+   - Brand > Furniture (Herman Miller, Knoll, Vitra, Fritz Hansen, HAY, Cassina, B&B Italia, Kartell)
+   - Brand > Lighting (Artemide, Flos, Louis Poulsen, Foscarini, Fontana Arte, Gubi, Marset, Vibia)
    - Brand > Fashion (Gucci, Louis Vuitton, Chanel, Nike, Adidas, Prada, Hermès)
-   - Brand > Appliances (Braun, Dyson, Smeg, Balmuda, Miele, KitchenAid, Electrolux)
+   - Brand > Appliances (Braun, Dyson, Smeg, Balmuda, Miele, KitchenAid, Electrolux, Alessi, Bodum)
    - Brand > Watch (Rolex, Omega, Patek Philippe, Grand Seiko, TAG Heuer, Breitling)
    - Brand > Stationery (Moleskine, Leuchtturm1917, Rhodia, Midori, Muji)
    - Brand > Tools (DeWalt, Makita, Milwaukee, Bosch, Stanley, Craftsman)
@@ -318,21 +319,38 @@ Keywords to categorize: ${keywords.join(', ')}
 
 Return JSON array: [{"keyword": "original keyword", "path": ["Category", "Subcategory", "Sub-subcategory"], "type": "designer|architect|artist|photographer|brand|model|category|style|material|color|era"}]
 
-CRITICAL BRAND DETECTION RULES:
-1. Use web search to verify EVERY unknown term
-2. If it's a COMPANY/CORPORATION → Brand category with appropriate subcategory (Audio, Electronics, Furniture, etc.)
-3. If it's a PERSON (First Last name) → Creator category with appropriate role (Designer, Architect, Artist, Photographer)
-4. Brand subcategories based on what they make:
-   - Makes speakers/headphones/audio → Brand > Audio
-   - Makes computers/phones/electronics → Brand > Electronics
-   - Makes chairs/tables/furniture → Brand > Furniture
-   - Makes pens/notebooks/office supplies → Brand > Stationery
-   - Makes power tools/hand tools → Brand > Tools
-   - Makes clothing/shoes → Brand > Fashion
-   - Makes watches/timepieces → Brand > Watch
-   - Makes appliances/household goods → Brand > Appliances
-5. If unsure about brand category, use just ["Brand"] as the path
-6. Include discipline for creators: Industrial, Graphic, Fashion, Interior
+MANDATORY WEB SEARCH REQUIREMENT:
+⚠️ YOU MUST USE WEB SEARCH FOR EVERY BRAND/COMPANY YOU DON'T IMMEDIATELY RECOGNIZE
+⚠️ DO NOT leave brands at just ["Brand"] - ALWAYS search to find what they make
+
+CRITICAL BRAND CATEGORIZATION RULES:
+1. SEARCH FIRST: For ANY company/brand name, use Google Search to find what products they make
+2. After searching, assign the specific subcategory based on their primary products:
+   - Lighting manufacturers (lamps, fixtures) → Brand > Lighting
+   - Furniture makers (chairs, tables, shelving) → Brand > Furniture
+   - Audio equipment (speakers, headphones, amplifiers) → Brand > Audio
+   - Kitchen/home appliances (coffee makers, cookware) → Brand > Appliances
+   - Consumer electronics (phones, computers, cameras) → Brand > Electronics
+   - Fashion/apparel (clothing, shoes, accessories) → Brand > Fashion
+   - Watches/timepieces → Brand > Watch
+   - Stationery (pens, notebooks, office supplies) → Brand > Stationery
+   - Tools (power tools, hand tools) → Brand > Tools
+   - Automotive (cars, motorcycles) → Brand > Automotive
+
+3. EXAMPLES OF PROPER CATEGORIZATION (search to verify):
+   - "Artemide" → Google reveals Italian lighting company → ["Brand", "Lighting"]
+   - "Kartell" → Google reveals Italian furniture company → ["Brand", "Furniture"]
+   - "B&O" or "Bang & Olufsen" → Google reveals Danish audio company → ["Brand", "Audio"]
+   - "Alessi" → Google reveals Italian kitchenware/design company → ["Brand", "Appliances"]
+   - "Flos" → Google reveals Italian lighting company → ["Brand", "Lighting"]
+   - "Bodum" → Google reveals Swiss kitchenware company → ["Brand", "Appliances"]
+   - "Contax" → Google reveals camera brand → ["Brand", "Camera"]
+
+4. Person names (First Last format) go to Creator, NOT Brand:
+   - "Dieter Rams" → ["Creator", "Designer", "Industrial"]
+   - "Achille Castiglioni" → ["Creator", "Designer", "Industrial"]
+
+5. ONLY use ["Brand", "Misc"] if you absolutely cannot determine the category after searching
 
 Only return the JSON array.` }] }],
         generationConfig: { temperature: 0.1, maxOutputTokens: 2048 },
@@ -341,8 +359,17 @@ Only return the JSON array.` }] }],
     });
     if (!response.ok) return [];
     const text = (await response.json()).candidates?.[0]?.content?.parts?.[0]?.text || '';
+    console.log('[CATEGORIZE] Raw response:', text);
     const match = text.match(/\[[\s\S]*\]/);
-    return match ? JSON.parse(match[0]) : [];
+    if (!match) return [];
+
+    // Clean up the JSON string before parsing
+    let jsonStr = match[0];
+    // Remove any trailing commas before closing brackets
+    jsonStr = jsonStr.replace(/,(\s*[}\]])/g, '$1');
+
+    console.log('[CATEGORIZE] Cleaned JSON:', jsonStr);
+    return JSON.parse(jsonStr);
   } catch (e) {
     console.error('[CATEGORIZE] Error:', e);
     return [];
@@ -1065,22 +1092,57 @@ const rebuildTaxonomy = async (apiKey, taxonomy, onProgress = null) => {
 
   console.log(`[REBUILD] Found ${allKeywords.length} keywords (${uniqueKeywords.length} unique)`);
 
-  // Step 2: Categorize ALL keywords with AI in batches
-  if (onProgress) onProgress({ phase: 'categorize', message: `Categorizing ${uniqueKeywords.length} keywords with AI...`, current: 0, total: uniqueKeywords.length });
+  // Step 1.5: Pre-categorize known keywords with pattern-based intelligence (NEW)
+  // This runs BEFORE AI and handles 90%+ of keywords automatically
+  if (onProgress) onProgress({ phase: 'pre-categorize', message: 'Pre-categorizing known keywords...', current: 0, total: uniqueKeywords.length });
+
+  const preCategorized = [];
+  const unknownKeywords = [];
+
+  uniqueKeywords.forEach(kw => {
+    const value = kw.value;
+    const valueLower = value.toLowerCase();
+    let path = null;
+
+    // Import comprehensive categorization database from utils
+    const { smartCategorize } = window.TaggerUtils;
+
+    // Try smart categorization first
+    const smartPath = smartCategorize({ value, type: 'keyword' });
+    if (smartPath && smartPath.length > 1 && smartPath[0] !== 'Custom') {
+      path = smartPath;
+      console.log(`[PRE-CAT] "${value}" → ${path.join(' > ')}`);
+      preCategorized.push({
+        value: kw.value,
+        oldPath: kw.oldPath,
+        newPath: path,
+        type: 'pre-categorized'
+      });
+      return;
+    }
+
+    // If smart categorization didn't work, this is unknown - send to AI
+    unknownKeywords.push(kw);
+  });
+
+  console.log(`[PRE-CAT] Pre-categorized ${preCategorized.length} keywords, ${unknownKeywords.length} remain for AI`);
+
+  // Step 2: Categorize UNKNOWN keywords with AI in batches
+  if (onProgress) onProgress({ phase: 'categorize', message: `Categorizing ${unknownKeywords.length} unknown keywords with AI...`, current: 0, total: unknownKeywords.length });
 
   const batchSize = 20;
   const categorized = [];
   const errors = [];
 
-  for (let i = 0; i < uniqueKeywords.length; i += batchSize) {
-    const batch = uniqueKeywords.slice(i, i + batchSize);
+  for (let i = 0; i < unknownKeywords.length; i += batchSize) {
+    const batch = unknownKeywords.slice(i, i + batchSize);
     const keywords = batch.map(k => k.value);
 
     if (onProgress) onProgress({
       phase: 'categorize',
-      message: `Categorizing keywords ${i + 1}-${Math.min(i + batchSize, uniqueKeywords.length)} of ${uniqueKeywords.length}...`,
+      message: `Categorizing keywords ${i + 1}-${Math.min(i + batchSize, unknownKeywords.length)} of ${unknownKeywords.length}...`,
       current: i,
-      total: uniqueKeywords.length
+      total: unknownKeywords.length
     });
 
     try {
@@ -1090,24 +1152,30 @@ const rebuildTaxonomy = async (apiKey, taxonomy, onProgress = null) => {
         results.forEach(r => {
           const original = batch.find(b => b.value.toLowerCase() === r.keyword.toLowerCase());
           if (original) {
+            // Ensure path has at least 2 levels (Category > Subcategory)
+            let path = r.path && r.path.length > 0 ? r.path : ['Misc', 'Misc'];
+            if (path.length === 1) {
+              // If only one level, add "Misc" as subcategory
+              path = [path[0], 'Misc'];
+            }
             categorized.push({
               value: original.value,
               oldPath: original.oldPath,
-              newPath: r.path && r.path.length > 0 ? r.path : ['Misc'],
+              newPath: path,
               type: r.type
             });
           }
         });
       }
 
-      // For any keywords not categorized, route to Misc
+      // For any keywords not categorized, route to Misc > Misc
       batch.forEach(kw => {
         if (!categorized.some(c => c.value.toLowerCase() === kw.value.toLowerCase())) {
-          console.log(`[REBUILD] Routing uncategorized keyword "${kw.value}" to Misc`);
+          console.log(`[REBUILD] Routing uncategorized keyword "${kw.value}" to Misc > Misc`);
           categorized.push({
             value: kw.value,
             oldPath: kw.oldPath,
-            newPath: ['Misc'],
+            newPath: ['Misc', 'Misc'],
             type: 'unknown'
           });
         }
@@ -1116,12 +1184,12 @@ const rebuildTaxonomy = async (apiKey, taxonomy, onProgress = null) => {
     } catch (e) {
       console.error(`[REBUILD] Error categorizing batch ${i / batchSize + 1}:`, e);
       errors.push(`Batch ${i / batchSize + 1}: ${e.message}`);
-      // Route failed batch to Misc
+      // Route failed batch to Misc > Misc
       batch.forEach(kw => {
         categorized.push({
           value: kw.value,
           oldPath: kw.oldPath,
-          newPath: ['Misc'],
+          newPath: ['Misc', 'Misc'],
           type: 'error'
         });
       });
@@ -1133,13 +1201,281 @@ const rebuildTaxonomy = async (apiKey, taxonomy, onProgress = null) => {
     }
   }
 
+  // Step 2.5: Merge pre-categorized with AI-categorized keywords
+  const allCategorized = [...preCategorized, ...categorized];
+  console.log(`[REBUILD] Total categorized: ${allCategorized.length} (${preCategorized.length} pre-cat + ${categorized.length} AI)`);
+
+  // Step 2.6: Post-process and validate categorizations with pattern-based intelligence
+  if (onProgress) onProgress({ phase: 'validate', message: 'Validating and improving categorizations...' });
+
+  const improvedCategorized = allCategorized.map(kw => {
+    const value = kw.value;
+    const valueLower = value.toLowerCase();
+    const path = kw.newPath;
+
+    // ==============================================================
+    // SECTION 1: Fix miscategorized keywords in wrong top-level categories
+    // ==============================================================
+
+    // Fix generic "Misc > Misc" and other obvious miscategorizations
+    if ((path[0] === 'Misc' && path[1] === 'Misc') || path[0] === 'Other categories') {
+
+      // DESIGNERS - Famous names that should be under Creator
+      const famousDesigners = [
+        'dieter rams', 'philippe starck', 'gio ponti', 'ettore sottsass', 'achille castiglioni',
+        'verner panton', 'arne jacobsen', 'finn juhl', 'hans wegner', 'hans j. wegner',
+        'eero saarinen', 'charles eames', 'ray eames', 'george nelson', 'isamu noguchi',
+        'patricia urquiola', 'konstantin grcic', 'jasper morrison', 'naoto fukasawa',
+        'marc newson', 'ross lovegrove', 'karim rashid', 'tom dixon', 'michael young',
+        'enzo mari', 'joe colombo', 'gaetano pesce', 'giorgetto giugiaro', 'marcello gandini',
+        'giugiaro', 'nendo', 'nanna ditzel', 'paul rand', 'saul bass', 'massimo vignelli',
+        'paula scher', 'milton glaser', 'stefan sagmeister', 'michael bierut', 'pentagram',
+        'india mahdavi', 'ilse crawford', 'jacques grange', 'peter marino', 'kelly wearstler',
+        'andree putman', 'andré putman', 'joseph dirand', 'vincent van duysen', 'axel vervoordt',
+        'paola navone', 'paola lenti', 'patricia urquiola', 'piero lissoni', 'antonio citterio',
+        'gilles vidal', 'ole wanscher', 'osvaldo borsani', 'isabelle stanislas',
+        'noe duchaufour-lawrance', 'patrick jouin', 'pawel karwowski', 'bruno moinard',
+        'chahan minassian', 'charles zana', 'christian liaigre', 'cini boeri', 'david collins',
+        'david möllerstedt', 'denis montel', 'edward barber', 'elliott barnes', 'faye toogood',
+        'franco albini', 'françois champsaur', 'humbert & poyet', 'hoffmann', 'josef hoffmann',
+        'florian schneider', 'benno russell', 'grete jalk', 'giovannoni', 'newson'
+      ];
+
+      if (famousDesigners.includes(valueLower)) {
+        console.log(`[VALIDATE] Famous designer "${value}" → Creator > Designer > Industrial`);
+        return { ...kw, newPath: ['Creator', 'Designer', 'Industrial'] };
+      }
+
+      // BRANDS - Lighting
+      if (['osram', 'oluce', 'philips', 'ojas'].includes(valueLower)) {
+        console.log(`[VALIDATE] Lighting brand "${value}" → Brand > Lighting`);
+        return { ...kw, newPath: ['Brand', 'Lighting'] };
+      }
+
+      // BRANDS - Camera/Photo
+      if (['phase one', 'hasselblad', 'leica', 'zeiss', 'olympus', 'pentax'].includes(valueLower)) {
+        console.log(`[VALIDATE] Camera brand "${value}" → Brand > Camera`);
+        return { ...kw, newPath: ['Brand', 'Camera'] };
+      }
+
+      // BRANDS - Stationery
+      if (['pilot', 'pentel', 'uni', 'stabilo', 'staedtler', 'faber-castell', 'panton', 'pantel'].includes(valueLower)) {
+        console.log(`[VALIDATE] Stationery brand "${value}" → Brand > Stationery`);
+        return { ...kw, newPath: ['Brand', 'Stationery'] };
+      }
+
+      // BRANDS - Furniture (additional)
+      if (['eames', 'bravo', 'elastica', '&tradition', 'andtradition', 'nendo'].includes(valueLower) ||
+          valueLower.startsWith('furniture ')) {
+        console.log(`[VALIDATE] Furniture brand/category "${value}" → Brand > Furniture`);
+        return { ...kw, newPath: ['Brand', 'Furniture'] };
+      }
+
+      // MATERIALS - Obvious material keywords
+      const materials = {
+        'Metal': ['aluminum', 'aluminium', 'brass', 'copper', 'steel', 'bronze', 'iron', 'titanium', 'chrome', 'metal aluminum'],
+        'Synthetic': ['acrylic', 'plastic', 'nylon', 'carbon fiber', 'fiberglass', 'composite', 'composite material', 'petroleum', 'resin', 'silicone'],
+        'Natural': ['leather', 'natural leather', 'wood', 'cotton', 'linen', 'wool', 'bamboo', 'cork'],
+        'Mineral': ['glass', 'ceramic', 'concrete', 'marble', 'granite', 'porcelain']
+      };
+
+      for (const [matType, mats] of Object.entries(materials)) {
+        if (mats.includes(valueLower)) {
+          console.log(`[VALIDATE] Material "${value}" → Material > ${matType}`);
+          return { ...kw, newPath: ['Material', matType] };
+        }
+      }
+
+      // ART STYLES - Should go to Art category
+      const artStyles = {
+        'Painting': ['painting', 'painting abstract', 'abstract painting'],
+        'Sculpture': ['sculpture', 'installation', 'installation art'],
+        'Digital Art': ['generative art', 'digital art', 'digital painting', 'gif art', 'digital art comics'],
+        'Misc': ['conceptual art', 'light art', 'line art', 'op art', 'mixed media', 'abstract']
+      };
+
+      for (const [subcat, styles] of Object.entries(artStyles)) {
+        if (styles.includes(valueLower)) {
+          console.log(`[VALIDATE] Art style "${value}" → Art > ${subcat}`);
+          return { ...kw, newPath: ['Art', subcat] };
+        }
+      }
+
+      // GRAPHIC DESIGN categories
+      if (['identity', 'identity brand identity', 'packaging', 'packaging album'].includes(valueLower)) {
+        console.log(`[VALIDATE] Graphic design category "${value}" → Graphic Design > Identity`);
+        return { ...kw, newPath: ['Graphic Design', 'Identity'] };
+      }
+
+      // ARCHITECTURE categories
+      if (['commercial architecture', 'institutional hospital', 'landscape'].includes(valueLower)) {
+        console.log(`[VALIDATE] Architecture category "${value}" → Architecture > Commercial`);
+        return { ...kw, newPath: ['Architecture', 'Commercial'] };
+      }
+
+      // AUTOMOTIVE - Car model numbers and names
+      if (/^(911|964|993|996|997|991|992|gt[0-9]|gtr?[0-9]|[0-9]{3,4}[a-z]{0,3})$/i.test(valueLower) ||
+          /^[0-9]\.[0-9]\s*gti$/i.test(valueLower) ||
+          ['abarth 205a berlinetta', 'berlinetta', 'military vehicle', 'mk3', 'n bx'].includes(valueLower)) {
+        console.log(`[VALIDATE] Car model "${value}" → Product > Automotive`);
+        return { ...kw, newPath: ['Product', 'Automotive'] };
+      }
+
+      // GENERIC CATEGORY KEYWORDS - Should not be keywords at all, but if present...
+      if (['art', 'architect', 'brand', 'product', 'category', 'automotive automotive'].includes(valueLower)) {
+        console.log(`[VALIDATE] Generic category keyword "${value}" → Misc > Misc (needs manual cleanup)`);
+        return { ...kw, newPath: ['Misc', 'Misc'] };
+      }
+
+      // INDUSTRIAL DESIGN subcategories
+      if (['3d', '400r', 'scientific equipment', 'scientific instrument', 'medical', 'highlighter', 'pen and ink', 'pencil'].includes(valueLower)) {
+        console.log(`[VALIDATE] Industrial design keyword "${value}" → Industrial Design > Tools`);
+        return { ...kw, newPath: ['Industrial Design', 'Tools'] };
+      }
+
+      // EVENTS/MUSIC - These shouldn't really be design keywords, but categorize them
+      if (['concert', 'laser show', 'food'].includes(valueLower)) {
+        console.log(`[VALIDATE] Event/misc keyword "${value}" → Misc > Misc`);
+        return { ...kw, newPath: ['Misc', 'Misc'] };
+      }
+
+      // PERSON NAMES (musicians, politicians - not designers)
+      if (['bob marley', 'carlos santana', 'mao zedong', 'alberto morillas', 'catherine grey', 'lara trump', 'christian'].includes(valueLower)) {
+        console.log(`[VALIDATE] Non-designer person "${value}" → Misc > Misc (not design-related)`);
+        return { ...kw, newPath: ['Misc', 'Misc'] };
+      }
+
+      // SCHOOLS/INSTITUTIONS
+      if (['ecal', 'idea to develop', 'practice idea', 'portfolio', 'diagramming software'].includes(valueLower)) {
+        console.log(`[VALIDATE] School/meta keyword "${value}" → Misc > Misc`);
+        return { ...kw, newPath: ['Misc', 'Misc'] };
+      }
+
+      // RANDOM OBJECTS (not design-related)
+      if (['ashtray', 'blood bag', 'bottle', 'can', 'cross', 'gaku', 'kabbalah', 'particle accelerator', 'rendering idea', 'prototype'].includes(valueLower)) {
+        console.log(`[VALIDATE] Random object "${value}" → Misc > Misc`);
+        return { ...kw, newPath: ['Misc', 'Misc'] };
+      }
+    }
+
+    // ==============================================================
+    // SECTION 2: Fix poorly categorized brands (original logic)
+    // ==============================================================
+
+    // If it's under Brand but has no subcategory (just ["Brand", "Misc"]), try to auto-categorize
+    if (path[0] === 'Brand' && (path.length === 1 || path[1] === 'Misc')) {
+      console.log(`[VALIDATE] Brand "${value}" lacks specific category, attempting pattern detection...`);
+
+      // Pattern-based brand category detection
+      // Lighting brands - common suffixes and known patterns
+      if (/\b(light|licht|lamp|lumière|lux|illumin)/i.test(valueLower) ||
+          ['artemide', 'flos', 'louis poulsen', 'foscarini', 'fontana arte', 'gubi', 'marset', 'vibia',
+           'oluce', 'luceplan', 'nemo', 'astep', 'santa & cole', 'dcw éditions', 'marset', 'northern',
+           'hay', 'menu', 'muuto', 'tradition', 'wastberg'].includes(valueLower)) {
+        console.log(`[VALIDATE] → Brand > Lighting`);
+        return { ...kw, newPath: ['Brand', 'Lighting'] };
+      }
+
+      // Furniture brands
+      if (['kartell', 'cassina', 'b&b italia', 'vitra', 'herman miller', 'knoll', 'fritz hansen',
+           'hay', 'muuto', 'artek', 'thonet', 'poltrona frau', 'zanotta', 'moroso', 'cappellini',
+           'minotti', 'flexform', 'molteni', 'driade', 'magis', 'alias', 'emeco', 'carl hansen',
+           'fredericia', 'gubi', 'menu', 'tradition', 'andtradition', 'normann copenhagen'].includes(valueLower)) {
+        console.log(`[VALIDATE] → Brand > Furniture`);
+        return { ...kw, newPath: ['Brand', 'Furniture'] };
+      }
+
+      // Audio brands
+      if (['bang & olufsen', 'b&o', 'bose', 'sennheiser', 'sony', 'kef', 'sonos', 'jbl',
+           'harman kardon', 'bowers & wilkins', 'b&w', 'klipsch', 'focal', 'denon', 'marantz',
+           'yamaha', 'pioneer', 'onkyo', 'audio-technica', 'shure', 'akg', 'beyerdynamic',
+           'grado', 'audeze', 'hifiman', 'focal'].includes(valueLower)) {
+        console.log(`[VALIDATE] → Brand > Audio`);
+        return { ...kw, newPath: ['Brand', 'Audio'] };
+      }
+
+      // Kitchen/Appliance brands
+      if (['alessi', 'bodum', 'braun', 'smeg', 'balmuda', 'miele', 'kitchenaid', 'electrolux',
+           'dyson', 'de\'longhi', 'delonghi', 'breville', 'cuisinart', 'vitamix', 'chemex',
+           'hario', 'fellow', 'staub', 'le creuset', 'wmf', 'fissler', 'zwilling'].includes(valueLower)) {
+        console.log(`[VALIDATE] → Brand > Appliances`);
+        return { ...kw, newPath: ['Brand', 'Appliances'] };
+      }
+
+      // Camera brands
+      if (['canon', 'nikon', 'leica', 'hasselblad', 'fujifilm', 'pentax', 'olympus', 'panasonic',
+           'ricoh', 'mamiya', 'phase one', 'contax', 'rollei', 'zeiss', 'voigtlander'].includes(valueLower)) {
+        console.log(`[VALIDATE] → Brand > Camera`);
+        return { ...kw, newPath: ['Brand', 'Camera'] };
+      }
+
+      // Watch brands
+      if (['rolex', 'omega', 'patek philippe', 'grand seiko', 'seiko', 'tag heuer', 'breitling',
+           'iwc', 'jaeger-lecoultre', 'audemars piguet', 'vacheron constantin', 'cartier',
+           'longines', 'tudor', 'oris', 'citizen', 'casio', 'timex', 'swatch', 'hamilton'].includes(valueLower)) {
+        console.log(`[VALIDATE] → Brand > Watch`);
+        return { ...kw, newPath: ['Brand', 'Watch'] };
+      }
+
+      // Automotive brands
+      if (['bmw', 'mercedes', 'mercedes-benz', 'porsche', 'tesla', 'ferrari', 'audi', 'volvo',
+           'toyota', 'honda', 'mazda', 'nissan', 'ford', 'chevrolet', 'volkswagen', 'vw',
+           'lamborghini', 'maserati', 'alfa romeo', 'jaguar', 'land rover', 'bentley',
+           'rolls-royce', 'aston martin', 'mclaren', 'bugatti', 'koenigsegg', 'pagani'].includes(valueLower)) {
+        console.log(`[VALIDATE] → Brand > Automotive`);
+        return { ...kw, newPath: ['Brand', 'Automotive'] };
+      }
+
+      // Electronics brands
+      if (['apple', 'samsung', 'google', 'microsoft', 'hp', 'dell', 'asus', 'lenovo', 'acer',
+           'lg', 'philips', 'panasonic', 'toshiba', 'sharp', 'hitachi', 'xiaomi', 'huawei',
+           'oneplus', 'nokia', 'motorola', 'htc'].includes(valueLower)) {
+        console.log(`[VALIDATE] → Brand > Electronics`);
+        return { ...kw, newPath: ['Brand', 'Electronics'] };
+      }
+
+      // Fashion brands
+      if (['gucci', 'louis vuitton', 'chanel', 'nike', 'adidas', 'prada', 'hermès', 'hermes',
+           'dior', 'versace', 'armani', 'burberry', 'fendi', 'givenchy', 'balenciaga',
+           'saint laurent', 'ysl', 'valentino', 'bottega veneta', 'loewe', 'celine',
+           'off-white', 'supreme', 'stone island', 'comme des garçons', 'yohji yamamoto',
+           'issey miyake', 'rick owens', 'acne studios', 'maison margiela'].includes(valueLower)) {
+        console.log(`[VALIDATE] → Brand > Fashion`);
+        return { ...kw, newPath: ['Brand', 'Fashion'] };
+      }
+
+      // Stationery brands
+      if (['moleskine', 'leuchtturm1917', 'rhodia', 'midori', 'muji', 'traveler\'s company',
+           'hobonichi', 'clairefontaine', 'maruman', 'kokuyo', 'pilot', 'pentel', 'uni',
+           'sailor', 'platinum', 'lamy', 'montblanc', 'parker', 'waterman', 'sheaffer',
+           'cross', 'kaweco', 'faber-castell', 'staedtler', 'tombow'].includes(valueLower)) {
+        console.log(`[VALIDATE] → Brand > Stationery`);
+        return { ...kw, newPath: ['Brand', 'Stationery'] };
+      }
+
+      // Tools brands
+      if (['dewalt', 'makita', 'milwaukee', 'bosch', 'stanley', 'craftsman', 'black+decker',
+           'ryobi', 'festool', 'hilti', 'metabo', 'ridgid', 'porter-cable', 'kobalt',
+           'irwin', 'klein tools', 'snap-on', 'channellock', 'knipex', 'wiha'].includes(valueLower)) {
+        console.log(`[VALIDATE] → Brand > Tools`);
+        return { ...kw, newPath: ['Brand', 'Tools'] };
+      }
+
+      // If still uncategorized, leave at Brand > Misc for manual review
+      console.log(`[VALIDATE] → Keeping at Brand > Misc (unknown brand type)`);
+      return { ...kw, newPath: ['Brand', 'Misc'] };
+    }
+
+    return kw;
+  });
+
   // Step 3: Build new taxonomy from categorized keywords
   if (onProgress) onProgress({ phase: 'build', message: 'Building new taxonomy...' });
 
   const newTaxonomy = {};
   const changes = [];
 
-  categorized.forEach(kw => {
+  improvedCategorized.forEach(kw => {
     const path = kw.newPath;
     let current = newTaxonomy;
 
