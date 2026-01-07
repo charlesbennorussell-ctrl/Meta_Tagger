@@ -3156,7 +3156,20 @@
                                     }
                                   }
                                 }
+
                                 if (files.length > 0) {
+                                  // Load memory from the browsed folder BEFORE processing files
+                                  const folderMemory = await loadMemory(dirHandle);
+                                  if (folderMemory && Object.keys(folderMemory).length > 0) {
+                                    console.log('[BROWSE FOLDER] Loaded memory from folder:', Object.keys(folderMemory).length, 'items');
+                                    // Update the ref immediately so processFiles sees it
+                                    const mergedMemory = { ...memoryRef.current, ...folderMemory };
+                                    memoryRef.current = mergedMemory;
+                                    setMemory(mergedMemory);
+                                  } else {
+                                    console.log('[BROWSE FOLDER] No memory found in folder');
+                                  }
+
                                   processFilesRef.current?.(files);
                                 } else {
                                   console.log('[BROWSE FOLDER] No images found in selected folder');
