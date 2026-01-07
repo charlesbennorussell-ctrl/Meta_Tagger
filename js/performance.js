@@ -565,6 +565,70 @@ const saveOutputDirectory = async (directoryHandle) => {
   }
 };
 
+// Save browse directory handle to IndexedDB
+const saveBrowseDirectory = async (directoryHandle) => {
+  try {
+    const db = await initDB();
+    const tx = db.transaction(STORE_SETTINGS, 'readwrite');
+    const store = tx.objectStore(STORE_SETTINGS);
+
+    await store.put({
+      key: 'browse_directory',
+      handle: directoryHandle,
+      name: directoryHandle.name,
+      timestamp: Date.now()
+    });
+
+    await tx.complete;
+    console.log('[SETTINGS] Saved browse directory:', directoryHandle.name);
+    return true;
+  } catch (e) {
+    console.error('[SETTINGS] Failed to save browse directory:', e);
+    return false;
+  }
+};
+
+// Load browse directory handle from IndexedDB with permission verification
+const loadBrowseDirectory = async () => {
+  try {
+    const db = await initDB();
+    const tx = db.transaction(STORE_SETTINGS, 'readonly');
+    const store = tx.objectStore(STORE_SETTINGS);
+
+    const result = await new Promise((resolve, reject) => {
+      const request = store.get('browse_directory');
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+
+    if (!result || !result.handle) {
+      console.log('[SETTINGS] No saved browse directory');
+      return null;
+    }
+
+    // Verify we still have permission to access the directory
+    const permission = await result.handle.queryPermission({ mode: 'read' });
+
+    if (permission === 'granted') {
+      console.log('[SETTINGS] Restored browse directory:', result.name);
+      return result.handle;
+    } else {
+      // Try to request permission
+      const requestedPermission = await result.handle.requestPermission({ mode: 'read' });
+      if (requestedPermission === 'granted') {
+        console.log('[SETTINGS] Re-granted permission for browse directory:', result.name);
+        return result.handle;
+      } else {
+        console.log('[SETTINGS] Permission denied for saved browse directory, user must re-select');
+        return null;
+      }
+    }
+  } catch (e) {
+    console.warn('[SETTINGS] Could not load browse directory:', e);
+    return null;
+  }
+};
+
 // Load directory handle from IndexedDB with permission verification
 const loadOutputDirectory = async () => {
   try {
@@ -627,7 +691,9 @@ window.TaggerPerformance = {
   throttle,
   getMemoryUsage,
   saveOutputDirectory,
-  loadOutputDirectory
+  loadOutputDirectory,
+  saveBrowseDirectory,
+  loadBrowseDirectory
 };
 
 // Initialize DB on load

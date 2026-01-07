@@ -31,7 +31,8 @@
       "Bash(start \"\" \"C:\\Users\\benno\\.claude-worktrees\\Meta_Tagger\\nervous-diffie\\index.html\")",
       "Bash(start \"\" \"C:\\Users\\benno\\.claude-worktrees\\Meta_Tagger\\competent-dhawan\\index.html\")",
       "Bash(start \"\" \"C:\\Users\\benno\\.claude-worktrees\\Meta_Tagger\\cool-shtern\\index.html\")",
-      "Bash(powershell -Command \"(Get-Content ''C:\\Users\\benno\\.claude-worktrees\\Meta_Tagger\\cool-shtern\\js\\utils.js'').Length\")"
+      "Bash(powershell -Command \"(Get-Content ''C:\\Users\\benno\\.claude-worktrees\\Meta_Tagger\\cool-shtern\\js\\utils.js'').Length\")",
+      "Bash(start \"\" \"C:\\\\Users\\\\benno\\\\.claude-worktrees\\\\Meta_Tagger\\\\condescending-ride\\\\index.html\")"
     ]
   }
 }
