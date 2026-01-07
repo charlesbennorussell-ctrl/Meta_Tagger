@@ -650,12 +650,12 @@
               // Check if multi-select is active
               if (currentSelectedIds.length > 1) {
                 console.log('[KEYBOARD] Enter pressed - saving', currentSelectedIds.length, 'selected images');
-                // Save all selected images with the CURRENT keywords from the primary selection (skip sync to avoid cascade)
+                // Save all selected images with the CURRENT keywords from the primary selection
                 const selectedImages = queueRef.current.filter(q => currentSelectedIds.includes(q.id));
                 for (const selectedImg of selectedImages) {
                   // Apply current keywords to ALL selected images
                   console.log('[KEYBOARD] Saving:', selectedImg.name, 'with', kws.length, 'keywords');
-                  await saveImageRef.current(selectedImg, kws, designerRef.current, true); // skipSync=true
+                  await saveImageRef.current(selectedImg, kws, designerRef.current);
                 }
 
                 // Clear multi-select and advance to next
@@ -725,14 +725,17 @@
       }, [geminiKey, visionKey, useVision, autoDownloadLarger, saveMode, thumbSize, debugUseVisionLabels, debugUseVisionLogos, debugUseGeminiAnalysis, debugUseGeminiCategorize, debugUseDesignerLookup]);
 
       // Auto-save memory to folder or IndexedDB (debounced to avoid excessive writes)
+      // Only save to folder when continuous save is enabled
       useEffect(() => {
         const timeoutId = setTimeout(() => {
           if (Object.keys(memory).length > 0) {
-            saveMemory(memory, outputDir).catch(e => console.error('[MEMORY] Save failed:', e));
+            // Only save to folder if continuous save is enabled, otherwise just save to IndexedDB
+            const targetDir = continuousSaveEnabled ? outputDir : null;
+            saveMemory(memory, targetDir).catch(e => console.error('[MEMORY] Save failed:', e));
           }
         }, 1000); // Debounce 1 second
         return () => clearTimeout(timeoutId);
-      }, [memory, outputDir]);
+      }, [memory, outputDir, continuousSaveEnabled]);
       useEffect(() => { localStorage.setItem(TAXONOMY_KEY, JSON.stringify(taxonomy)); }, [taxonomy]);
       useEffect(() => { localStorage.setItem('grid_width', gridWidth.toString()); }, [gridWidth]);
 
@@ -1332,89 +1335,82 @@
           return;
         }
 
-        // Require output directory to be set for batch operations
-        if (!outputDir && skipSync) {
-          console.error('[SAVE] ❌ Cannot batch save without output directory set. Please select an output folder in settings.');
-          console.error('[SAVE] Image:', img.name, 'Keywords:', kws.length, 'outputDir:', !!outputDir, 'skipSync:', skipSync);
-          return;
+        // Only save files to disk if continuous save is enabled
+        if (continuousSaveEnabled && outputDir) {
+          console.log('[SAVE] ✅ Saving to disk:', img.name, 'with', kws.length, 'keywords');
+          try {
+            let blob, filename = img.name;
+            const creator = des?.designer || null;
+            const isRaw = isRawFormat(img.name);
+            const canEmbed = supportsEmbedding(img.file);
+
+            if (saveMode === 'embed' && img.file.type.includes('jpeg')) {
+              blob = await embedXMP(img.file, kws, creator);
+            } else if (saveMode === 'embed' && img.file.type.includes('png')) {
+              blob = await embedXMPinPNG(img.file, kws, creator);
+            } else if (saveMode === 'embed' && !canEmbed && !isRaw) {
+              console.log('[SAVE] Converting to JPEG:', img.name);
+              const jpegBlob = await convertToJPEG(img.file);
+              const jpegFile = new File([jpegBlob], 'temp.jpg', { type: 'image/jpeg' });
+              blob = await embedXMP(jpegFile, kws, creator);
+              filename = filename.replace(/\.[^.]+$/, '.jpg');
+            } else {
+              blob = new Blob([generateXMP(kws, creator)], { type: 'application/rdf+xml' });
+              filename = filename.replace(/\.[^.]+$/, '') + '.xmp';
+            }
+
+            // Save to output directory
+            const fh = await outputDir.getFileHandle(filename, { create: true });
+            const w = await fh.createWritable();
+            await w.write(blob);
+            await w.close();
+            console.log('[SAVE] Saved to disk:', filename);
+
+            // Copy raw file if needed
+            if (isRaw) {
+              const rawFh = await outputDir.getFileHandle(img.name, { create: true });
+              const rawW = await rawFh.createWritable();
+              await rawW.write(img.file);
+              await rawW.close();
+              console.log('[SAVE] Copied raw file:', img.name);
+            }
+          } catch (e) {
+            console.error('[SAVE] Failed to save to disk:', e);
+          }
+        } else {
+          console.log('[SAVE] ✅ Marking as done (no file save):', img.name, 'with', kws.length, 'keywords');
         }
 
-        console.log('[SAVE] ✅ Saving:', img.name, 'with', kws.length, 'keywords', 'skipSync:', skipSync, 'outputDir:', !!outputDir);
-        try {
-          let blob, filename = img.name;
-          const creator = des?.designer || null;
-          const isRaw = isRawFormat(img.name);
-          const canEmbed = supportsEmbedding(img.file);
+        // Preserve pending keywords so they show when re-selecting done images
+        const creator = des?.designer || null;
+        const currentPending = pending.length > 0 ? pending : (img.pending || []);
+        setQueue(q => q.map(i => i.id === img.id ? { ...i, status: 'done', keywords: kws, pending: currentPending } : i));
+        setMemory(prev => ({ ...prev, [img.hash]: { exported: true, keywords: kws, pending: currentPending, creator, hidden: img.hidden } }));
+        setModified(false);
+        setIsEditing(false);
 
-          if (saveMode === 'embed' && img.file.type.includes('jpeg')) {
-            blob = await embedXMP(img.file, kws, creator);
-          } else if (saveMode === 'embed' && img.file.type.includes('png')) {
-            blob = await embedXMPinPNG(img.file, kws, creator);
-          } else if (saveMode === 'embed' && !canEmbed && !isRaw) {
-            console.log('[SAVE] Converting to JPEG:', img.name);
-            const jpegBlob = await convertToJPEG(img.file);
-            const jpegFile = new File([jpegBlob], 'temp.jpg', { type: 'image/jpeg' });
-            blob = await embedXMP(jpegFile, kws, creator);
-            filename = filename.replace(/\.[^.]+$/, '.jpg');
-          } else {
-            blob = new Blob([generateXMP(kws, creator)], { type: 'application/rdf+xml' });
-            filename = filename.replace(/\.[^.]+$/, '') + '.xmp';
-          }
+        // Auto-select next image if current becomes filtered out
+        setTimeout(() => {
+          const currentQueue = queueRef.current;
+          const currentFiltered = currentQueue.filter(q => {
+            if (q.hidden) return showHidden;
+            if (q.status === 'done') return showDone;
+            if (q.status === 'analyzing') return showAnalyzing;
+            return showPending;
+          });
 
-          const saveFile = async (data, name) => {
-            if (outputDir) {
-              const fh = await outputDir.getFileHandle(name, { create: true });
-              const w = await fh.createWritable();
-              await w.write(data);
-              await w.close();
-              console.log('[SAVE] Saved:', name);
+          // If current image is no longer visible in filtered view, select next
+          if (!currentFiltered.find(q => q.id === img.id)) {
+            const currentIndex = currentFiltered.findIndex(q => q.id === selectedId);
+            if (currentFiltered.length > 0) {
+              const nextIndex = currentIndex >= 0 && currentIndex < currentFiltered.length ? currentIndex : 0;
+              selectImage(currentFiltered[nextIndex].id, true); // Skip auto-save to prevent cascade
             } else {
-              const url = URL.createObjectURL(data);
-              Object.assign(document.createElement('a'), { href: url, download: name }).click();
-              URL.revokeObjectURL(url);
-              console.log('[SAVE] Downloaded:', name);
+              setSelectedId(null);
             }
-          };
-
-          await saveFile(blob, filename);
-
-          if (isRaw && outputDir) {
-            await saveFile(img.file, img.name);
-            console.log('[SAVE] Copied raw file:', img.name);
           }
-
-          // Preserve pending keywords so they show when re-selecting done images
-          const currentPending = pending.length > 0 ? pending : (img.pending || []);
-          setQueue(q => q.map(i => i.id === img.id ? { ...i, status: 'done', keywords: kws, pending: currentPending } : i));
-          setMemory(prev => ({ ...prev, [img.hash]: { exported: true, keywords: kws, pending: currentPending, creator, hidden: img.hidden } }));
-          setModified(false);
-          setIsEditing(false);
-
-          // Auto-select next image if current becomes filtered out
-          setTimeout(() => {
-            const currentQueue = queueRef.current;
-            const currentFiltered = currentQueue.filter(q => {
-              if (q.hidden) return showHidden;
-              if (q.status === 'done') return showDone;
-              if (q.status === 'analyzing') return showAnalyzing;
-              return showPending;
-            });
-
-            // If current image is no longer visible in filtered view, select next
-            if (!currentFiltered.find(q => q.id === img.id)) {
-              const currentIndex = currentFiltered.findIndex(q => q.id === selectedId);
-              if (currentFiltered.length > 0) {
-                const nextIndex = currentIndex >= 0 && currentIndex < currentFiltered.length ? currentIndex : 0;
-                selectImage(currentFiltered[nextIndex].id, true); // Skip auto-save to prevent cascade
-              } else {
-                setSelectedId(null);
-              }
-            }
-          }, 100);
-
-          // Removed auto-sync functionality - now using auto-select instead
-        } catch (e) { console.error('[SAVE] Failed:', e); }
-      }, [saveMode, outputDir, showHidden, showDone, showAnalyzing, showPending, selectedId]);
+        }, 100);
+      }, [saveMode, outputDir, continuousSaveEnabled, showHidden, showDone, showAnalyzing, showPending, selectedId]);
 
       // Analysis
       const analyzeImage = useCallback(async (img) => {
@@ -1710,7 +1706,7 @@
             const selectedImages = queue.filter(q => selectedIds.includes(q.id));
             for (const img of selectedImages) {
               // Use the current keywords for all selected images
-              await saveImage(img, keywords, designer, true); // skipSync=true for batch
+              await saveImage(img, keywords, designer);
             }
             // If autoApply is enabled AND navigating outside the group, mark all selected images as done
             if (autoApply && isNavigatingOutsideGroup) {
@@ -1821,7 +1817,8 @@
                     setQueue(q => q.map(item => item.id === img.id ? { ...item, keywords: deduped } : item));
                   }
                   console.log('[MULTI-SELECT] Saving', img.name, 'with', deduped.length, 'keywords');
-                  return saveImage(img, deduped, img.designer || designer, true);
+                  // Don't use skipSync=true - let each image save independently
+                  return saveImage(img, deduped, img.designer || designer);
                 }))
                   .then(() => {
                     console.log('[MULTI-SELECT] Auto-save complete - saved', imagesToSave.length, 'images');
@@ -2057,8 +2054,7 @@
 
         for (const img of toSave) {
           try {
-            // Skip sync when batch saving to avoid cascade
-            await saveImage(img, img.keywords, img.designer, true);
+            await saveImage(img, img.keywords, img.designer);
           } catch (e) {
             console.error(`[SAVE ALL] Failed to save ${img.name}:`, e);
           }
@@ -3217,6 +3213,18 @@
                                 });
                                 if (fileHandles && fileHandles.length > 0) {
                                   const files = await Promise.all(fileHandles.map(handle => handle.getFile()));
+
+                                  // Load memory from output directory if set, so we can track which files are already done
+                                  if (outputDir) {
+                                    const folderMemory = await loadMemory(outputDir);
+                                    if (folderMemory && Object.keys(folderMemory).length > 0) {
+                                      console.log('[BROWSE FILES] Loaded memory from output folder:', Object.keys(folderMemory).length, 'items');
+                                      const mergedMemory = { ...memoryRef.current, ...folderMemory };
+                                      memoryRef.current = mergedMemory;
+                                      setMemory(mergedMemory);
+                                    }
+                                  }
+
                                   processFilesRef.current?.(files);
                                 }
                               } else {
@@ -3616,7 +3624,7 @@
                               console.log('[SAVE BUTTON] Saving', selectedIds.length, 'selected images');
                               const selectedImages = queue.filter(q => selectedIds.includes(q.id));
                               for (const img of selectedImages) {
-                                await saveImage(img, keywords, designer, true); // skipSync=true for batch
+                                await saveImage(img, keywords, designer);
                               }
                             } else {
                               await saveImage(selectedImg, keywords, designer);
