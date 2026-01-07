@@ -174,7 +174,7 @@
     );
 
     // Optimized thumbnail component with lazy loading
-    const ThumbnailImage = memo(({ item, isSelected, onSelect, onHide, onUnhide, thumbSize, showPending, showDone, showAnalyzing, s }) => {
+    const ThumbnailImage = memo(({ item, isSelected, isPrimarySelection, onSelect, onHide, onUnhide, thumbSize, showPending, showDone, showAnalyzing, s }) => {
       const [thumbUrl, setThumbUrl] = useState(null);
       const [isLoading, setIsLoading] = useState(true);
       const imgRef = useRef(null);
@@ -236,10 +236,12 @@
 
       const statusColor = item.status === 'done' ? '#68B757' : item.status === 'editing' ? '#4147FF' : item.status === 'ready' ? '#4147FF' : item.status === 'analyzing' ? '#fbbf24' : item.status === 'error' ? '#ef4444' : s.textMuted;
       const selectionColor = showDone ? '#68B757' : showPending ? '#4147FF' : showAnalyzing ? '#fbbf24' : s.text;
+      const borderWidth = isPrimarySelection ? '6px' : '2px'; // 3x thickness for primary selection
 
       return (
         <motion.div
           ref={imgRef}
+          data-thumbnail-id={item.id}
           layout
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -248,7 +250,7 @@
           title={item.status === 'error' ? item.errorMessage || 'Analysis failed - click to retry' : ''}
           style={{
             position: 'relative', borderRadius: 0, overflow: 'hidden', cursor: 'pointer',
-            border: `2px solid ${isSelected ? selectionColor : 'transparent'}`,
+            border: `${borderWidth} solid ${isSelected ? selectionColor : 'transparent'}`,
             boxShadow: 'none',
             opacity: item.hidden ? 0.4 : item.status === 'done' ? 0.7 : 1,
             backgroundColor: '#2B2B2B'
@@ -698,16 +700,39 @@
 
             if (filteredQueue[newIndex]) {
               const newId = filteredQueue[newIndex].id;
-              setSelectedIds([newId]); // Update blue outline to follow arrow navigation
+
+              // Auto-select similar images if toggle is on
+              if (autoSelectSimilar) {
+                const newImg = queue.find(q => q.id === newId);
+                if (newImg) {
+                  const similarImages = getSimilarImages(newImg);
+                  const similarIds = similarImages.map(img => img.id);
+                  const newSelection = [newId, ...similarIds];
+                  setSelectedIds(newSelection);
+                } else {
+                  setSelectedIds([newId]);
+                }
+              } else {
+                setSelectedIds([newId]);
+              }
+
               setLastClickedId(newId);
               selectImage(newId);
+
+              // Scroll the thumbnail into view
+              setTimeout(() => {
+                const thumbnail = document.querySelector(`[data-thumbnail-id="${newId}"]`);
+                if (thumbnail) {
+                  thumbnail.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+                }
+              }, 50);
             }
           }
         };
 
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-      }, [filteredQueue, selectedId]);
+      }, [filteredQueue, selectedId, autoSelectSimilar, queue, getSimilarImages]);
 
       // Save settings
       useEffect(() => {
@@ -3258,12 +3283,13 @@
                     </div>
                   </div>
                 ) : (
-                  <div style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(${currentThumbSize}px, 1fr))`, gap: 8 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(${currentThumbSize}px, 1fr))`, gap: 8 }} id="thumbnail-grid">
                     {filteredQueue.map(item => (
                       <ThumbnailImage
                         key={item.id}
                         item={item}
                         isSelected={selectedIds.includes(item.id)}
+                        isPrimarySelection={item.id === lastClickedId}
                         onSelect={handleThumbnailClick}
                         onHide={hideImage}
                         onUnhide={unhideImage}
