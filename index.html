@@ -1461,6 +1461,7 @@
             console.log('[ANALYZE] Using cached analysis from IndexedDB for:', img.name);
             // Re-process cached keywords through the categorization logic
             const rawKws = cached.rawKeywords || [];
+            console.log('[CACHE] Raw keywords from cache:', rawKws.map(k => `"${k.value}" (type: ${k.type})`).join(', '));
             const visionResult = cached.visionData || null;
             const designerInfo = cached.designer || null;
 
@@ -1489,8 +1490,10 @@
               const isRequiredCategory = REQUIRED_CATEGORIES.includes(kw.value);
               if (inMaster || isEmbedded || isBrandOrCreator || isCountry || isRequiredCategory) {
                 auto.push(kw);
+                console.log(`[CACHE-AUTO] "${kw.value}" auto-accepted: inMaster=${inMaster}, isEmbedded=${isEmbedded}, isBrandOrCreator=${isBrandOrCreator} (type: ${kw.type}), isCountry=${isCountry}, isRequired=${isRequiredCategory}`);
               } else {
                 review.push(kw);
+                console.log(`[CACHE-REVIEW] "${kw.value}" needs review: type=${kw.type}, inMaster=${inMaster}`);
               }
             });
             console.log(`[CACHE] ${auto.length} auto-accepted, ${review.length} for review`);
@@ -1615,9 +1618,12 @@
           if (brandFound.length > 0) console.log(`[DESIGNER] Brand: ${brandFound[0].value}`);
           if (modelFound.length > 0) console.log(`[DESIGNER] Model: ${modelFound[0].value}`);
 
-          if (debugUseDesignerLookup && brandFound.length > 0 && modelFound.length > 0) {
-            console.log(`[DESIGNER] Looking up designer for: ${brandFound[0].value} ${modelFound[0].value}`);
-            designerInfo = await findDesigner(geminiKey, `${brandFound[0].value} ${modelFound[0].value}`);
+          if (debugUseDesignerLookup && brandFound.length > 0) {
+            const searchQuery = modelFound.length > 0
+              ? `${brandFound[0].value} ${modelFound[0].value}`
+              : brandFound[0].value;
+            console.log(`[DESIGNER] Looking up designer for: ${searchQuery}`);
+            designerInfo = await findDesigner(geminiKey, searchQuery);
             console.log(`[DESIGNER] Result:`, designerInfo);
             if (designerInfo?.designers && designerInfo.designers.length > 0) {
               console.log(`[DESIGNER] Found ${designerInfo.designers.length} designers:`, designerInfo.designers);
@@ -3275,34 +3281,74 @@
                                 if (fileHandles && fileHandles.length > 0) {
                                   const files = await Promise.all(fileHandles.map(handle => handle.getFile()));
 
-                                  // Try to load memory from the parent folder
-                                  // Since we can't get parent from file handles, we'll ask user to select the folder
-                                  let memoryLoaded = false;
+                                  // Automatically ask for folder access to remember the location
+                                  // This allows us to start in the same folder next time
+                                  try {
+                                    const dirHandle = await window.showDirectoryPicker({
+                                      id: 'browse-images-folder',
+                                      mode: 'readwrite',
+                                      startIn: lastBrowseDir || 'pictures'
+                                    });
 
-                                  // First try: Load from lastBrowseDir if available
-                                  if (lastBrowseDir) {
-                                    try {
-                                      const folderMemory = await loadMemory(lastBrowseDir);
-                                      if (folderMemory && Object.keys(folderMemory).length > 0) {
-                                        console.log('[BROWSE FILES] Loaded memory from last browse folder:', Object.keys(folderMemory).length, 'items');
-                                        const mergedMemory = { ...memoryRef.current, ...folderMemory };
-                                        memoryRef.current = mergedMemory;
-                                        setMemory(mergedMemory);
-                                        memoryLoaded = true;
+                                    if (dirHandle) {
+                                      // Save this folder location for next time
+                                      setLastBrowseDir(dirHandle);
+                                      console.log('[BROWSE FILES] Saved folder location:', dirHandle.name);
+
+                                      // Try to load memory from this folder
+                                      try {
+                                        const folderMemory = await loadMemory(dirHandle);
+                                        if (folderMemory && Object.keys(folderMemory).length > 0) {
+                                          console.log('[BROWSE FILES] Loaded memory from selected folder:', Object.keys(folderMemory).length, 'items');
+                                          const mergedMemory = { ...memoryRef.current, ...folderMemory };
+                                          memoryRef.current = mergedMemory;
+                                          setMemory(mergedMemory);
+                                        }
+                                      } catch (e) {
+                                        console.log('[BROWSE FILES] Could not load memory from selected folder:', e);
                                       }
-                                    } catch (e) {
-                                      console.log('[BROWSE FILES] Could not load memory from last browse folder:', e);
-                                    }
-                                  }
 
-                                  // Second try: Load memory from output directory if set and memory not loaded yet
-                                  if (!memoryLoaded && outputDir) {
-                                    const folderMemory = await loadMemory(outputDir);
-                                    if (folderMemory && Object.keys(folderMemory).length > 0) {
-                                      console.log('[BROWSE FILES] Loaded memory from output folder:', Object.keys(folderMemory).length, 'items');
-                                      const mergedMemory = { ...memoryRef.current, ...folderMemory };
-                                      memoryRef.current = mergedMemory;
-                                      setMemory(mergedMemory);
+                                      // Set as output directory if none is set
+                                      if (!outputDir) {
+                                        setOutputDir(dirHandle);
+                                        setOutputDirName(dirHandle.name);
+                                        await saveOutputDirectory(dirHandle);
+                                        setContinuousSaveEnabled(true);
+                                        console.log('[BROWSE FILES] Set as output directory with continuous save:', dirHandle.name);
+                                      }
+                                    }
+                                  } catch (e) {
+                                    if (e.name !== 'AbortError') {
+                                      console.log('[BROWSE FILES] Could not get folder access:', e);
+                                    }
+                                    // Fall back to trying lastBrowseDir or outputDir for memory
+                                    let memoryLoaded = false;
+                                    if (lastBrowseDir) {
+                                      try {
+                                        const folderMemory = await loadMemory(lastBrowseDir);
+                                        if (folderMemory && Object.keys(folderMemory).length > 0) {
+                                          console.log('[BROWSE FILES] Loaded memory from last browse folder:', Object.keys(folderMemory).length, 'items');
+                                          const mergedMemory = { ...memoryRef.current, ...folderMemory };
+                                          memoryRef.current = mergedMemory;
+                                          setMemory(mergedMemory);
+                                          memoryLoaded = true;
+                                        }
+                                      } catch (e2) {
+                                        console.log('[BROWSE FILES] Could not load memory from last browse folder:', e2);
+                                      }
+                                    }
+                                    if (!memoryLoaded && outputDir) {
+                                      try {
+                                        const folderMemory = await loadMemory(outputDir);
+                                        if (folderMemory && Object.keys(folderMemory).length > 0) {
+                                          console.log('[BROWSE FILES] Loaded memory from output folder:', Object.keys(folderMemory).length, 'items');
+                                          const mergedMemory = { ...memoryRef.current, ...folderMemory };
+                                          memoryRef.current = mergedMemory;
+                                          setMemory(mergedMemory);
+                                        }
+                                      } catch (e2) {
+                                        console.log('[BROWSE FILES] Could not load memory from output folder:', e2);
+                                      }
                                     }
                                   }
 

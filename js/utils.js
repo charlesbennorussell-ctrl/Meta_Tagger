@@ -635,6 +635,8 @@ const splitBrandModel = (text) => {
   const results = [];
   let remaining = text.trim();
 
+  console.log(`[SPLIT] Processing: "${text}"`);
+
   // Handle comma-separated lists (e.g., "Painting, Sculpture, Photography")
   // Only split if there are 3+ items to avoid splitting "Brand, Model" patterns
   if (remaining.includes(',')) {
@@ -704,6 +706,7 @@ const splitBrandModel = (text) => {
       foundBrand = brand;
       brandCategory = BRAND_CATEGORIES[brand.toLowerCase()];
       remaining = remaining.replace(new RegExp(`^${brand.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*`, 'i'), '').trim();
+      console.log(`[SPLIT] Found brand: "${foundBrand}" with remaining: "${remaining}"`);
       break;
     }
   }
